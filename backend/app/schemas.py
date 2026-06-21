@@ -20,6 +20,33 @@ class HouseholdOut(BaseModel):
     created_at: datetime
 
 
+# ---------- Preferences (taste profile / initial interview) ----------
+
+class PreferenceCreate(BaseModel):
+    household_id: str
+    liked_items: list[str] = []
+    disliked_items: list[str] = []  # soft: deprioritize, don't reject
+    excluded_items: list[str] = []  # hard: allergies / never make
+
+
+class PreferenceUpdate(BaseModel):
+    liked_items: Optional[list[str]] = None
+    disliked_items: Optional[list[str]] = None
+    excluded_items: Optional[list[str]] = None
+
+
+class PreferenceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    household_id: str
+    liked_items: list[str]
+    disliked_items: list[str]
+    excluded_items: list[str]
+    created_at: datetime
+    updated_at: datetime
+
+
 # ---------- Pantry Item ----------
 
 class PantryItemCreate(BaseModel):

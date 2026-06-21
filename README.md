@@ -60,7 +60,22 @@ curl -X POST http://localhost:8000/households \
   -H "Content-Type: application/json" \
   -d '{"name": "The Smiths", "num_people": 4}'
 
-# Add a pantry item (use the household id returned above)
+# Initial deployment interview: capture taste profile (use the household id above)
+curl -X POST http://localhost:8000/preferences \
+  -H "Content-Type: application/json" \
+  -d '{
+        "household_id": "<id>",
+        "liked_items": ["italian", "mexican", "garlic", "spicy"],
+        "disliked_items": ["cilantro", "blue cheese"],
+        "excluded_items": ["peanuts", "shellfish"]
+      }'
+
+# Edit preferences any time later
+curl -X PUT http://localhost:8000/preferences/<household_id> \
+  -H "Content-Type: application/json" \
+  -d '{"disliked_items": ["cilantro", "blue cheese", "olives"]}'
+
+# Add a pantry item
 curl -X POST http://localhost:8000/pantry \
   -H "Content-Type: application/json" \
   -d '{"household_id": "<id>", "name": "olive oil", "quantity": 1, "unit": "bottle", "category": "pantry"}'
@@ -68,6 +83,16 @@ curl -X POST http://localhost:8000/pantry \
 # List pantry items
 curl http://localhost:8000/pantry?household_id=<id>
 ```
+
+### Preference semantics
+
+- **`liked_items`** — ingredients/cuisines to favor in recipe scoring (Phase 3).
+- **`disliked_items`** — SOFT excludes. A recipe containing one of these is
+  deprioritized but can still surface if it's otherwise a strong match.
+- **`excluded_items`** — HARD excludes. Allergies, intolerances, or "never
+  make this" items. Any recipe containing one of these is rejected outright,
+  no exceptions, no scoring override.
+
 
 ## Tech stack
 
