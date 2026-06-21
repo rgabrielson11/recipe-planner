@@ -27,12 +27,22 @@ class PreferenceCreate(BaseModel):
     liked_items: list[str] = []
     disliked_items: list[str] = []  # soft: deprioritize, don't reject
     excluded_items: list[str] = []  # hard: allergies / never make
+    max_cook_time_minutes: Optional[int] = None
+    skill_level: Optional[str] = None  # beginner | intermediate | advanced
+    available_methods: list[str] = []  # e.g. oven, stovetop, grill, slow_cooker, instant_pot, air_fryer
+    available_cookware: list[str] = []  # e.g. dutch_oven, cast_iron_skillet, wok, sheet_pan, stand_mixer
+    notes: Optional[str] = None
 
 
 class PreferenceUpdate(BaseModel):
     liked_items: Optional[list[str]] = None
     disliked_items: Optional[list[str]] = None
     excluded_items: Optional[list[str]] = None
+    max_cook_time_minutes: Optional[int] = None
+    skill_level: Optional[str] = None
+    available_methods: Optional[list[str]] = None
+    available_cookware: Optional[list[str]] = None
+    notes: Optional[str] = None
 
 
 class PreferenceOut(BaseModel):
@@ -43,6 +53,11 @@ class PreferenceOut(BaseModel):
     liked_items: list[str]
     disliked_items: list[str]
     excluded_items: list[str]
+    max_cook_time_minutes: Optional[int]
+    skill_level: Optional[str]
+    available_methods: list[str]
+    available_cookware: list[str]
+    notes: Optional[str]
     created_at: datetime
     updated_at: datetime
 

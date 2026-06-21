@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -5,6 +8,21 @@ from app import models, schemas
 from app.database import get_db
 
 router = APIRouter(prefix="/preferences", tags=["preferences"])
+
+_VOCAB_PATH = Path(__file__).resolve().parent.parent / "data" / "cooking_vocabulary.json"
+
+
+@router.get("/vocabulary")
+def get_interview_vocabulary():
+    """
+    Valid options for skill_level, available_methods, and available_cookware.
+    The interview UI (or a re-run "update my preferences" flow) should pull
+    this list rather than hardcoding choices, so adding a new cooking method
+    later (e.g. a new appliance) only requires editing
+    backend/app/data/cooking_vocabulary.json.
+    """
+    with open(_VOCAB_PATH) as f:
+        return json.load(f)
 
 
 @router.post("", response_model=schemas.PreferenceOut)

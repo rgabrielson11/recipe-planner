@@ -33,8 +33,11 @@ class Household(Base):
 
 class Preference(Base):
     """
-    Household-wide taste profile, captured during the initial setup
-    interview and editable any time afterward.
+    Household-wide taste and cooking profile, captured during the initial
+    setup interview and editable any time afterward via the same endpoints
+    (PUT /preferences/{household_id}) — there is no "locked" interview;
+    re-running it later (e.g. new appliance, changed tastes) is just an
+    update to the same record.
 
     - liked_items: ingredients/cuisines to favor when matching recipes
     - disliked_items: SOFT dislikes — recipes containing these are
@@ -42,6 +45,19 @@ class Preference(Base):
     - excluded_items: HARD excludes — allergies, intolerances, or "never
       make this" items. Any recipe containing one of these is rejected
       outright by the matching engine, no exceptions.
+    - max_cook_time_minutes: recipes above this active+total time are
+      deprioritized/filtered depending on matching engine strictness setting
+    - skill_level: beginner / intermediate / advanced — filters recipe
+      complexity
+    - available_methods: cooking methods the household can actually use
+      (e.g. oven, stovetop, grill, slow_cooker, instant_pot, air_fryer,
+      sous_vide, smoker, microwave) — recipes requiring an unavailable
+      method are excluded
+    - available_cookware: specific equipment on hand (e.g. dutch_oven,
+      cast_iron_skillet, wok, sheet_pan, stand_mixer, blender,
+      food_processor, immersion_blender) — same exclusion behavior
+    - notes: free-form catch-all for anything else (e.g. "no deep frying
+      indoors", "kids won't eat anything spicy")
     """
 
     __tablename__ = "preferences"
@@ -53,6 +69,11 @@ class Preference(Base):
     liked_items = Column(ARRAY(String), nullable=False, default=list)
     disliked_items = Column(ARRAY(String), nullable=False, default=list)
     excluded_items = Column(ARRAY(String), nullable=False, default=list)
+    max_cook_time_minutes = Column(Integer, nullable=True)
+    skill_level = Column(String, nullable=True)  # beginner | intermediate | advanced
+    available_methods = Column(ARRAY(String), nullable=False, default=list)
+    available_cookware = Column(ARRAY(String), nullable=False, default=list)
+    notes = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

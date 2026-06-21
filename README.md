@@ -55,25 +55,33 @@ unnecessary purchases:
 ## API quickstart
 
 ```bash
+# Get valid options for skill level / cooking methods / cookware (drives the interview UI)
+curl http://localhost:8000/preferences/vocabulary
+
 # Create a household
 curl -X POST http://localhost:8000/households \
   -H "Content-Type: application/json" \
   -d '{"name": "The Smiths", "num_people": 4}'
 
-# Initial deployment interview: capture taste profile (use the household id above)
+# Initial deployment interview: capture taste + cooking profile (use the household id above)
 curl -X POST http://localhost:8000/preferences \
   -H "Content-Type: application/json" \
   -d '{
         "household_id": "<id>",
         "liked_items": ["italian", "mexican", "garlic", "spicy"],
         "disliked_items": ["cilantro", "blue cheese"],
-        "excluded_items": ["peanuts", "shellfish"]
+        "excluded_items": ["peanuts", "shellfish"],
+        "max_cook_time_minutes": 45,
+        "skill_level": "intermediate",
+        "available_methods": ["stovetop", "oven", "instant_pot_pressure_cooker", "air_fryer"],
+        "available_cookware": ["sheet_pan", "dutch_oven", "cast_iron_skillet", "blender"],
+        "notes": "No deep frying indoors. Kids won'\''t eat anything spicy."
       }'
 
-# Edit preferences any time later
+# Re-run part of the interview later (new air fryer, tastes changed, etc.) — partial update, nothing is locked in
 curl -X PUT http://localhost:8000/preferences/<household_id> \
   -H "Content-Type: application/json" \
-  -d '{"disliked_items": ["cilantro", "blue cheese", "olives"]}'
+  -d '{"available_methods": ["stovetop", "oven", "instant_pot_pressure_cooker", "air_fryer", "sous_vide"]}'
 
 # Add a pantry item
 curl -X POST http://localhost:8000/pantry \
@@ -92,6 +100,18 @@ curl http://localhost:8000/pantry?household_id=<id>
 - **`excluded_items`** — HARD excludes. Allergies, intolerances, or "never
   make this" items. Any recipe containing one of these is rejected outright,
   no exceptions, no scoring override.
+- **`max_cook_time_minutes`**, **`skill_level`** — filter out recipes that
+  are too long or too advanced for the household.
+- **`available_methods`** / **`available_cookware`** — hard filters too: a
+  recipe requiring a smoker or stand mixer the household doesn't have is
+  excluded, same as an allergy. Valid values come from
+  `GET /preferences/vocabulary` / `backend/app/data/cooking_vocabulary.json`,
+  which is meant to be extended over time (e.g. a new appliance) without a
+  schema change.
+- **Nothing here is locked in.** Every field is editable any time via
+  `PUT /preferences/{household_id}` — there's no separate "re-run the
+  interview" mechanism, just the same update endpoint used to keep the
+  profile current as tastes, equipment, or schedules change.
 
 
 ## Tech stack
