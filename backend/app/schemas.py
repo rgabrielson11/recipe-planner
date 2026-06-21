@@ -71,11 +71,15 @@ class StapleCreate(BaseModel):
     name: str
 
 
-# ---------- Recipes (stub ahead of Phase 2 scraper) ----------
+# ---------- Recipes (local reference to Mealie-stored recipes) ----------
 
 class RecipeCreate(BaseModel):
     source_url: str
     title: str
+
+
+class RecipeImport(BaseModel):
+    source_url: str
 
 
 class RecipeOut(BaseModel):
@@ -84,6 +88,7 @@ class RecipeOut(BaseModel):
     id: str
     source_url: str
     title: str
+    mealie_slug: Optional[str]
     created_at: datetime
 
 
@@ -103,6 +108,31 @@ class RejectionOut(BaseModel):
     recipe_id: str
     reason_category: str
     reason_detail: Optional[str]
+    created_at: datetime
+
+
+# ---------- Meal plan entries (weekly review / favorites loop) ----------
+
+class MealPlanEntryCreate(BaseModel):
+    household_id: str
+    recipe_id: str
+    week_start_date: date
+
+
+class MealPlanEntryReview(BaseModel):
+    rating: int  # 1-5
+
+
+class MealPlanEntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    household_id: str
+    recipe_id: str
+    week_start_date: date
+    rating: Optional[int]
+    is_favorite: bool
+    reviewed_at: Optional[datetime]
     created_at: datetime
 
 

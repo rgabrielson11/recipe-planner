@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, date
 
-from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Date, Numeric
+from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Date, Numeric, Boolean
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import relationship
 
@@ -76,6 +76,7 @@ class Preference(Base):
     available_methods = Column(ARRAY(String), nullable=False, default=list)
     available_cookware = Column(ARRAY(String), nullable=False, default=list)
     recipe_options_per_meal = Column(Integer, nullable=False, default=3)
+    favorite_rating_threshold = Column(Integer, nullable=False, default=4)  # star rating (1-5) at/above which a reviewed recipe becomes a favorite
     notes = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -101,11 +102,15 @@ class PantryItem(Base):
 
 class Recipe(Base):
     """
-    Minimal recipe stub. Full scraper-populated fields (ingredients,
-    instructions, rating, image, source attribution) land in Phase 2 when
-    the recipe-scraper module is built. This stub exists now so rejection
-    tracking has a concrete recipe_id to attach to, and so the rejection
-    flow can be tested ahead of the scraper.
+    A local reference to a recipe stored in Mealie (the actual recipe
+    content — ingredients, instructions, image — lives there, not here).
+    `mealie_slug` is Mealie's identifier for the recipe; `source_url` and
+    `title` are cached locally for display without an extra Mealie call.
+
+    A recipe with no `mealie_slug` yet is a "pending" stub — e.g. created
+    by POST /recipes before the Mealie import call completes/succeeds, or
+    if Mealie was unreachable. The matching engine should treat these as
+    not-yet-usable until a slug is set.
     """
 
     __tablename__ = "recipes"
@@ -113,10 +118,14 @@ class Recipe(Base):
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
     source_url = Column(String, nullable=False, unique=True)
     title = Column(String, nullable=False)
+    mealie_slug = Column(String, nullable=True, unique=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     rejections = relationship(
         "RecipeRejection", back_populates="recipe", cascade="all, delete-orphan"
+    )
+    meal_plan_entries = relationship(
+        "MealPlanEntry", back_populates="recipe", cascade="all, delete-orphan"
     )
 
 
@@ -139,4 +148,34 @@ class RecipeRejection(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     recipe = relationship("Recipe", back_populates="rejections")
+
+
+class MealPlanEntry(Base):
+    """
+    One recipe slotted into one household's plan for a given week.
+    Captures the weekly review/favorites loop: a recipe is added to a
+    week's plan, then after the week, reviewed with a 1-5 star rating.
+    If the rating meets or exceeds the household's
+    favorite_rating_threshold, is_favorite is set and the recipe is
+    tagged/favorited back in Mealie too (best-effort — see
+    app/mealie_client.py).
+
+    The Phase 3 matching engine should pull a deliberate MIX of
+    is_favorite=True recipes (repeats of what's worked before) and
+    never-yet-rated recipes (new discoveries) when building each week's
+    options — never all-repeat, never all-untested.
+    """
+
+    __tablename__ = "meal_plan_entries"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    household_id = Column(UUID(as_uuid=False), ForeignKey("households.id"), nullable=False)
+    recipe_id = Column(UUID(as_uuid=False), ForeignKey("recipes.id"), nullable=False)
+    week_start_date = Column(Date, nullable=False)
+    rating = Column(Integer, nullable=True)  # 1-5, set during weekly review
+    is_favorite = Column(Boolean, nullable=False, default=False)
+    reviewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    recipe = relationship("Recipe", back_populates="meal_plan_entries")
 

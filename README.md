@@ -4,17 +4,20 @@ Self-hosted meal planning app: tracks on-hand pantry ingredients, scrapes
 trusted recipe sites for matches, generates weekly shopping lists, and
 exports recipes to PDF. Built to run on Unraid via Docker Compose.
 
-## Status: Phase 1 — Pantry CRUD (this commit)
+## Status
 
-Working: household profile + pantry item CRUD via a FastAPI backend and
-Postgres database.
+Working: household profile + interview (preferences, cooking constraints),
+pantry + staples tracking, Mealie-backed recipe import, recipe rejection
+tracking, and the weekly review/favorites loop. The matching engine that
+ties these together into actual weekly suggestions (Phase 3) and shopping
+list generation (Phase 5) are still pending.
 
 ### Roadmap
 1. ✅ Data model + pantry CRUD
-2. ⬜ Recipe scraper module (`recipe-scrapers` + curated site allowlist) — populates the `recipes` table beyond the current stub
-3. ⬜ Matching engine (pantry overlap %, rating threshold, hard excludes from preferences, rejection history)
-4. ✅ Interview flow (servings, diet, cuisine, cook-time, skill, methods, cookware — all editable later)
-5. ⬜ Weekly plan generator → shopping list → Apple Reminders export, PDF recipe export
+2. ✅ Recipe storage delegated to Mealie (`POST /recipes/import`) + local reference rows; ⬜ still need a curated-site allowlist / bulk discovery flow rather than one-URL-at-a-time
+3. ⬜ Matching engine (pantry overlap %, rating threshold, hard excludes from preferences, rejection history, favorites/new-discovery mix)
+4. ✅ Interview flow (servings, diet, cuisine, cook-time, skill, methods, cookware, options-per-meal, favorite threshold — all editable later)
+5. ✅ Weekly review/favorites loop (star ratings → favorites, synced to Mealie); ⬜ shopping list generation, Apple Reminders export, PDF recipe export still pending
 
 ## Security architecture
 
@@ -177,6 +180,27 @@ curl http://localhost:8000/recipes/rejection-reasons
 curl -X POST http://localhost:8000/recipes/<recipe_id>/reject \
   -H "Content-Type: application/json" \
   -d '{"household_id": "<id>", "reason_category": "cook_method_unavailable", "reason_detail": "Requires a smoker, we don'\''t have one"}'
+
+# Import a recipe via your Mealie instance (Mealie does the scraping)
+curl -X POST http://localhost:8000/recipes/import \
+  -H "Content-Type: application/json" \
+  -d '{"source_url": "https://www.seriouseats.com/example-recipe"}'
+
+# Slot a recipe into this week's plan
+curl -X POST http://localhost:8000/meal-plan/entries \
+  -H "Content-Type: application/json" \
+  -d '{"household_id": "<id>", "recipe_id": "<recipe_id>", "week_start_date": "2026-06-22"}'
+
+# After cooking it, review it with a 1-5 star rating
+curl -X POST http://localhost:8000/meal-plan/entries/<entry_id>/review \
+  -H "Content-Type: application/json" \
+  -d '{"rating": 5}'
+
+# See last week's reviewed entries (the weekly review starting point)
+curl "http://localhost:8000/meal-plan/weekly-review?household_id=<id>&week_start_date=2026-06-22"
+
+# See all recipes that have become favorites
+curl "http://localhost:8000/meal-plan/favorites?household_id=<id>"
 ```
 
 ### Preference semantics
