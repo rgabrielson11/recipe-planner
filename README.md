@@ -32,6 +32,26 @@ services as Unraid Docker templates pointing at the same `docker-compose.yml`
 (Community Applications → "Add Container" → point Repository at the built image,
 or use the **Compose Manager** plugin to run this file directly).
 
+## Shopping list design principles
+
+The shopping list generator (Phase 5) is built around minimizing waste and
+unnecessary purchases:
+
+1. **Pantry-first matching** — on-hand stock is depleted across the *entire*
+   week's meal plan before anything is added to the shopping list, not
+   recipe-by-recipe.
+2. **Aggregate before rounding** — each ingredient's total need is summed
+   across all of the week's recipes first, then rounded up once, rather than
+   buying a full package per recipe that calls for it.
+3. **Real package sizes** — quantities round up to what's actually sold
+   (dozen eggs, half-gallon milk, 1 lb butter box, etc.), using
+   `backend/app/data/package_sizes.json` as the reference table. This table
+   is intentionally small to start and expands as new ingredients are
+   encountered.
+4. **Surplus carry-forward** — when a rounded purchase exceeds what's needed
+   that week, the leftover is written back into the pantry as expected
+   on-hand stock for next week's planning, closing the waste-reduction loop.
+
 ## API quickstart
 
 ```bash
