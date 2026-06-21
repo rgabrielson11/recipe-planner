@@ -16,6 +16,57 @@ Postgres database.
 4. ✅ Interview flow (servings, diet, cuisine, cook-time, skill, methods, cookware — all editable later)
 5. ⬜ Weekly plan generator → shopping list → Apple Reminders export, PDF recipe export
 
+## Security architecture
+
+This app has **no login/auth layer** — it's designed for trusted local
+network access only via a web browser. To keep that safe without
+credentials, the Docker setup is hardened instead:
+
+- **Isolated network** (`recipe-planner-net`) — the `db` and `api`
+  containers can only reach each other. They cannot see, and cannot be
+  seen by, any other container on your Unraid box.
+- **No database port exposure** — Postgres has no host port mapping at all;
+  only the `api` container can reach it, over the internal network.
+- **Single exposed port** — `8000` (the API/web UI) is the only port
+  reachable from your LAN. **Do not** forward it through your router or
+  otherwise expose it to the internet — there's no auth to stop anyone who
+  can reach it.
+- **Non-root container user**, dropped Linux capabilities, and
+  `no-new-privileges` on both containers, limiting blast radius if a
+  dependency or a scraped page tries something malicious.
+- **Outbound internet access is still needed** by the `api` container — for
+  scraping recipe sites and calling your Mealie instance — so this isn't a
+  fully air-gapped sandbox, but it is isolated from your other containers
+  and not reachable from outside your LAN.
+
+One practical note: the `./backend/app:/app/app` bind mount (used for live
+code reload) takes on the host directory's file ownership, which can
+conflict with the non-root container user when the API writes to the YAML
+config files. If you hit a permission error writing staples via the API,
+run `chmod -R a+rwX backend/app/data` on the Unraid host.
+
+## Mealie integration
+
+Recipe storage is delegated to a self-hosted [Mealie](https://mealie.io)
+instance rather than reinventing recipe storage/scraping — Mealie already
+has a robust URL-import scraper, ratings, tags, and favorites. This app
+becomes the layer on top: pantry tracking, preferences, weekly planning
+logic, and the favorites/feedback loop described below, talking to Mealie
+over its REST API using a service token (`MEALIE_API_TOKEN` in `.env`,
+backend-only, never exposed to the browser).
+
+## Weekly review & favorites loop
+
+Each week, the app:
+1. Reviews the previous week's planned recipes and any feedback recorded
+   for them.
+2. Recipes with favorable feedback get persisted as long-term "favorites"
+   (stored/tagged in Mealie).
+3. The next week's recipe suggestions are always a deliberate **mix** of
+   previously-favorited recipes and newly discovered, highly-rated recipes
+   from outside sources — never 100% repeats, never 100% untested new
+   recipes.
+
 ## Running locally / on Unraid
 
 1. Copy `.env.example` to `.env` and adjust credentials.

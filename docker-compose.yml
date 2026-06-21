@@ -1,18 +1,32 @@
 version: "3.9"
 
+# Isolated network: only the services in this compose file can talk to
+# each other. No external/internet egress is granted by the network itself
+# (the api container still has its own egress for scraping recipe sites
+# and calling Mealie — see notes in README — but it cannot reach, and
+# cannot be reached by, any other container on this Unraid box).
+networks:
+  recipe-planner-net:
+    name: recipe-planner-net
+    driver: bridge
+
 services:
   db:
     image: postgres:16-alpine
     container_name: recipe-planner-db
     restart: unless-stopped
+    networks:
+      - recipe-planner-net
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-planner}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-plannerpass}
       POSTGRES_DB: ${POSTGRES_DB:-recipe_planner}
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # No external port mapping: only the api container (same network) can
+    # reach Postgres. It is not reachable from the host or LAN at all.
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-planner}"]
       interval: 5s
@@ -26,10 +40,23 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - recipe-planner-net
     environment:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-planner}:${POSTGRES_PASSWORD:-plannerpass}@db:5432/${POSTGRES_DB:-recipe_planner}
+      MEALIE_BASE_URL: ${MEALIE_BASE_URL:-}
+      MEALIE_API_TOKEN: ${MEALIE_API_TOKEN:-}
     ports:
+      # The only port exposed to the host/LAN at all — this is the entire
+      # attack surface from outside the container network. No auth is
+      # layered on top of it since the app is intended for trusted local
+      # network access only; do not forward this port through your router
+      # or expose it to the internet.
       - "8000:8000"
     volumes:
       - ./backend/app:/app/app
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
