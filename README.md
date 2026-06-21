@@ -11,9 +11,9 @@ Postgres database.
 
 ### Roadmap
 1. ✅ Data model + pantry CRUD
-2. ⬜ Recipe scraper module (`recipe-scrapers` + curated site allowlist)
-3. ⬜ Matching engine (pantry overlap % + rating threshold)
-4. ⬜ Interview flow (servings, diet, cuisine, cook-time prefs)
+2. ⬜ Recipe scraper module (`recipe-scrapers` + curated site allowlist) — populates the `recipes` table beyond the current stub
+3. ⬜ Matching engine (pantry overlap %, rating threshold, hard excludes from preferences, rejection history)
+4. ✅ Interview flow (servings, diet, cuisine, cook-time, skill, methods, cookware — all editable later)
 5. ⬜ Weekly plan generator → shopping list → Apple Reminders export, PDF recipe export
 
 ## Running locally / on Unraid
@@ -45,12 +45,31 @@ unnecessary purchases:
    buying a full package per recipe that calls for it.
 3. **Real package sizes** — quantities round up to what's actually sold
    (dozen eggs, half-gallon milk, 1 lb butter box, etc.), using
-   `backend/app/data/package_sizes.json` as the reference table. This table
+   `backend/app/data/package_sizes.yaml` as the reference table. This table
    is intentionally small to start and expands as new ingredients are
    encountered.
 4. **Surplus carry-forward** — when a rounded purchase exceeds what's needed
    that week, the leftover is written back into the pantry as expected
    on-hand stock for next week's planning, closing the waste-reduction loop.
+
+## Hand-editable config files
+
+Several pieces of configuration are intentionally stored as plain YAML
+files under `backend/app/data/`, not just in the database, so they're easy
+to open and edit directly — in VS Code, through the bind-mounted
+`backend/app` directory, or over a network share on Unraid:
+
+| File | Purpose |
+|---|---|
+| `pantry_staples.yaml` | Always-on-hand ingredients (salt, oil, flour...). Never appear on a shopping list. |
+| `cooking_vocabulary.yaml` | Valid skill levels, cooking methods, and cookware — drives interview options. |
+| `package_sizes.yaml` | Real-world purchase units used to round shopping list quantities (Phase 5). |
+| `rejection_reasons.yaml` | Controlled categories for why a recipe was rejected. |
+
+These are read fresh on every API request (no caching, no restart needed),
+and the API endpoints that write to them (e.g. `POST /pantry/staples`) use
+a comment-preserving YAML writer, so hand-added comments survive even after
+the app edits the same file.
 
 ## API quickstart
 
@@ -90,6 +109,23 @@ curl -X POST http://localhost:8000/pantry \
 
 # List pantry items
 curl http://localhost:8000/pantry?household_id=<id>
+
+# View / add to the always-on-hand staples list (file-backed)
+curl http://localhost:8000/pantry/staples
+curl -X POST http://localhost:8000/pantry/staples -H "Content-Type: application/json" -d '{"name": "soy sauce"}'
+
+# Create a recipe stub (Phase 2 scraper will populate full details later)
+curl -X POST http://localhost:8000/recipes \
+  -H "Content-Type: application/json" \
+  -d '{"source_url": "https://www.seriouseats.com/example-recipe", "title": "Example Recipe"}'
+
+# See valid rejection reason categories
+curl http://localhost:8000/recipes/rejection-reasons
+
+# Reject a recipe option with a reason
+curl -X POST http://localhost:8000/recipes/<recipe_id>/reject \
+  -H "Content-Type: application/json" \
+  -d '{"household_id": "<id>", "reason_category": "cook_method_unavailable", "reason_detail": "Requires a smoker, we don'\''t have one"}'
 ```
 
 ### Preference semantics
@@ -105,9 +141,12 @@ curl http://localhost:8000/pantry?household_id=<id>
 - **`available_methods`** / **`available_cookware`** — hard filters too: a
   recipe requiring a smoker or stand mixer the household doesn't have is
   excluded, same as an allergy. Valid values come from
-  `GET /preferences/vocabulary` / `backend/app/data/cooking_vocabulary.json`,
+  `GET /preferences/vocabulary` / `backend/app/data/cooking_vocabulary.yaml`,
   which is meant to be extended over time (e.g. a new appliance) without a
   schema change.
+- **`recipe_options_per_meal`** — how many candidate recipes the planner
+  offers per meal slot (default 3), rather than auto-picking one. Each
+  option can be individually rejected with a reason (see below).
 - **Nothing here is locked in.** Every field is editable any time via
   `PUT /preferences/{household_id}` — there's no separate "re-run the
   interview" mechanism, just the same update endpoint used to keep the

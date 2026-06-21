@@ -56,6 +56,8 @@ class Preference(Base):
     - available_cookware: specific equipment on hand (e.g. dutch_oven,
       cast_iron_skillet, wok, sheet_pan, stand_mixer, blender,
       food_processor, immersion_blender) — same exclusion behavior
+    - recipe_options_per_meal: how many candidate recipes to offer per meal
+      slot when generating a weekly plan, rather than a single auto-pick
     - notes: free-form catch-all for anything else (e.g. "no deep frying
       indoors", "kids won't eat anything spicy")
     """
@@ -73,6 +75,7 @@ class Preference(Base):
     skill_level = Column(String, nullable=True)  # beginner | intermediate | advanced
     available_methods = Column(ARRAY(String), nullable=False, default=list)
     available_cookware = Column(ARRAY(String), nullable=False, default=list)
+    recipe_options_per_meal = Column(Integer, nullable=False, default=3)
     notes = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -94,4 +97,46 @@ class PantryItem(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     household = relationship("Household", back_populates="pantry_items")
+
+
+class Recipe(Base):
+    """
+    Minimal recipe stub. Full scraper-populated fields (ingredients,
+    instructions, rating, image, source attribution) land in Phase 2 when
+    the recipe-scraper module is built. This stub exists now so rejection
+    tracking has a concrete recipe_id to attach to, and so the rejection
+    flow can be tested ahead of the scraper.
+    """
+
+    __tablename__ = "recipes"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    source_url = Column(String, nullable=False, unique=True)
+    title = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    rejections = relationship(
+        "RecipeRejection", back_populates="recipe", cascade="all, delete-orphan"
+    )
+
+
+class RecipeRejection(Base):
+    """
+    Records why a household rejected a suggested recipe. reason_category
+    must be one of the values in data/rejection_reasons.yaml. This is
+    feedback data for the matching engine (don't re-suggest, and over time
+    surface patterns — e.g. repeated cook_method_unavailable rejections on
+    a method might prompt updating available_methods).
+    """
+
+    __tablename__ = "recipe_rejections"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    household_id = Column(UUID(as_uuid=False), ForeignKey("households.id"), nullable=False)
+    recipe_id = Column(UUID(as_uuid=False), ForeignKey("recipes.id"), nullable=False)
+    reason_category = Column(String, nullable=False)
+    reason_detail = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    recipe = relationship("Recipe", back_populates="rejections")
 

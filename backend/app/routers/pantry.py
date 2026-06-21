@@ -1,10 +1,31 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app import models, schemas
+from app import models, schemas, config_files
 from app.database import get_db
 
 router = APIRouter(prefix="/pantry", tags=["pantry"])
+
+
+@router.get("/staples")
+def get_staples():
+    """
+    Always-on-hand ingredients (salt, oil, flour, etc). Backed by
+    backend/app/data/pantry_staples.yaml — hand-editable in VS Code, or
+    managed through these endpoints. Either way edits land in the same
+    file and comments are preserved.
+    """
+    return {"staples": config_files.get_staples()}
+
+
+@router.post("/staples")
+def add_staple(payload: schemas.StapleCreate):
+    return {"staples": config_files.add_staple(payload.name)}
+
+
+@router.delete("/staples/{name}")
+def delete_staple(name: str):
+    return {"staples": config_files.remove_staple(name)}
 
 
 @router.post("", response_model=schemas.PantryItemOut)

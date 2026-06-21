@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from app.database import Base, engine
-from app.routers import households, pantry, preferences
+from app.routers import households, pantry, preferences, recipes
 
 app = FastAPI(title="Recipe Planner API", version="0.1.0")
 
@@ -12,6 +12,7 @@ Base.metadata.create_all(bind=engine)
 app.include_router(households.router)
 app.include_router(pantry.router)
 app.include_router(preferences.router)
+app.include_router(recipes.router)
 
 
 @app.get("/health")
