@@ -52,11 +52,11 @@ services:
       # layered on top of it since the app is intended for trusted local
       # network access only; do not forward this port through your router
       # or expose it to the internet.
-      - "8000:8000"
+      - "8111:8111"
     volumes:
       - ./backend/app:/app/app
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8111 --reload

@@ -83,29 +83,66 @@ def get_recipe(slug: str) -> dict:
 
 def list_recipes(
     query_filter: Optional[str] = None,
+    tag_name: Optional[str] = None,
     order_by: Optional[str] = None,
     page: int = 1,
     per_page: int = 50,
 ) -> dict:
     """
-    e.g. list_recipes(query_filter='ratings.rating >= 4', order_by='lastMade')
+    Lists recipes from Mealie with optional server-side filtering.
+
+    tag_name:     When provided, adds a Mealie queryFilter clause to restrict
+                  results to recipes that carry this tag. The matching engine
+                  then double-checks client-side because Mealie's queryFilter
+                  syntax for tag arrays can vary between versions.
+
+    query_filter: Any additional Mealie filter expression (ANDed with the tag
+                  filter if both are supplied). e.g. 'rating >= 4'.
+
     See https://docs.mealie.io/documentation/getting-started/api-usage/ for
-    the full filter query syntax.
+    the full Mealie filter query syntax.
     """
     _check_configured()
-    params = {"page": page, "perPage": per_page}
+    params: dict = {"page": page, "perPage": per_page}
+
+    # Build the combined filter expression
+    filter_parts: list[str] = []
+    if tag_name:
+        # Mealie uses case-insensitive LIKE matching on tag names via queryFilter.
+        # Exact match: tags.name = "dinner-planner"
+        filter_parts.append(f'tags.name = "{tag_name}"')
     if query_filter:
-        params["queryFilter"] = query_filter
+        filter_parts.append(query_filter)
+    if filter_parts:
+        params["queryFilter"] = " AND ".join(filter_parts)
+
     if order_by:
         params["orderBy"] = order_by
+
     try:
         resp = requests.get(
-            f"{MEALIE_BASE_URL}/api/recipes", headers=_headers(), params=params, timeout=_TIMEOUT_SECONDS
+            f"{MEALIE_BASE_URL}/api/recipes", headers=_headers(),
+            params=params, timeout=_TIMEOUT_SECONDS,
         )
         resp.raise_for_status()
         return resp.json()
     except requests.RequestException as e:
         raise MealieError(f"Failed to list recipes: {e}") from e
+
+
+def recipe_has_tag(recipe_detail: dict, tag_name: str) -> bool:
+    """
+    Client-side check: returns True if the recipe detail dict contains a tag
+    whose name matches tag_name (case-insensitive). Used as a fallback
+    double-check after list_recipes() since queryFilter behavior for nested
+    arrays can vary across Mealie versions.
+    """
+    tag_lower = tag_name.lower()
+    for tag in recipe_detail.get("tags", []):
+        name = tag.get("name", "") if isinstance(tag, dict) else str(tag)
+        if name.lower() == tag_lower:
+            return True
+    return False
 
 
 def set_recipe_rating(slug: str, rating: int) -> None:

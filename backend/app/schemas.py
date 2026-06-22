@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 
-# ---------- Household ----------
+# ── Household ─────────────────────────────────────────────────────────────────
 
 class HouseholdCreate(BaseModel):
     name: str = "My Household"
@@ -13,25 +13,27 @@ class HouseholdCreate(BaseModel):
 
 class HouseholdOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     id: str
     name: str
     num_people: int
     created_at: datetime
 
 
-# ---------- Preferences (taste profile / initial interview) ----------
+# ── Preferences ───────────────────────────────────────────────────────────────
 
 class PreferenceCreate(BaseModel):
     household_id: str
     liked_items: list[str] = []
-    disliked_items: list[str] = []  # soft: deprioritize, don't reject
-    excluded_items: list[str] = []  # hard: allergies / never make
+    disliked_items: list[str] = []        # soft: deprioritise, never block
+    excluded_items: list[str] = []        # hard: allergies / never-make
     max_cook_time_minutes: Optional[int] = None
-    skill_level: Optional[str] = None  # beginner | intermediate | advanced
-    available_methods: list[str] = []  # e.g. oven, stovetop, grill, slow_cooker, instant_pot, air_fryer
-    available_cookware: list[str] = []  # e.g. dutch_oven, cast_iron_skillet, wok, sheet_pan, stand_mixer
+    skill_level: Optional[str] = None     # beginner | intermediate | advanced
+    available_methods: list[str] = []
+    available_cookware: list[str] = []
     recipe_options_per_meal: int = 3
+    default_num_suggestions: int = 10     # flat weekly suggestion pool size
+    favorite_rating_threshold: int = 4
+    mealie_dinner_tag: str = "dinner-planner"
     notes: Optional[str] = None
 
 
@@ -44,12 +46,14 @@ class PreferenceUpdate(BaseModel):
     available_methods: Optional[list[str]] = None
     available_cookware: Optional[list[str]] = None
     recipe_options_per_meal: Optional[int] = None
+    default_num_suggestions: Optional[int] = None
+    favorite_rating_threshold: Optional[int] = None
+    mealie_dinner_tag: Optional[str] = None
     notes: Optional[str] = None
 
 
 class PreferenceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     id: str
     household_id: str
     liked_items: list[str]
@@ -60,83 +64,21 @@ class PreferenceOut(BaseModel):
     available_methods: list[str]
     available_cookware: list[str]
     recipe_options_per_meal: int
+    default_num_suggestions: int
+    favorite_rating_threshold: int
+    mealie_dinner_tag: str
     notes: Optional[str]
     created_at: datetime
     updated_at: datetime
 
 
-# ---------- Pantry staples ----------
+# ── Pantry staples ────────────────────────────────────────────────────────────
 
 class StapleCreate(BaseModel):
     name: str
 
 
-# ---------- Recipes (local reference to Mealie-stored recipes) ----------
-
-class RecipeCreate(BaseModel):
-    source_url: str
-    title: str
-
-
-class RecipeImport(BaseModel):
-    source_url: str
-
-
-class RecipeOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    source_url: str
-    title: str
-    mealie_slug: Optional[str]
-    created_at: datetime
-
-
-# ---------- Recipe rejections ----------
-
-class RejectionCreate(BaseModel):
-    household_id: str
-    reason_category: str
-    reason_detail: Optional[str] = None
-
-
-class RejectionOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    household_id: str
-    recipe_id: str
-    reason_category: str
-    reason_detail: Optional[str]
-    created_at: datetime
-
-
-# ---------- Meal plan entries (weekly review / favorites loop) ----------
-
-class MealPlanEntryCreate(BaseModel):
-    household_id: str
-    recipe_id: str
-    week_start_date: date
-
-
-class MealPlanEntryReview(BaseModel):
-    rating: int  # 1-5
-
-
-class MealPlanEntryOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    household_id: str
-    recipe_id: str
-    week_start_date: date
-    rating: Optional[int]
-    is_favorite: bool
-    reviewed_at: Optional[datetime]
-    created_at: datetime
-
-
-# ---------- Pantry Item ----------
+# ── Pantry items ──────────────────────────────────────────────────────────────
 
 class PantryItemCreate(BaseModel):
     household_id: str
@@ -157,7 +99,6 @@ class PantryItemUpdate(BaseModel):
 
 class PantryItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     id: str
     household_id: str
     name: str
@@ -167,3 +108,209 @@ class PantryItemOut(BaseModel):
     expiry_date: Optional[date]
     created_at: datetime
     updated_at: datetime
+
+
+# ── Recipes ───────────────────────────────────────────────────────────────────
+
+class RecipeCreate(BaseModel):
+    source_url: str
+    title: str
+
+
+class RecipeImport(BaseModel):
+    source_url: str
+
+
+class RecipeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    source_url: str
+    title: str
+    mealie_slug: Optional[str]
+    created_at: datetime
+
+
+# ── Recipe rejections ─────────────────────────────────────────────────────────
+
+class RejectionCreate(BaseModel):
+    household_id: str
+    reason_category: str       # key from rejection_reasons.yaml
+    reason_detail: Optional[str] = None
+    rejected_week: Optional[date] = None   # defaults to current week if omitted
+
+
+class RejectionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    household_id: str
+    recipe_id: str
+    reason_category: str
+    reason_detail: Optional[str]
+    is_permanent: bool
+    rejected_week: Optional[date]
+    suppress_weeks: Optional[int]
+    created_at: datetime
+
+
+# ── Weekly intent ─────────────────────────────────────────────────────────────
+
+class WeeklyIntentCreate(BaseModel):
+    """
+    Recorded at the start of each planning session.
+
+    ingredient_hints  — free-text keywords to feature this week.
+                        e.g. ["chicken thighs", "salmon", "bbq", "Asian"]
+                        Each hint found in a recipe adds +15 pts (max +45),
+                        making it the strongest per-recipe signal this week.
+
+    num_suggestions   — how many recipes to pull in the flat suggestion list.
+                        Varies week to week; falls back to
+                        default_num_suggestions from preferences when omitted.
+
+    pantry_snapshot_notes — free-text notes from the pantry check-in.
+                            Not used by the engine; kept as a human record.
+    """
+    ingredient_hints: list[str] = []
+    num_suggestions: Optional[int] = None
+    pantry_snapshot_notes: Optional[str] = None
+
+
+class WeeklyIntentUpdate(BaseModel):
+    ingredient_hints: Optional[list[str]] = None
+    num_suggestions: Optional[int] = None
+    pantry_snapshot_notes: Optional[str] = None
+
+
+class WeeklyIntentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    household_id: str
+    week_start_date: date
+    ingredient_hints: list[str]
+    num_suggestions: Optional[int]
+    pantry_snapshot_notes: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+# ── Weekly selections ─────────────────────────────────────────────────────────
+
+class WeeklySelectionCreate(BaseModel):
+    """
+    Locks in the household's chosen recipes for the week after reviewing
+    the suggestion list. The shopping list generates ONLY from these.
+    One call replaces any prior selections for that week.
+    """
+    household_id: str
+    week_start_date: date
+    recipe_ids: list[str]
+
+
+class WeeklySelectionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    household_id: str
+    week_start_date: date
+    recipe_id: str
+    created_at: datetime
+
+
+class WeeklySelectionSummary(BaseModel):
+    """Response to POST /meal-plan/selections — includes created MealPlanEntry IDs."""
+    week_start_date: date
+    household_id: str
+    selected_recipes: list[RecipeOut]
+    meal_plan_entry_ids: list[str]
+
+
+# ── Meal plan entries ─────────────────────────────────────────────────────────
+
+class MealPlanEntryCreate(BaseModel):
+    household_id: str
+    recipe_id: str
+    week_start_date: date
+
+
+class MealPlanEntryReview(BaseModel):
+    rating: int   # 1-5
+
+
+class MealPlanEntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    household_id: str
+    recipe_id: str
+    week_start_date: date
+    rating: Optional[int]
+    is_favorite: bool
+    reviewed_at: Optional[datetime]
+    created_at: datetime
+
+
+# ── Matching engine / weekly suggestions (flat list) ──────────────────────────
+
+class SuggestedRecipe(BaseModel):
+    """One ranked recipe in the flat weekly suggestion list."""
+    rank: int
+    recipe_id: Optional[str]
+    title: str
+    mealie_slug: str
+    source_url: str
+    score: float
+    pantry_overlap_pct: float       # 0–100
+    missing_ingredients: list[str]
+    is_favorite: bool
+    total_time_minutes: Optional[int]
+
+
+class WeeklySuggestion(BaseModel):
+    """Flat ranked suggestion list returned by GET /meal-plan/suggest."""
+    week_start_date: str
+    household_id: str
+    num_suggestions: int
+    mealie_available: bool
+    dinner_tag_filter: str
+    weekly_hints_applied: list[str]
+    favorites_in_pool: int
+    discoveries_in_pool: int
+    suggestions: list[SuggestedRecipe]
+
+
+# ── Shopping list ─────────────────────────────────────────────────────────────
+
+class ShoppingLineItem(BaseModel):
+    item: str
+    quantity: Optional[float]
+    unit: Optional[str]
+    package_label: Optional[str]    # e.g. "1 lb pack", "dozen"
+    packages_needed: Optional[int]  # how many of that package to buy
+    note: Optional[str]             # e.g. "check pantry — partial bag on hand"
+
+
+class PantryUseItem(BaseModel):
+    item: str
+    quantity: Optional[float]
+    unit: Optional[str]
+    note: Optional[str]             # e.g. "will deplete remaining stock"
+
+
+class ShoppingList(BaseModel):
+    """
+    Generated by GET /meal-plan/shopping-list. Built ONLY from the
+    household's WeeklySelections for the given week.
+
+    Pipeline:
+      1. Fetch full recipe details from Mealie for each selected recipe
+      2. Scale all ingredient quantities to household size (num_people)
+      3. Aggregate totals across all recipes
+      4. Subtract pantry on-hand quantities (same unit) and staples
+      5. Round remainder UP to nearest real package size (package_sizes.yaml)
+      6. Group by store section
+    """
+    week_start_date: date
+    household_id: str
+    selected_recipe_titles: list[str]
+    shopping_by_section: dict[str, list[ShoppingLineItem]]
+    using_from_pantry: list[PantryUseItem]
+    staples_relied_on: list[str]
+    warnings: list[str]   # e.g. unit mismatches, missing Mealie data

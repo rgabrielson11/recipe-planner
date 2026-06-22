@@ -1,36 +1,365 @@
-from datetime import date, datetime
+"""
+Meal plan router — selections, suggestions, shopping list, ratings.
 
-from fastapi import APIRouter, Depends, HTTPException
+Weekly workflow:
+  1. GET  /meal-plan/pantry-review/{household_id}
+  2. POST /meal-plan/week-intent/{household_id}/{week_start_date}
+  3. GET  /meal-plan/suggest
+  4. (Optional) POST /recipes/{id}/reject for skipped recipes
+  5. POST /meal-plan/selections   ← locks in chosen recipes
+  6. GET  /meal-plan/shopping-list
+  7. (End of week) POST /meal-plan/entries/{id}/review
+"""
+
+from collections import defaultdict
+from datetime import date, datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app import models, schemas, mealie_client
+from app import models, schemas, mealie_client, matching_engine, shopping_list as sl
 from app.database import get_db
 
 router = APIRouter(prefix="/meal-plan", tags=["meal-plan"])
 
 
-@router.post("/entries", response_model=schemas.MealPlanEntryOut)
-def add_entry(payload: schemas.MealPlanEntryCreate, db: Session = Depends(get_db)):
-    """Slots a recipe into a household's plan for a given week."""
+# ── 1. Pantry review snapshot ─────────────────────────────────────────────────
+
+@router.get("/pantry-review/{household_id}")
+def pantry_weekly_review(household_id: str, db: Session = Depends(get_db)):
+    """
+    Categorized snapshot of the household's current pantry and staples.
+    Use this at the start of each weekly planning session to review what's
+    on hand, flag expired items, and decide what to update before generating
+    suggestions.
+
+    Pantry updates use the existing PATCH /pantry/{item_id} and POST /pantry
+    endpoints. This endpoint is read-only.
+    """
+    from app import config_files
+
+    household = db.query(models.Household).filter(
+        models.Household.id == household_id
+    ).first()
+    if not household:
+        raise HTTPException(status_code=404, detail="Household not found")
+
+    items = db.query(models.PantryItem).filter(
+        models.PantryItem.household_id == household_id
+    ).order_by(models.PantryItem.category, models.PantryItem.name).all()
+
+    today       = date.today()
+    by_category: dict[str, list[dict]] = defaultdict(list)
+
+    for item in items:
+        expired = item.expiry_date is not None and item.expiry_date < today
+        by_category[item.category or "uncategorized"].append({
+            "id":          item.id,
+            "name":        item.name,
+            "quantity":    float(item.quantity) if item.quantity is not None else None,
+            "unit":        item.unit,
+            "expiry_date": item.expiry_date.isoformat() if item.expiry_date else None,
+            "expired":     expired,
+        })
+
+    staples = config_files.get_staples()
+
+    return {
+        "household_id":        household_id,
+        "as_of_date":          today.isoformat(),
+        "pantry_by_category":  dict(by_category),
+        "total_tracked_items": len(items),
+        "expired_items": [
+            i["name"]
+            for group in by_category.values()
+            for i in group
+            if i["expired"]
+        ],
+        "staples":      staples,
+        "staples_note": (
+            "Staples are always assumed on hand and never added to shopping lists. "
+            "Edit backend/app/data/pantry_staples.yaml or use POST/DELETE /pantry/staples."
+        ),
+        "next_steps": [
+            "Update expired or depleted items via PATCH /pantry/{item_id}",
+            "Add new on-hand items via POST /pantry",
+            "Then record this week's intent via POST /meal-plan/week-intent/{household_id}/{week_start_date}",
+        ],
+    }
+
+
+# ── 2. Weekly intent ──────────────────────────────────────────────────────────
+
+@router.post(
+    "/week-intent/{household_id}/{week_start_date}",
+    response_model=schemas.WeeklyIntentOut,
+)
+def set_week_intent(
+    household_id: str,
+    week_start_date: date,
+    payload: schemas.WeeklyIntentCreate,
+    db: Session = Depends(get_db),
+):
+    """
+    Records the household's intent for this week — what they want to feature
+    and how many suggestions to generate.
+
+    ingredient_hints: free-text keywords (proteins, cuisines, themes) that
+    boost matching recipe scores by +15 pts each (max +45) for this week only.
+    Stronger than the permanent liked_items signal (+5 each) so the week's
+    theme dominates. e.g. ["chicken thighs", "salmon", "bbq", "quick weeknight"]
+
+    num_suggestions: how many recipes to pull in the flat suggestion list.
+    Varies week to week — some weeks you want 5 options, some 15.
+    Omit to use the household's default_num_suggestions preference (default 10).
+
+    Calling this again replaces the existing intent for that week.
+    """
+    household = db.query(models.Household).filter(
+        models.Household.id == household_id
+    ).first()
+    if not household:
+        raise HTTPException(status_code=404, detail="Household not found")
+
+    existing = db.query(models.WeeklyIntent).filter(
+        models.WeeklyIntent.household_id == household_id,
+        models.WeeklyIntent.week_start_date == week_start_date,
+    ).first()
+
+    if existing:
+        if payload.ingredient_hints is not None:
+            existing.ingredient_hints = payload.ingredient_hints
+        if payload.num_suggestions is not None:
+            existing.num_suggestions = payload.num_suggestions
+        if payload.pantry_snapshot_notes is not None:
+            existing.pantry_snapshot_notes = payload.pantry_snapshot_notes
+        existing.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    intent = models.WeeklyIntent(
+        household_id=household_id,
+        week_start_date=week_start_date,
+        **payload.model_dump(),
+    )
+    db.add(intent)
+    db.commit()
+    db.refresh(intent)
+    return intent
+
+
+@router.get(
+    "/week-intent/{household_id}/{week_start_date}",
+    response_model=schemas.WeeklyIntentOut,
+)
+def get_week_intent(
+    household_id: str,
+    week_start_date: date,
+    db: Session = Depends(get_db),
+):
+    """Returns the recorded weekly intent for the given household and week."""
+    intent = db.query(models.WeeklyIntent).filter(
+        models.WeeklyIntent.household_id == household_id,
+        models.WeeklyIntent.week_start_date == week_start_date,
+    ).first()
+    if not intent:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No weekly intent found for week {week_start_date}. "
+                "Create one with POST /meal-plan/week-intent/{household_id}/{week_start_date}"
+            ),
+        )
+    return intent
+
+
+# ── 3. Suggestions (flat ranked list) ────────────────────────────────────────
+
+@router.get("/suggest", response_model=schemas.WeeklySuggestion)
+def suggest(
+    household_id: str,
+    week_start_date: date,
+    num: Optional[int] = Query(
+        default=None,
+        ge=1,
+        le=50,
+        description=(
+            "Override the number of suggestions for this request only. "
+            "Priority: this param > WeeklyIntent.num_suggestions > "
+            "Preference.default_num_suggestions > 10."
+        ),
+    ),
+    db: Session = Depends(get_db),
+):
+    """
+    Runs the matching engine and returns a flat ranked list of dinner
+    recipe suggestions for the household to review and choose from.
+
+    The engine automatically picks up this week's WeeklyIntent (hints +
+    num_suggestions) if one has been recorded — no extra parameters needed.
+
+    After reviewing the list:
+      • Choose your recipes → POST /meal-plan/selections
+      • Reject skipped recipes (optional) → POST /recipes/{id}/reject
+        Use permanent reasons (dislike, allergy, cookware) to remove a recipe
+        forever. Use temporary reasons (not_this_week, already_made_recently)
+        to suppress it for a few weeks and let it resurface later.
+    """
+    try:
+        result = matching_engine.build_suggestions(
+            household_id=household_id,
+            week_start=week_start_date,
+            db=db,
+            num_override=num,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return result
+
+
+# ── 5. Confirm selections ─────────────────────────────────────────────────────
+
+@router.post("/selections", response_model=schemas.WeeklySelectionSummary)
+def confirm_selections(
+    payload: schemas.WeeklySelectionCreate,
+    db: Session = Depends(get_db),
+):
+    """
+    Locks in the household's chosen recipes for the week.
+
+    Replaces any prior selections for that week. Also creates a MealPlanEntry
+    row for each selected recipe so the end-of-week rating flow works unchanged.
+
+    The shopping list (GET /meal-plan/shopping-list) generates from ONLY these
+    selections — not from the full suggestion pool.
+
+    For recipes you're passing on, optionally call POST /recipes/{id}/reject
+    with a reason category so the matching engine learns your preferences over
+    time. Temporary reasons suppress for a few weeks; permanent reasons remove
+    the recipe from future suggestions entirely.
+    """
     household = db.query(models.Household).filter(
         models.Household.id == payload.household_id
     ).first()
     if not household:
         raise HTTPException(status_code=404, detail="Household not found")
 
-    recipe = db.query(models.Recipe).filter(models.Recipe.id == payload.recipe_id).first()
-    if not recipe:
-        raise HTTPException(status_code=404, detail="Recipe not found")
+    # Validate all recipe IDs exist
+    recipes = db.query(models.Recipe).filter(
+        models.Recipe.id.in_(payload.recipe_ids)
+    ).all()
+    found_ids = {r.id for r in recipes}
+    missing   = [rid for rid in payload.recipe_ids if rid not in found_ids]
+    if missing:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Recipe IDs not found: {missing}",
+        )
 
-    entry = models.MealPlanEntry(**payload.model_dump())
-    db.add(entry)
+    # Clear prior selections for this week
+    db.query(models.WeeklySelection).filter(
+        models.WeeklySelection.household_id == payload.household_id,
+        models.WeeklySelection.week_start_date == payload.week_start_date,
+    ).delete()
+
+    # Clear any existing meal plan entries created by a prior selection pass
+    db.query(models.MealPlanEntry).filter(
+        models.MealPlanEntry.household_id == payload.household_id,
+        models.MealPlanEntry.week_start_date == payload.week_start_date,
+        models.MealPlanEntry.rating.is_(None),  # only un-reviewed entries
+    ).delete()
+
     db.commit()
-    db.refresh(entry)
-    return entry
 
+    # Create new selections + meal plan entries
+    new_selections:  list[models.WeeklySelection] = []
+    entry_ids:       list[str]                    = []
+
+    for recipe_id in payload.recipe_ids:
+        sel = models.WeeklySelection(
+            household_id=payload.household_id,
+            week_start_date=payload.week_start_date,
+            recipe_id=recipe_id,
+        )
+        db.add(sel)
+        new_selections.append(sel)
+
+        entry = models.MealPlanEntry(
+            household_id=payload.household_id,
+            recipe_id=recipe_id,
+            week_start_date=payload.week_start_date,
+        )
+        db.add(entry)
+        db.flush()  # get the generated ID
+        entry_ids.append(entry.id)
+
+    db.commit()
+
+    return {
+        "week_start_date":     payload.week_start_date,
+        "household_id":        payload.household_id,
+        "selected_recipes":    recipes,
+        "meal_plan_entry_ids": entry_ids,
+    }
+
+
+@router.get("/selections", response_model=list[schemas.WeeklySelectionOut])
+def get_selections(
+    household_id: str,
+    week_start_date: date,
+    db: Session = Depends(get_db),
+):
+    """Returns the confirmed recipe selections for the given week."""
+    return db.query(models.WeeklySelection).filter(
+        models.WeeklySelection.household_id == household_id,
+        models.WeeklySelection.week_start_date == week_start_date,
+    ).all()
+
+
+# ── 6. Shopping list ──────────────────────────────────────────────────────────
+
+@router.get("/shopping-list", response_model=schemas.ShoppingList)
+def get_shopping_list(
+    household_id: str,
+    week_start_date: date,
+    db: Session = Depends(get_db),
+):
+    """
+    Generates the shopping list for the week from confirmed selections only.
+
+    Pipeline:
+      1. Fetch ingredient details for each selected recipe from Mealie
+      2. Scale all quantities to household size (recipe yield → num_people)
+      3. Aggregate totals across all recipes (sum first, round once)
+      4. Subtract pantry on-hand quantities (same unit) and staples
+      5. Round remainder UP to nearest real package size (package_sizes.yaml)
+      6. Group by store section
+
+    Requires at least one confirmed selection (POST /meal-plan/selections).
+    Any recipes without Mealie slugs or unreachable Mealie entries appear
+    in the warnings field and are excluded from the ingredient calculation.
+    """
+    try:
+        result = sl.build_shopping_list(
+            household_id=household_id,
+            week_start=week_start_date,
+            db=db,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return result
+
+
+# ── 7. End-of-week review ─────────────────────────────────────────────────────
 
 @router.get("/entries", response_model=list[schemas.MealPlanEntryOut])
-def list_entries(household_id: str, week_start_date: date | None = None, db: Session = Depends(get_db)):
+def list_entries(
+    household_id: str,
+    week_start_date: Optional[date] = None,
+    db: Session = Depends(get_db),
+):
     query = db.query(models.MealPlanEntry).filter(
         models.MealPlanEntry.household_id == household_id
     )
@@ -40,62 +369,54 @@ def list_entries(household_id: str, week_start_date: date | None = None, db: Ses
 
 
 @router.post("/entries/{entry_id}/review", response_model=schemas.MealPlanEntryOut)
-def review_entry(entry_id: str, payload: schemas.MealPlanEntryReview, db: Session = Depends(get_db)):
+def review_entry(
+    entry_id: str,
+    payload: schemas.MealPlanEntryReview,
+    db: Session = Depends(get_db),
+):
     """
-    Records a 1-5 star rating for a meal that was actually cooked. If the
-    rating meets or exceeds the household's favorite_rating_threshold
-    (default 4), the entry — and the underlying recipe — is marked a
-    favorite. The favorite status is also synced back to Mealie as a
-    best-effort call; a Mealie failure here doesn't block the local rating
-    from being saved.
+    Records a 1–5 star rating for a recipe cooked this week.
+
+    If the rating meets or exceeds the household's favorite_rating_threshold
+    (default 4 stars), the recipe is marked a favorite and synced to Mealie.
+    The matching engine boosts favorites in future suggestion pools (+25 pts).
     """
     if not 1 <= payload.rating <= 5:
         raise HTTPException(status_code=422, detail="rating must be between 1 and 5")
 
-    entry = db.query(models.MealPlanEntry).filter(models.MealPlanEntry.id == entry_id).first()
+    entry = db.query(models.MealPlanEntry).filter(
+        models.MealPlanEntry.id == entry_id
+    ).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Meal plan entry not found")
 
-    prefs = db.query(models.Preference).filter(
+    prefs     = db.query(models.Preference).filter(
         models.Preference.household_id == entry.household_id
     ).first()
     threshold = prefs.favorite_rating_threshold if prefs else 4
 
-    entry.rating = payload.rating
+    entry.rating      = payload.rating
     entry.is_favorite = payload.rating >= threshold
     entry.reviewed_at = datetime.utcnow()
     db.commit()
     db.refresh(entry)
 
     if entry.is_favorite:
-        recipe = db.query(models.Recipe).filter(models.Recipe.id == entry.recipe_id).first()
+        recipe = db.query(models.Recipe).filter(
+            models.Recipe.id == entry.recipe_id
+        ).first()
         if recipe and recipe.mealie_slug:
             try:
                 mealie_client.set_recipe_rating(recipe.mealie_slug, payload.rating)
             except mealie_client.MealieError:
-                # Local rating is already saved; Mealie sync is best-effort.
-                pass
+                pass   # local rating saved; Mealie sync is best-effort
 
     return entry
 
 
-@router.get("/weekly-review", response_model=list[schemas.MealPlanEntryOut])
-def weekly_review(household_id: str, week_start_date: date, db: Session = Depends(get_db)):
-    """
-    Returns the prior week's meal plan entries with their review status —
-    the starting point for the weekly process: review last week's
-    feedback, see which recipes became favorites, then build next week's
-    plan as a mix of those favorites plus new candidates (Phase 3).
-    """
-    return db.query(models.MealPlanEntry).filter(
-        models.MealPlanEntry.household_id == household_id,
-        models.MealPlanEntry.week_start_date == week_start_date,
-    ).all()
-
-
 @router.get("/favorites", response_model=list[schemas.RecipeOut])
-def list_favorite_recipes(household_id: str, db: Session = Depends(get_db)):
-    """All recipes this household has rated highly enough to be a favorite."""
+def list_favorites(household_id: str, db: Session = Depends(get_db)):
+    """All recipes this household has rated at or above their favorite threshold."""
     recipe_ids = (
         db.query(models.MealPlanEntry.recipe_id)
         .filter(
@@ -105,3 +426,16 @@ def list_favorite_recipes(household_id: str, db: Session = Depends(get_db)):
         .distinct()
     )
     return db.query(models.Recipe).filter(models.Recipe.id.in_(recipe_ids)).all()
+
+
+@router.get("/weekly-review", response_model=list[schemas.MealPlanEntryOut])
+def weekly_review(
+    household_id: str,
+    week_start_date: date,
+    db: Session = Depends(get_db),
+):
+    """Returns the week's meal plan entries with current review status."""
+    return db.query(models.MealPlanEntry).filter(
+        models.MealPlanEntry.household_id == household_id,
+        models.MealPlanEntry.week_start_date == week_start_date,
+    ).all()
