@@ -7,6 +7,16 @@ Phase 9 fixes:
     full {id, name} tag object; passing {name} only causes 422.
   • import_recipe_from_url strips any cost-related fields from ingredients
     after import so Mealie shows clean ingredient lists.
+
+Phase 9 patch — full-body PATCH fix:
+  • Mealie's PATCH /api/recipes/{slug} has PUT semantics in practice: it
+    replaces the entire recipe with whatever body is sent.  Sending only a
+    partial payload (e.g. {"tags": […]} or {"recipeIngredient": […]}) causes
+    a 422 Unprocessable Entity because required fields are absent.
+  • add_tag_to_recipe now mutates the tags key on the full detail dict
+    returned by get_recipe() and PATCHes the complete body.
+  • The cost-strip PATCH in import_recipe_from_url now sends the full
+    cleaned detail dict rather than just the recipeIngredient field.
 """
 
 import logging
@@ -102,10 +112,15 @@ def add_tag_to_recipe(slug: str, tag_name: str) -> None:
                     return  # already tagged
 
         new_tags = current_tags + [tag_obj]
+        # Mealie's PATCH /api/recipes/{slug} has PUT semantics — it replaces
+        # the entire recipe with whatever is sent.  Sending only {"tags": …}
+        # causes a 422 because required fields are missing.  We must send the
+        # full detail dict with the tags field updated in-place.
+        detail["tags"] = new_tags
         r = requests.patch(
             f"{MEALIE_BASE_URL}/api/recipes/{slug}",
             headers=_headers(),
-            json={"tags": new_tags},
+            json=detail,
             timeout=_TIMEOUT,
         )
         r.raise_for_status()
@@ -161,10 +176,11 @@ def import_recipe_from_url(url: str) -> str:
         detail  = get_recipe(slug)
         cleaned = _strip_cost_fields(detail)
         if cleaned != detail:
+            # Same PUT-semantics constraint — must send the full recipe body.
             r2 = requests.patch(
                 f"{MEALIE_BASE_URL}/api/recipes/{slug}",
                 headers=_headers(),
-                json={"recipeIngredient": cleaned.get("recipeIngredient", [])},
+                json=cleaned,
                 timeout=_TIMEOUT,
             )
             r2.raise_for_status()

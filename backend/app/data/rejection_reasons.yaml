@@ -35,6 +35,14 @@ reasons:
     label: "Required cookware not on hand"
     permanent: true
 
+  - key: not_applicable
+    label: "Not applicable for dinner (e.g. dessert, breakfast, snack)"
+    permanent: true
+
+  - key: side_dish
+    label: "Side dish — not a main course"
+    permanent: true
+
   # ── Temporary suppressions ───────────────────────────────────────────────
   - key: not_this_week
     label: "Not feeling it this week"

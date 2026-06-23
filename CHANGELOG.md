@@ -1,5 +1,36 @@
 # Recipe Planner — Changelog
 
+## Phase 9 — Patch 2: fix Mealie PATCH full-body requirement
+
+### Bug fix
+
+**`mealie_client.py` — 422 on tag and cost-strip PATCH calls**
+
+Mealie's `PATCH /api/recipes/{slug}` has PUT semantics: it replaces the entire
+recipe with the body sent.  Two places were sending partial payloads:
+
+- `add_tag_to_recipe` sent `{"tags": […]}` — caused `422 Unprocessable Entity`
+  because required recipe fields were absent.  Now sends the full recipe detail
+  dict (from `get_recipe()`) with the `tags` key updated in-place.
+
+- The cost-strip step in `import_recipe_from_url` sent
+  `{"recipeIngredient": […]}` — same issue.  Now sends the full `cleaned`
+  detail dict.
+
+
+
+## Phase 9 — Patch: additional rejection reasons
+
+### Changes
+- **`rejection_reasons.yaml`** — two new permanent rejection reasons added:
+  - `not_applicable` — "Not applicable for dinner (e.g. dessert, breakfast, snack)"
+  - `side_dish` — "Side dish — not a main course"
+  
+  Both are `permanent: true` so rejected recipes are never surfaced again.
+  No code change required — the YAML file is the single source of truth for the rejection vocabulary.
+
+
+
 ## Phase 7 — Suggestion fixes, quality gate, and live log viewer
 
 ### Bug fixes
