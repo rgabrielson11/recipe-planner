@@ -1,69 +1,58 @@
 # Changelog
 
-## [0.5.0] — Phase 5 — 2026-06-22
+## [0.6.0] — Phase 6 — 2026-06-22
 
 ### Added
-- **Frontend** — React SPA served from FastAPI at port 8111
-  - Home dashboard with weekly status checklist
-  - Pantry screen: on-hand items (by category, expiry flags) + staples management
-  - Plan screen: weekly intent (hints + suggestion count) → flat ranked suggestions
-    → select / skip with two-tier rejection modal → confirm selections
-  - Shopping screen: buy list by store section (collapsible, checkboxes),
-    Pantry Check section (staples with required quantities), Using from Pantry section
-  - Review screen: end-of-week star ratings → favourites loop
-  - Settings screen: household, Mealie tag, suggestion defaults, full preference management
-- **Single container** — PostgreSQL replaced with SQLite; no separate DB service
-- **Pantry Check section** on shopping list — staples assumed on hand but listed
-  with required quantities as a final verify-before-you-shop step; separate from buy list
+- **Recipe discovery engine** (`recipe_discovery.py`)
+  - Fetches category pages from curated sites in `recipe_sources.yaml`
+  - Extracts recipe URLs via BeautifulSoup, filters already-known URLs
+  - Scrapes new recipes using the `recipe-scrapers` library
+  - Scores against pantry + preferences using the same engine as Mealie scoring
+  - Creates stub `Recipe` rows (mealie_slug=None) for newly found recipes
+- **`recipe_sources.yaml`** — 11 curated sites with category URLs, fully hand-editable
+  - Serious Eats, Simply Recipes, Budget Bytes, Half Baked Harvest, Cookie and Kate,
+    The Kitchn, AllRecipes, Food Network, Skinnytaste, Pinch of Yum, Damn Delicious
+  - Per-source `enabled: false` to pause without deleting
+  - `discovery` settings block: max_scraped_per_run, request_delay_seconds,
+    mealie_min_rating, mealie_favorites_count
+- **Auto-import on selection** (`routers/meal_plan.py`)
+  - When `POST /meal-plan/selections` is confirmed, any selected recipe that has
+    no `mealie_slug` yet is automatically imported into Mealie
+  - The dinner-planner tag is applied to the imported recipe so it enters the
+    Mealie pool in future weeks
+  - Response now includes `mealie_imports` with per-recipe import status
+- **`mealie_client.add_tag_to_recipe()`** — adds a tag without removing existing ones
+- **`mealie_client.get_top_rated_recipes()`** — fetches Mealie recipes above min_rating
+- `requirements.txt` — added `recipe-scrapers==14.55.0`, `beautifulsoup4==4.12.3`, `lxml==5.2.1`
 
 ### Changed
-- `docker-compose.yml` now defines a single `app` service (was `api` + `db`)
-- Port changed to **8111** throughout
-- All API routes prefixed with `/api`; frontend served at `/`
-- `models.py` — `ARRAY(String)` replaced with `JSON` for SQLite compatibility
-- `database.py` — SQLite with `check_same_thread=False`
-- `requirements.txt` — removed `psycopg2-binary`, SQLite is built into Python
-- `shopping_list.py` — staples now produce `pantry_check` entries with quantities
-  instead of a flat `staples_relied_on` list
-- `schemas.py` — `ShoppingList.pantry_check` field replaces `staples_relied_on`
+- **Matching engine** (`matching_engine.py`) — dual-pool architecture:
+  - **Pool A (Mealie favourites):** 1–2 slots for proven 4★+ Mealie recipes
+  - **Pool B (Discovery):** remaining slots filled by newly scraped recipes
+  - `WeeklySuggestion` response now includes `mealie_favorites_shown` and
+    `discoveries_shown` instead of the old `favorites_in_pool`/`discoveries_in_pool`
+- `schemas.py` — `WeeklySelectionSummary` gains `mealie_imports` list
+
+### How the catalog grows
+Each weekly session:
+  1. `GET /meal-plan/suggest` discovers N new recipes from curated sites
+  2. Household picks 2-5 of them
+  3. `POST /meal-plan/selections` auto-imports picked recipes into Mealie
+     and applies the `dinner-planner` tag
+  4. End-of-week ratings promote good recipes to 4★+
+  5. Next week: those 4★+ recipes appear in Pool A as proven favourites
+
+## [0.5.0] — Phase 5 — 2026-06-22
+React SPA frontend, SQLite single container, Pantry Check section, port 8111.
 
 ## [0.4.0] — Phase 4 — 2026-06-22
-
-### Added
-- `WeeklySelection` model + `POST /api/meal-plan/selections`
-- `WeeklyIntent.num_suggestions` — variable suggestion count per week
-- `Preference.default_num_suggestions` — household default (overridden per-week)
-- Two-tier rejection: permanent (never resurface) vs temporary (suppress N weeks)
-- `RecipeRejection.is_permanent`, `rejected_week`, `suppress_weeks`
-- `rejection_reasons.yaml` annotated with `permanent` and `suppress_weeks`
-- `GET /api/meal-plan/shopping-list` — Phase 5 pipeline
-- `GET /api/meal-plan/pantry-review/{id}` — weekly pantry snapshot
-
-### Changed
-- Matching engine outputs flat ranked list (not day-slotted)
-- Temporary rejections auto-expire; catalog keeps growing
+WeeklySelection, num_suggestions per week, two-tier rejection, shopping list.
 
 ## [0.3.0] — Phase 3 — 2026-06-22
-
-### Added
-- Matching engine with pantry overlap, liked/disliked/excluded scoring
-- Mealie tag filtering (`mealie_dinner_tag` preference)
-- Weekly intent hints with per-week score boost
-- Two-pool suggestion mix (favourites + discovery)
-- `GET /api/meal-plan/suggest`
+Matching engine, Mealie tag filter, weekly intent hints.
 
 ## [0.2.0] — Phase 2 — 2026-06-21
-
-### Added
-- Mealie recipe import (`POST /api/recipes/import`)
-- Recipe rejection with reason categories
-- Weekly review / favourites loop (`POST /api/meal-plan/entries/{id}/review`)
-- Mealie rating sync on favourite
+Mealie recipe import, rejection reasons, weekly review/favourites loop.
 
 ## [0.1.0] — Phase 1 — 2026-06-21
-
-### Added
-- Household + preferences CRUD
-- Pantry items + staples CRUD
-- Docker Compose + PostgreSQL
-- YAML config files (pantry_staples, package_sizes, rejection_reasons, cooking_vocabulary)
+Household + preferences CRUD, pantry + staples, Docker Compose, YAML configs.
