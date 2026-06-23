@@ -1,3 +1,15 @@
+## [0.6.1] — Hotfix — 2026-06-22
+
+### Fixed
+- **"Household not found" on startup** — frontend now validates the stored
+  `householdId` against the API on every page load. If the record no longer
+  exists (e.g. DB was wiped, fresh container deploy), localStorage is cleared
+  automatically and the app falls back to the setup screen. No more manual
+  browser devtools intervention needed.
+- **`PUT /households/{id}` was missing** — Settings screen save was returning
+  405 Method Not Allowed when trying to update household name or people count.
+  Endpoint added. `DELETE /households/{id}` also added for completeness.
+
 # Changelog
 
 ## [0.6.0] — Phase 6 — 2026-06-22
