@@ -1,5 +1,5 @@
 """
-Matching Engine — Phase 7
+Matching Engine — Phase 10
 =========================
 
 Phase 7 changes vs Phase 6:
@@ -248,9 +248,25 @@ def build_suggestions(
             slug = summary.get("slug")
             if not slug:
                 continue
-            local     = local_by_slug.get(slug)
-            recipe_id = local.id if local else None
-            if recipe_id and recipe_id in excluded_ids:
+            local = local_by_slug.get(slug)
+            if not local:
+                # Create a minimal local row so this Mealie recipe gets a
+                # stable recipe_id.  Without this, recipe_id would be None
+                # for every Pool A recipe that was never confirmed through
+                # the planner, causing all of them to share recipe_id=None
+                # — meaning rejecting one visually "rejects" all of them.
+                local = models.Recipe(
+                    source_url=f"mealie:{slug}",
+                    title=slug,      # updated below once detail is fetched
+                    mealie_slug=slug,
+                )
+                db.add(local)
+                db.flush()
+                local_by_slug[slug] = local
+                log.debug("Pool A: created local stub for slug=%s", slug)
+
+            recipe_id = local.id
+            if recipe_id in excluded_ids:
                 log.debug("Pool A: skipping suppressed slug=%s", slug)
                 continue
             try:
@@ -258,6 +274,12 @@ def build_suggestions(
             except mealie_client.MealieError as e:
                 log.warning("Pool A: could not fetch detail for slug=%s: %s", slug, e)
                 continue
+
+            # Sync real title back to stub row if we just created it
+            real_title = detail.get("name", slug)
+            if local.title == slug and real_title != slug:
+                local.title = real_title
+                db.add(local)
 
             score, overlap, missing = _score_mealie(detail, pantry_set, staples_set, prefs, weekly_hints)
             if score == _HARD_REJECT:
@@ -336,7 +358,10 @@ def build_suggestions(
         pool_b_added += 1
 
     # ── Final sort + rank ──────────────────────────────────────────────────────
-    suggestions.sort(key=lambda r: -r["score"])
+    # Mealie favourites (is_favorite=True) sort BELOW discovered recipes so
+    # new Pool B suggestions surface at the top. Within each group recipes
+    # are still ordered by descending score.
+    suggestions.sort(key=lambda r: (1 if r.get("is_favorite") else 0, -r["score"]))
     suggestions = suggestions[:n]
 
     log.info(

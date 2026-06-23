@@ -161,19 +161,43 @@ const HouseholdGate=({onSave})=>{
 };
 
 // ── Rejection feedback modal ──────────────────────────────────────────────────
-const KNOWN_METHODS=['slow_cooker','instant_pot_pressure_cooker','air_fryer','sous_vide','smoker','grill','oven','stovetop','microwave'];
+const _EQUIP_KEYS=new Set(['cook_method_unavailable','cookware_unavailable']);
+const _DISLIKE_KEYS=new Set(['dislike','allergy','disliked_ingredient']);
+const _NONDINNER_KEYS=new Set(['not_applicable','side_dish']);
+// Stop-words to strip when extracting title keywords for non-dinner filter
+const _STOP=new Set(['a','an','the','and','or','with','in','on','of','for','to','from','by','at','is','are','my','your','best','easy','quick','simple','homemade','classic','creamy','spicy','crispy','roasted','baked','fried','grilled','slow','instant','one','two','three','pot','pan','sheet','air','fryer','cooker']);
 
-const RejectionModal=({recipe,reason,hid,prefs,onDone,onCancel})=>{
+const RejectionModal=({recipe,reason,hid,prefs,cookingMethods,onDone,onCancel})=>{
   const [selIngredients,setSelIngredients]=useState([]);
   const [ingAction,setIngAction]=useState('excluded_items');
   const [selMethods,setSelMethods]=useState([]);
+  const [selKeywords,setSelKeywords]=useState([]);
   const toast=useToast();
-  const isEquip=reason==='missing_equipment';
-  const isDislike=reason==='dislike'||reason==='allergy';
+  const isEquip=_EQUIP_KEYS.has(reason);
+  const isDislike=_DISLIKE_KEYS.has(reason);
+  const isNonDinner=_NONDINNER_KEYS.has(reason);
   const ingredients=recipe?.missing_ingredients||[];
+
+  // Extract meaningful words from the recipe title for non-dinner keyword filter
+  const titleKeywords=React.useMemo(()=>{
+    if(!isNonDinner||!recipe?.title)return[];
+    const words=recipe.title.toLowerCase()
+      .replace(/[^a-z0-9 ]/g,' ')
+      .split(/\s+/)
+      .filter(w=>w.length>2&&!_STOP.has(w));
+    // also include 2-word phrases
+    const title=recipe.title.toLowerCase().replace(/[^a-z0-9 ]/g,' ');
+    const bigrams=[];
+    const ws=title.split(/\s+/).filter(w=>w.length>1);
+    for(let i=0;i<ws.length-1;i++){
+      if(!_STOP.has(ws[i])&&!_STOP.has(ws[i+1]))bigrams.push(`${ws[i]} ${ws[i+1]}`);
+    }
+    return[...new Set([...words,...bigrams])].slice(0,16);
+  },[recipe,isNonDinner]);
 
   const toggleIng=ing=>setSelIngredients(s=>s.includes(ing)?s.filter(x=>x!==ing):[...s,ing]);
   const toggleMethod=m=>setSelMethods(s=>s.includes(m)?s.filter(x=>x!==m):[...s,m]);
+  const toggleKw=k=>setSelKeywords(s=>s.includes(k)?s.filter(x=>x!==k):[...s,k]);
 
   const apply=async()=>{
     let changed=false;
@@ -193,6 +217,13 @@ const RejectionModal=({recipe,reason,hid,prefs,onDone,onCancel})=>{
         toast(`Removed ${selMethods.length} method(s) from available equipment`);
         changed=true;
       }
+      if(isNonDinner&&selKeywords.length>0){
+        const existing=await get('/config/non-dinner-keywords');
+        const merged=[...new Set([...(existing.keywords||[]),...selKeywords])];
+        await put('/config/non-dinner-keywords',{keywords:merged});
+        toast(`Added ${selKeywords.length} keyword(s) to non-dinner filter`);
+        changed=true;
+      }
     }catch(e){toast(e.message,'error');}
     onDone(changed);
   };
@@ -200,41 +231,60 @@ const RejectionModal=({recipe,reason,hid,prefs,onDone,onCancel})=>{
   return(
     <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&onCancel()}>
       <div className="modal">
-        <h2>{isEquip?'🔧 Missing Equipment':'🚫 Ingredient Issues'}</h2>
+        <h2>{isEquip?'🔧 Missing Equipment':isNonDinner?'🚫 Not a Dinner Recipe':'🚫 Ingredient Issues'}</h2>
         <p style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>
           Rejecting <strong>{recipe?.title}</strong>.
-          {isEquip?' Select equipment you don\'t have to exclude from future suggestions:'
-                  :' Select ingredients to add to your exclude or dislike list:'}
+          {isEquip?' Select cooking methods you don\'t have to exclude from future suggestions:'
+           :isNonDinner?' Select title keywords to add to the non-dinner filter so similar recipes are screened out automatically:'
+                       :' Select ingredients to add to your exclude or dislike list:'}
         </p>
 
-        {isDislike&&ingredients.length>0&&<>
-          <div style={{marginBottom:12}}>
-            <label>Add selected to:</label>
-            <select value={ingAction} onChange={e=>setIngAction(e.target.value)}>
-              <option value="excluded_items">Excluded ingredients (hard filter — never suggest)</option>
-              <option value="disliked_items">Disliked items (soft penalty — deprioritized)</option>
-            </select>
-          </div>
-          <div style={{display:'grid',gap:6,maxHeight:260,overflowY:'auto',marginBottom:16}}>
-            {ingredients.map(ing=>(
-              <label key={ing} className={`check-item${selIngredients.includes(ing)?' selected':''}`}>
-                <input type="checkbox" checked={selIngredients.includes(ing)} onChange={()=>toggleIng(ing)}/>
-                <span style={{fontSize:14}}>{ing}</span>
-              </label>
-            ))}
-          </div>
-          {ingredients.length===0&&<p style={{color:'var(--gray)',fontSize:13,marginBottom:16}}>No specific missing ingredients recorded for this recipe.</p>}
+        {isDislike&&<>
+          {ingredients.length>0?<>
+            <div style={{marginBottom:12}}>
+              <label>Add selected to:</label>
+              <select value={ingAction} onChange={e=>setIngAction(e.target.value)}>
+                <option value="excluded_items">Excluded ingredients (hard filter — never suggest)</option>
+                <option value="disliked_items">Disliked items (soft penalty — deprioritized)</option>
+              </select>
+            </div>
+            <div style={{display:'grid',gap:6,maxHeight:260,overflowY:'auto',marginBottom:16}}>
+              {ingredients.map(ing=>(
+                <label key={ing} className={`check-item${selIngredients.includes(ing)?' selected':''}`}>
+                  <input type="checkbox" checked={selIngredients.includes(ing)} onChange={()=>toggleIng(ing)}/>
+                  <span style={{fontSize:14}}>{ing}</span>
+                </label>
+              ))}
+            </div>
+          </>:<p style={{color:'var(--gray)',fontSize:13,marginBottom:16}}>No missing ingredients recorded — rejection will still be saved.</p>}
         </>}
 
         {isEquip&&<>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,maxHeight:300,overflowY:'auto',marginBottom:16}}>
-            {KNOWN_METHODS.map(m=>(
+            {cookingMethods.map(m=>(
               <label key={m} className={`check-item${selMethods.includes(m)?' selected':''}`}>
                 <input type="checkbox" checked={selMethods.includes(m)} onChange={()=>toggleMethod(m)}/>
                 <span style={{fontSize:13,textTransform:'capitalize'}}>{m.replace(/_/g,' ')}</span>
               </label>
             ))}
           </div>
+        </>}
+
+        {isNonDinner&&<>
+          {titleKeywords.length>0?<>
+            <p style={{fontSize:12,color:'var(--gray)',marginBottom:8}}>Selected keywords will be added to the non-dinner pre-filter and screened from future RSS imports.</p>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:16}}>
+              {titleKeywords.map(k=>(
+                <span key={k} onClick={()=>toggleKw(k)}
+                  style={{padding:'4px 10px',borderRadius:20,fontSize:13,cursor:'pointer',userSelect:'none',
+                    background:selKeywords.includes(k)?'var(--primary)':'var(--bg-card)',
+                    color:selKeywords.includes(k)?'#fff':'inherit',
+                    border:'1px solid var(--border)'}}>
+                  {k}
+                </span>
+              ))}
+            </div>
+          </>:<p style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>No title keywords extracted — rejection will still be saved.</p>}
         </>}
 
         <div style={{display:'flex',gap:8}}>
@@ -248,18 +298,19 @@ const RejectionModal=({recipe,reason,hid,prefs,onDone,onCancel})=>{
 };
 
 // ── Recipe card ───────────────────────────────────────────────────────────────
-const RecipeCard=({r,pantryItems,onConfirm,onReject,confirmed,rejected,hid,prefs})=>{
+const RecipeCard=({r,pantryItems,onConfirm,onReject,confirmed,rejected,hid,prefs,rejectionReasons,cookingMethods})=>{
   const [open,setOpen]=useState(false);
-  const [rejReason,setRejReason]=useState('not_this_week');
+  const [rejReason,setRejReason]=useState('');
   const [showFeedback,setShowFeedback]=useState(false);
   const isConf=confirmed.includes(r.recipe_id);
   const isRej=rejected.includes(r.recipe_id);
+  const effectiveReason=rejReason||(rejectionReasons[0]?.key||'');
 
   const doReject=()=>{
-    if(rejReason==='dislike'||rejReason==='allergy'||rejReason==='missing_equipment'){
+    if(_EQUIP_KEYS.has(effectiveReason)||_DISLIKE_KEYS.has(effectiveReason)||_NONDINNER_KEYS.has(effectiveReason)){
       setShowFeedback(true);
     } else {
-      onReject(r.recipe_id,rejReason);
+      onReject(r.recipe_id,effectiveReason);
     }
   };
 
@@ -286,7 +337,39 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,confirmed,rejected,hid,prefs
       </div>
       {open&&(
         <div className="recipe-card-body">
-          {r.source_url&&<p style={{marginBottom:10}}><a href={r.source_url} target="_blank" rel="noopener" style={{fontSize:13}}>🔗 View original recipe →</a></p>}
+          <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap',alignItems:'center'}}>
+            {r.source_url&&<a href={r.source_url} target="_blank" rel="noopener" style={{fontSize:13}}>🔗 View original →</a>}
+            <button className="btn-secondary btn-sm" style={{marginLeft:'auto'}} onClick={async()=>{
+              try{
+                const d=await get(`/recipes/${r.recipe_id}/print-data`);
+                const ings=(d.ingredients||[]).map(i=>`<li style="margin:3px 0">${i}</li>`).join('');
+                const steps=(d.instructions||[]).map((s,i)=>`<li style="margin:6px 0"><b>${i+1}.</b> ${s}</li>`).join('');
+                const meta=[d.total_time_minutes?`⏱ ${d.total_time_minutes} min`:'',d.source_url?`<a href="${d.source_url}" style="color:#666">${d.source_url}</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+                const w=window.open('','_blank');
+                w.document.write(`<!DOCTYPE html><html><head><title>${d.title}</title>
+                  <style>
+                    body{font-family:Georgia,serif;max-width:680px;margin:40px auto;color:#111;line-height:1.6}
+                    h1{font-size:26px;margin-bottom:6px}
+                    h2{font-size:17px;margin:24px 0 8px;border-bottom:1px solid #ddd;padding-bottom:4px}
+                    p{color:#555;font-size:14px;margin:0 0 4px}
+                    ul,ol{padding-left:20px;margin:0}
+                    li{font-size:15px}
+                    .no-ings{color:#888;font-style:italic}
+                    @media print{a{color:#111!important;text-decoration:none}}
+                  </style></head><body>
+                  <h1>${d.title}</h1>
+                  <p>${meta}</p>
+                  ${d.description?`<p style="margin-top:8px;font-style:italic;color:#555">${d.description}</p>`:''}
+                  <h2>Ingredients</h2>
+                  ${ings?`<ul>${ings}</ul>`:'<p class="no-ings">Full ingredient list not available — see original recipe link above.</p>'}
+                  ${steps?`<h2>Instructions</h2><ol>${steps}</ol>`:''}
+                  ${d.mealie_url?`<p style="margin-top:24px;font-size:13px;color:#888">Also saved in Mealie: <a href="${d.mealie_url}">${d.mealie_url}</a></p>`:''}
+                  <script>window.print();<\/script>
+                  </body></html>`);
+                w.document.close();
+              }catch(e){alert('Could not load recipe details: '+e.message);}
+            }}>🖨️ Print recipe</button>
+          </div>
           {(r.missing_ingredients||[]).length>0&&<>
             <p style={{fontSize:13,fontWeight:600,marginBottom:6}}>🛒 Need to buy ({r.missing_ingredients.length})</p>
             <div style={{marginBottom:10}}>{r.missing_ingredients.map((ing,i)=><span key={i} className="ing-pill ing-need">{ing}</span>)}</div>
@@ -294,13 +377,10 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,confirmed,rejected,hid,prefs
           {r.pantry_overlap_pct>0&&<p style={{fontSize:12,color:'var(--green)',marginBottom:10}}>✓ {r.pantry_overlap_pct}% of ingredients already on hand</p>}
           {!isConf&&!isRej&&<div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:6}}>
             <button className="btn-success btn-sm" onClick={()=>onConfirm(r.recipe_id)}>✓ Select</button>
-            <select value={rejReason} onChange={e=>setRejReason(e.target.value)} style={{width:'auto',padding:'4px 8px',fontSize:12}}>
-              <option value="not_this_week">Not this week</option>
-              <option value="dislike">Dislike ingredients</option>
-              <option value="allergy">Allergy / intolerance</option>
-              <option value="missing_equipment">Missing equipment</option>
-              <option value="too_complex">Too complex</option>
-              <option value="already_made_recently">Made recently</option>
+            <select value={effectiveReason} onChange={e=>setRejReason(e.target.value)} style={{width:'auto',padding:'4px 8px',fontSize:12}}>
+              {rejectionReasons.map(rr=>(
+                <option key={rr.key} value={rr.key}>{rr.label}</option>
+              ))}
             </select>
             <button className="btn-danger btn-sm" onClick={doReject}>✗ Reject</button>
           </div>}
@@ -310,8 +390,9 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,confirmed,rejected,hid,prefs
       )}
     </div>
     {showFeedback&&(
-      <RejectionModal recipe={r} reason={rejReason} hid={hid} prefs={prefs}
-        onDone={(changed)=>{setShowFeedback(false);onReject(r.recipe_id,rejReason);}}
+      <RejectionModal recipe={r} reason={effectiveReason} hid={hid} prefs={prefs}
+        cookingMethods={cookingMethods}
+        onDone={(changed)=>{setShowFeedback(false);onReject(r.recipe_id,effectiveReason);}}
         onCancel={()=>setShowFeedback(false)}/>
     )}
     </>
@@ -334,23 +415,42 @@ const PlannerPage=({hid})=>{
   const [shoppingList,setSL]=useState(null);
   const [loading,setLoading]=useState(false);
   const [importResults,setImportResults]=useState(null);
+  const [mealieUrl,setMealieUrl]=useState('');
+  const [rejectionReasons,setRejectionReasons]=useState([]);
+  const [cookingMethods,setCookingMethods]=useState([]);
+  const [progress,setProgress]=useState(0);
+  const [progressLabel,setProgressLabel]=useState('');
   const toast=useToast();
 
   useEffect(()=>{
     get(`/pantry?household_id=${hid}`).then(setPantry).catch(()=>{});
     get(`/preferences/${hid}`).then(setPrefs).catch(()=>{});
+    get('/config/mealie-url').then(d=>{if(d.mealie_base_url)setMealieUrl(`${d.mealie_base_url}/g/${d.group_slug}/r/create/url`);}).catch(()=>{});
+    get('/recipes/rejection-reasons').then(d=>setRejectionReasons(d.reasons||[])).catch(()=>{});
+    get('/config/cooking-methods').then(d=>setCookingMethods(d.methods||[])).catch(()=>{});
   },[hid]);
 
   const loadSuggestions=async()=>{
-    setLoading(true);setSug([]);
+    setLoading(true);setSug([]);setProgress(0);setProgressLabel('Starting...');
+    // Poll the backend progress endpoint every 800ms while the scoring
+    // engine runs — shows real feed names, pool stages, and scrape counts.
+    const poll=setInterval(async()=>{
+      try{
+        const p=await get(`/meal-plan/suggest/progress?household_id=${hid}`);
+        if(p.pct!=null)setProgress(p.pct);
+        if(p.message)setProgressLabel(p.message);
+      }catch(_){}
+    },800);
     try{
       await post(`/meal-plan/week-intent/${hid}/${week}`,{
         ingredient_hints:hints.split(',').map(s=>s.trim()).filter(Boolean),
         num_suggestions:numSug,
       });
       const r=await get(`/meal-plan/suggest?household_id=${hid}&week_start_date=${week}&num=${numSug}`);
+      clearInterval(poll);setProgress(100);setProgressLabel('Done!');
+      setTimeout(()=>{setProgress(0);setProgressLabel('');},800);
       setSug(r.suggestions||[]);toast(`${r.suggestions?.length||0} suggestions loaded`);setStep(2);
-    }catch(e){toast(e.message,'error');}
+    }catch(e){clearInterval(poll);setProgress(0);setProgressLabel('');toast(e.message,'error');}
     finally{setLoading(false);}
   };
 
@@ -421,14 +521,20 @@ const PlannerPage=({hid})=>{
             </div>
           </div>
         </div>
-        {loading?<div className="spinner"/>:<button className="btn-primary" onClick={loadSuggestions}>🔍 Generate Suggestions →</button>}
+        {loading?(<div>
+          <div style={{background:'var(--border)',borderRadius:8,height:8,margin:'16px 0 6px',overflow:'hidden'}}>
+            <div style={{height:'100%',borderRadius:8,background:'var(--primary)',width:`${progress}%`,transition:'width .5s ease'}}/>
+          </div>
+          <p style={{fontSize:12,color:'var(--gray)',textAlign:'center',marginBottom:0}}>{progressLabel||'Loading...'}</p>
+        </div>):<button className="btn-primary" onClick={loadSuggestions}>🔍 Generate Suggestions →</button>}
       </div>}
 
       {/* Step 2 */}
       {step===2&&<div>
-        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
-          <h3 className="section-title" style={{margin:0}}>{suggestions.length} Suggestions — {confirmed.length} selected</h3>
-          <button className="btn-secondary btn-sm" onClick={loadSuggestions}>↺ Refresh</button>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
+          <h3 className="section-title" style={{margin:0,flex:1}}>{suggestions.length} Suggestions — {confirmed.length} selected</h3>
+          <button className="btn-secondary btn-sm" onClick={loadSuggestions} disabled={loading}>&#x21BA; Refresh</button>
+          <button className="btn-secondary btn-sm" onClick={()=>{const n=numSug+5;setNumSug(n);loadSuggestions();}} disabled={loading}>&#x2795; Load {numSug+5}</button>
         </div>
         {suggestions.length===0&&!loading&&<div style={{textAlign:'center',padding:48,color:'var(--gray)'}}>
           <div style={{fontSize:48}}>🍽️</div>
@@ -436,7 +542,14 @@ const PlannerPage=({hid})=>{
         </div>}
         {suggestions.map(r=><RecipeCard key={r.recipe_id} r={r} pantryItems={pantry}
           onConfirm={toggleConfirm} onReject={toggleReject}
-          confirmed={confirmed} rejected={rejected} hid={hid} prefs={prefs}/>)}
+          confirmed={confirmed} rejected={rejected} hid={hid} prefs={prefs}
+          rejectionReasons={rejectionReasons} cookingMethods={cookingMethods}/>)}
+        {/* All-rejected banner */}
+        {suggestions.length>0&&suggestions.every(r=>rejected.includes(r.recipe_id))&&!loading&&(
+          <div style={{marginTop:16,padding:16,background:'#fef9c3',border:'1px solid #fde047',borderRadius:8,textAlign:'center'}}>
+            <p style={{fontWeight:600,marginBottom:4}}>&#x1F914; All suggestions rejected — use the buttons above to load more.</p>
+          </div>
+        )}
         {confirmed.length>0&&<div style={{marginTop:16,padding:16,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8}}>
           <strong>✓ Selected ({confirmed.length}):</strong>{' '}
           {suggestions.filter(s=>confirmed.includes(s.recipe_id)).map(s=>s.title).join(', ')}
@@ -464,11 +577,15 @@ const PlannerPage=({hid})=>{
         {importResults&&<div className="card" style={{marginBottom:16}}>
           <h3 className="section-title">Mealie Import Status</h3>
           {importResults.map((r,i)=>(
-            <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',fontSize:13}}>
+            <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',fontSize:13,flexWrap:'wrap'}}>
               <span>{r.status==='imported'?'✅':r.status==='already_in_mealie'?'ℹ️':'⚠️'}</span>
               <span style={{flex:1}}>{r.title}</span>
               <span className={`badge badge-${r.status==='imported'?'green':r.status==='already_in_mealie'?'blue':'amber'}`}>{r.status}</span>
               {r.slug&&<span style={{fontSize:11,color:'var(--gray)'}}>{r.slug}</span>}
+              {r.status==='import_failed'&&r.source_url&&<div style={{width:'100%',paddingLeft:20,display:'flex',gap:12,marginTop:2}}>
+                {mealieUrl&&<a href={`${mealieUrl}?recipe_import_url=${encodeURIComponent(r.source_url)}`} target="_blank" rel="noopener" style={{fontSize:12,color:'var(--primary)'}}>↗ Import in Mealie</a>}
+                <a href={r.source_url} target="_blank" rel="noopener" style={{fontSize:12,color:'var(--gray)'}}>🔗 View original</a>
+              </div>}
             </div>
           ))}
         </div>}
@@ -523,6 +640,46 @@ const PlannerPage=({hid})=>{
               Based on: {shoppingList.selected_recipe_titles.join(', ')}
             </p>
           )}
+
+          <div style={{marginTop:16,display:'flex',gap:8}}>
+            <button className="btn-secondary" onClick={()=>{
+              const sections=shoppingList.shopping_by_section||{};
+              const pantryCheck=shoppingList.pantry_check||[];
+              const titles=shoppingList.selected_recipe_titles||[];
+              const rows=Object.entries(sections).map(([sec,items])=>`
+                <h3 style="text-transform:capitalize;margin:16px 0 6px;font-size:15px">${sec}</h3>
+                <table style="width:100%;border-collapse:collapse">
+                  ${items.map(it=>`<tr style="border-bottom:1px solid #eee">
+                    <td style="padding:5px 0">${it.item}</td>
+                    <td style="padding:5px 8px;text-align:right;white-space:nowrap">${it.quantity!=null?`${it.quantity} ${it.unit||''}`.trim():'as needed'}</td>
+                    <td style="padding:5px 0 5px 8px;color:#666;font-size:13px">${it.package_label||''}</td>
+                  </tr>`).join('')}
+                </table>`).join('');
+              const pantryRows=pantryCheck.length?`<h3 style="margin:16px 0 6px;font-size:15px">&#x1F9EB; Pantry Check</h3>
+                <table style="width:100%;border-collapse:collapse">
+                  ${pantryCheck.map(it=>`<tr style="border-bottom:1px solid #eee;color:#555">
+                    <td style="padding:4px 0">${it.item}</td>
+                    <td style="padding:4px 8px;text-align:right">${it.quantity!=null?`${it.quantity} ${it.unit||''}`.trim():'some'}</td>
+                    <td style="padding:4px 0 4px 8px;color:green;font-size:13px">&#x2713; on hand</td>
+                  </tr>`).join('')}
+                </table>`:'';
+              const w=window.open('','_blank');
+              w.document.write(`<!DOCTYPE html><html><head><title>Shopping List</title>
+                <style>body{font-family:sans-serif;max-width:600px;margin:32px auto;color:#111}
+                h1{font-size:22px;margin-bottom:4px}
+                p{color:#666;font-size:13px;margin:0 0 8px}
+                @media print{button{display:none}}</style></head>
+                <body>
+                <h1>&#x1F6D2; Shopping List</h1>
+                ${titles.length?`<p>Meals: ${titles.join(', ')}</p>`:''}
+                <p>Generated ${new Date().toLocaleDateString()}</p>
+                ${rows}${pantryRows}
+                <p style="margin-top:24px;font-size:11px;color:#aaa">Recipe Planner</p>
+                <script>window.print();<\/script>
+                </body></html>`);
+              w.document.close();
+            }}>&#x1F5A8;&#xFE0F; Print / Save PDF</button>
+          </div>
         </>}
       </div>}
     </div>
@@ -601,16 +758,18 @@ const SettingsPage=({hid})=>{
   const [prefs,setPrefs]=useState(null);
   const [staples,setStaples]=useState([]);
   const [newStaple,setNewStaple]=useState('');
+  const [vocab,setVocab]=useState({methods:[],cookware:[],skill_levels:[]});
   const toast=useToast();
-  const METHODS=['slow_cooker','instant_pot_pressure_cooker','air_fryer','sous_vide','smoker','grill','oven','stovetop','microwave'];
   useEffect(()=>{
     get(`/preferences/${hid}`).then(setPrefs).catch(()=>{});
     get('/pantry/staples').then(d=>setStaples(d.staples||[])).catch(()=>{});
+    get('/config/cooking-methods').then(d=>setVocab({methods:d.methods||[],cookware:d.cookware||[],skill_levels:d.skill_levels||[]})).catch(()=>{});
   },[hid]);
   const savePrefs=async()=>{try{await put(`/preferences/${hid}`,prefs);toast('Saved');}catch(e){toast(e.message,'error');}};
   const addStaple=async()=>{if(!newStaple.trim())return;try{const r=await post('/pantry/staples',{name:newStaple});setStaples(r.staples||[]);setNewStaple('');toast('Added');}catch(e){toast(e.message,'error');}};
   const rmStaple=async n=>{try{const r=await del(`/pantry/staples/${encodeURIComponent(n)}`);setStaples(r.staples||[]);toast('Removed');}catch(e){toast(e.message,'error');}};
   const toggleMethod=m=>{if(!prefs)return;const cur=prefs.available_methods||[];setPrefs(p=>({...p,available_methods:cur.includes(m)?cur.filter(x=>x!==m):[...cur,m]}));};
+  const toggleCookware=c=>{if(!prefs)return;const cur=prefs.available_cookware||[];setPrefs(p=>({...p,available_cookware:cur.includes(c)?cur.filter(x=>x!==c):[...cur,c]}));};
   const ArrayEditor=({label,fk})=>{
     const [v,setV]=useState('');const items=prefs?.[fk]||[];
     return(<div style={{marginBottom:16}}>
@@ -629,7 +788,7 @@ const SettingsPage=({hid})=>{
   return(
     <div>
       <div className="page-header"><h1 className="page-title">⚙️ Settings</h1></div>
-      <div className="tabs">{[['prefs','Preferences'],['methods','Cooking Methods'],['staples','Pantry Staples']].map(([k,l])=><div key={k} className={`tab${tab===k?' active':''}`} onClick={()=>setTab(k)}>{l}</div>)}</div>
+      <div className="tabs">{[['prefs','Preferences'],['equipment','Equipment'],['staples','Pantry Staples']].map(([k,l])=><div key={k} className={`tab${tab===k?' active':''}`} onClick={()=>setTab(k)}>{l}</div>)}</div>
       {tab==='prefs'&&prefs&&<div className="card"><div style={{display:'grid',gap:16}}>
         <ArrayEditor label="Liked items" fk="liked_items"/>
         <ArrayEditor label="Disliked items" fk="disliked_items"/>
@@ -638,19 +797,32 @@ const SettingsPage=({hid})=>{
           <div><label>Max cook time (min)</label><input type="number" value={prefs.max_cook_time_minutes||''} onChange={e=>setPrefs(p=>({...p,max_cook_time_minutes:e.target.value?+e.target.value:null}))} placeholder="e.g. 60"/></div>
           <div><label>Default suggestions</label><input type="number" min={3} max={30} value={prefs.default_num_suggestions||10} onChange={e=>setPrefs(p=>({...p,default_num_suggestions:+e.target.value}))}/></div>
           <div><label>Favourite threshold (★)</label><select value={prefs.favorite_rating_threshold||4} onChange={e=>setPrefs(p=>({...p,favorite_rating_threshold:+e.target.value}))}>{[3,4,5].map(n=><option key={n} value={n}>{n} stars</option>)}</select></div>
+          <div><label>Skill level</label><select value={prefs.skill_level||''} onChange={e=>setPrefs(p=>({...p,skill_level:e.target.value||null}))}>
+            <option value="">— not set —</option>
+            {vocab.skill_levels.map(sl=><option key={sl} value={sl}>{sl.charAt(0).toUpperCase()+sl.slice(1)}</option>)}
+          </select></div>
           <div><label>Mealie dinner tag</label><input value={prefs.mealie_dinner_tag||''} onChange={e=>setPrefs(p=>({...p,mealie_dinner_tag:e.target.value}))} placeholder="dinner-planner"/></div>
         </div>
         <button className="btn-primary" style={{alignSelf:'start'}} onClick={savePrefs}>Save Preferences</button>
       </div></div>}
-      {tab==='methods'&&prefs&&<div className="card">
-        <p style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>Recipes requiring unchecked equipment are hard-filtered from suggestions.</p>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-          {METHODS.map(m=><label key={m} style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',padding:'10px 14px',border:'1px solid var(--border)',borderRadius:8,background:(prefs.available_methods||[]).includes(m)?'#eff6ff':''}}>
+      {tab==='equipment'&&prefs&&<div className="card">
+        <h3 className="section-title" style={{marginBottom:4}}>Cooking Methods</h3>
+        <p style={{fontSize:13,color:'var(--gray)',marginBottom:12}}>Recipes requiring unchecked methods are hard-filtered from suggestions.</p>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:24}}>
+          {vocab.methods.map(m=><label key={m} style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',padding:'10px 14px',border:'1px solid var(--border)',borderRadius:8,background:(prefs.available_methods||[]).includes(m)?'#eff6ff':''}}>
             <input type="checkbox" checked={(prefs.available_methods||[]).includes(m)} onChange={()=>toggleMethod(m)} style={{width:'auto'}}/>
             <span style={{fontSize:14,textTransform:'capitalize'}}>{m.replace(/_/g,' ')}</span>
           </label>)}
         </div>
-        <button className="btn-primary" style={{marginTop:16}} onClick={savePrefs}>Save</button>
+        <h3 className="section-title" style={{marginBottom:4}}>Cookware</h3>
+        <p style={{fontSize:13,color:'var(--gray)',marginBottom:12}}>Check the cookware you own. Recipes needing unchecked items may be filtered or scored lower.</p>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+          {vocab.cookware.map(c=><label key={c} style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',padding:'10px 14px',border:'1px solid var(--border)',borderRadius:8,background:(prefs.available_cookware||[]).includes(c)?'#eff6ff':''}}>
+            <input type="checkbox" checked={(prefs.available_cookware||[]).includes(c)} onChange={()=>toggleCookware(c)} style={{width:'auto'}}/>
+            <span style={{fontSize:14,textTransform:'capitalize'}}>{c.replace(/_/g,' ')}</span>
+          </label>)}
+        </div>
+        <button className="btn-primary" onClick={savePrefs}>Save Equipment</button>
       </div>}
       {tab==='staples'&&<div className="card">
         <p style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>Staples are always assumed on hand and appear in the Pantry Check section, never the buy list.</p>
@@ -670,6 +842,10 @@ const SourcesPage=()=>{
   const [showForm,setShowForm]=useState(false);
   const [editName,setEditName]=useState(null);
   const [form,setForm]=useState({name:'',enabled:true,feed_urls:'',category_urls:'',notes:''});
+  const [showDiscover,setShowDiscover]=useState(false);
+  const [discoverUrl,setDiscoverUrl]=useState('');
+  const [discoverResults,setDiscoverResults]=useState(null);
+  const [discoverLoading,setDiscoverLoading]=useState(false);
   const toast=useToast();
 
   const load=async()=>{
@@ -681,6 +857,23 @@ const SourcesPage=()=>{
     finally{setLoading(false);}
   };
   useEffect(()=>{load();},[]);
+
+  const discoverFeeds=async()=>{
+    if(!discoverUrl.trim())return;
+    setDiscoverLoading(true);setDiscoverResults(null);
+    try{
+      const r=await post('/config/sources/discover',{url:discoverUrl.trim()});
+      setDiscoverResults(r.feeds||[]);
+      if(!(r.feeds||[]).length)toast('No RSS feeds found at that URL','error');
+    }catch(e){toast(e.message,'error');}
+    finally{setDiscoverLoading(false);}
+  };
+
+  const useDiscoveredFeed=feedUrl=>{
+    const name=discoverUrl.replace(/https?:\/\//,'').split('/')[0];
+    setForm({name,enabled:true,feed_urls:feedUrl,category_urls:'',notes:'Discovered via RSS autodiscovery'});
+    setEditName(null);setShowDiscover(false);setShowForm(true);
+  };
 
   const toggleEnabled=async src=>{
     try{
@@ -725,7 +918,10 @@ const SourcesPage=()=>{
         <div><h1 className="page-title">📡 RSS Sources</h1>
           <p className="page-sub">{loading?'Loading…':error?'Error loading sources':`${enabled.length} active · ${disabled.length} disabled · ${sources.length} total`}</p>
         </div>
-        <button className="btn-primary" onClick={openAdd}>+ Add Source</button>
+        <div style={{display:'flex',gap:8}}>
+          <button className="btn-secondary" onClick={()=>{setShowDiscover(true);setDiscoverResults(null);setDiscoverUrl('');}}>🔍 Discover Feeds</button>
+          <button className="btn-primary" onClick={openAdd}>+ Add Source</button>
+        </div>
       </div>
 
       {error&&<div className="alert alert-error">❌ {error} — check that /api/config/sources is reachable.</div>}
@@ -735,7 +931,7 @@ const SourcesPage=()=>{
         <div className="card" style={{marginBottom:16}}>
           <h3 className="section-title">Discovery Settings</h3>
           <div className="form-row">
-            {[['max_scraped_per_run','Max scrapes/run','number'],['request_delay_seconds','Delay (sec)','number'],['feed_pages','RSS pages/feed','number'],['min_scraped_rating','Min rating (0=off)','number'],['min_scraped_reviews','Min reviews (0=off)','number'],['mealie_favorites_count','Mealie fav slots','number']].map(([k,l,t])=>(
+            {[['max_scraped_per_run','Max scrapes/run','number'],['request_delay_seconds','Delay (sec)','number'],['feed_pages','RSS pages/feed','number'],['stub_rescrape_days','Stub cache TTL (days)','number'],['min_scraped_rating','Min rating (0=off)','number'],['min_scraped_reviews','Min reviews (0=off)','number'],['mealie_favorites_count','Mealie fav slots','number']].map(([k,l,t])=>(
               <div key={k}><label>{l}</label><input type={t} value={disc[k]??''} step={k==='request_delay_seconds'?.5:1} onChange={e=>setDisc(d=>({...d,[k]:+e.target.value}))}/></div>
             ))}
           </div>
@@ -778,6 +974,37 @@ const SourcesPage=()=>{
           ))}
         </div>}
       </>}
+
+      {showDiscover&&<div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setShowDiscover(false)}>
+        <div className="modal">
+          <h2>🔍 Discover RSS Feeds</h2>
+          <p style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>Enter a food blog or recipe website URL to automatically find its RSS/Atom feeds.</p>
+          <div style={{display:'flex',gap:8,marginBottom:16}}>
+            <input style={{flex:1}} value={discoverUrl} onChange={e=>setDiscoverUrl(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&discoverFeeds()}
+              placeholder="https://www.seriouseats.com"/>
+            <button className="btn-primary" onClick={discoverFeeds} disabled={discoverLoading}>
+              {discoverLoading?'Searching…':'Search'}
+            </button>
+          </div>
+          {discoverResults!==null&&(discoverResults.length===0?(
+            <div className="alert alert-warning">No RSS feeds found. Try a different URL or add the feed URL manually.</div>
+          ):(
+            <div>
+              <p style={{fontSize:13,fontWeight:600,marginBottom:8}}>Found {discoverResults.length} feed{discoverResults.length!==1?'s':''}:</p>
+              {discoverResults.map((f,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
+                  <span style={{flex:1,fontSize:13,wordBreak:'break-all',color:'var(--gray)'}}>{f}</span>
+                  <button className="btn-primary btn-sm" onClick={()=>useDiscoveredFeed(f)}>Use</button>
+                </div>
+              ))}
+            </div>
+          ))}
+          <div style={{marginTop:16}}>
+            <button className="btn-secondary" onClick={()=>setShowDiscover(false)}>Close</button>
+          </div>
+        </div>
+      </div>}
 
       {showForm&&<div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setShowForm(false)}>
         <div className="modal">

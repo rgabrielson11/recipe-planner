@@ -44,9 +44,11 @@ import logging
 import re
 import time
 import random
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Optional
 from urllib.parse import urljoin, urlparse
+
+import threading
 
 import requests
 from bs4 import BeautifulSoup
@@ -67,6 +69,27 @@ except ImportError:
     SUPPORTED_SCRAPERS  = {}
 
 from app import models, config_files
+
+# ── Per-household progress store ──────────────────────────────────────────────
+# Written by discover_and_score() as it advances through stages.
+# Read by GET /meal-plan/suggest/progress so the frontend can poll.
+_progress_lock: threading.Lock = threading.Lock()
+_progress: dict[str, dict] = {}
+
+
+def set_progress(household_id: str, pct: int, message: str) -> None:
+    with _progress_lock:
+        _progress[household_id] = {"pct": pct, "message": message}
+
+
+def get_progress(household_id: str) -> dict:
+    with _progress_lock:
+        return dict(_progress.get(household_id, {"pct": 0, "message": "Starting..."}))
+
+
+def clear_progress(household_id: str) -> None:
+    with _progress_lock:
+        _progress.pop(household_id, None)
 
 log = logging.getLogger(__name__)
 
@@ -603,6 +626,7 @@ def discover_and_score(
     min_reviews      = int(cfg.get("min_scraped_reviews", 50))
     nd_keywords      = list(cfg.get("non_dinner_title_keywords", []))
     non_dinner_re    = _build_non_dinner_re(nd_keywords)
+    rescrape_days    = int(cfg.get("stub_rescrape_days", 7))
 
     log.info(
         "=== Discovery start | household=%s | week=%s | max_scrape=%d | "
@@ -610,6 +634,7 @@ def discover_and_score(
         household_id, week_start, max_scrape, min_rating, min_reviews,
         len(sources), len(nd_keywords),
     )
+    set_progress(household_id, 3, "Building recipe catalog...")
 
     # URLs already in Mealie — skip entirely
     mealie_imported_urls: set[str] = {
@@ -620,26 +645,36 @@ def discover_and_score(
         ).all()
     }
 
-    # Existing stubs — re-scrape for fresh scoring each week
-    existing_stubs = [
-        r for r in db.query(models.Recipe).filter(
-            models.Recipe.mealie_slug.is_(None),
-            models.Recipe.source_url.isnot(None),
-        ).all()
-        if r.id not in excluded_recipe_ids
-    ]
-    stub_urls = {r.source_url for r in existing_stubs}
-    all_known = mealie_imported_urls | stub_urls
+    # All stubs in DB — used for URL-level dedup regardless of rejection status.
+    # A rejected recipe's URL must stay in all_known so Pool Y never tries to
+    # re-insert it (UNIQUE constraint on source_url would fire otherwise).
+    all_stubs = db.query(models.Recipe).filter(
+        models.Recipe.mealie_slug.is_(None),
+        models.Recipe.source_url.isnot(None),
+    ).all()
+    all_stub_urls  = {r.source_url for r in all_stubs}   # dedup — includes rejected
+    all_known      = mealie_imported_urls | all_stub_urls
+
+    # Pool X candidates — exclude rejected recipes from scoring, but NOT from dedup
+    existing_stubs = [r for r in all_stubs if r.id not in excluded_recipe_ids]
 
     log.info(
-        "Mealie-imported URLs: %d | existing stubs: %d",
-        len(mealie_imported_urls), len(existing_stubs),
+        "Mealie-imported URLs: %d | all stubs: %d | Pool X eligible: %d",
+        len(mealie_imported_urls), len(all_stubs), len(existing_stubs),
     )
 
     # ── Phase 1: collect URLs from RSS feeds ──────────────────────────────────
     feed_candidate_urls: list[str] = []
+    _total_feeds = sum(len(s.get("feed_urls", [])) for s in sources)
+    _feed_idx    = 0
     for source in sources:
         for feed_url in source.get("feed_urls", []):
+            _feed_idx += 1
+            _feed_pct = 5 + int((_feed_idx / max(_total_feeds, 1)) * 40)
+            set_progress(
+                household_id, _feed_pct,
+                f"Fetching {source['name']} ({_feed_idx} of {_total_feeds} feeds)...",
+            )
             log.info("Fetching RSS feed: %s (%s)", feed_url, source["name"])
             raw_entries, raw_urls = _fetch_feed_urls_with_entries(feed_url, user_agent, max_pages=feed_pages)
             # Apply dinner pre-filter against RSS entry titles/categories
@@ -722,23 +757,44 @@ def discover_and_score(
 
         if existing_row:
             recipe_id = existing_row.id
-            # Refresh scraped data on re-scrape
+            # Refresh scraped data on live scrape (not called for cache hits)
             existing_row.scraped_ingredients_json = _json.dumps(ing_strings)
             existing_row.scraped_time_minutes     = _parse_minutes(detail.get("totalTime"))
             existing_row.scraped_description      = (detail.get("description") or "")[:500]
+            existing_row.last_scraped_at          = datetime.utcnow()
             db.add(existing_row)
         else:
-            row = models.Recipe(
-                source_url=url,
-                title=detail["name"],
-                mealie_slug=None,
-                scraped_ingredients_json=_json.dumps(ing_strings),
-                scraped_time_minutes=_parse_minutes(detail.get("totalTime")),
-                scraped_description=(detail.get("description") or "")[:500],
-            )
-            db.add(row)
-            db.flush()
-            recipe_id = row.id
+            # Safety net: check the DB before inserting.  The URL should have
+            # been caught by all_known, but race conditions or URL-normalisation
+            # edge cases can still slip through.  Treat an existing row as
+            # existing_row so we update it rather than crash on the UNIQUE key.
+            _existing = db.query(models.Recipe).filter(
+                models.Recipe.source_url == url
+            ).first()
+            if _existing:
+                log.warning(
+                    "_process: URL already in DB (id=%s) — updating instead of inserting: %s",
+                    _existing.id, url,
+                )
+                _existing.scraped_ingredients_json = _json.dumps(ing_strings)
+                _existing.scraped_time_minutes     = _parse_minutes(detail.get("totalTime"))
+                _existing.scraped_description      = (detail.get("description") or "")[:500]
+                _existing.last_scraped_at          = datetime.utcnow()
+                db.add(_existing)
+                recipe_id = _existing.id
+            else:
+                row = models.Recipe(
+                    source_url=url,
+                    title=detail["name"],
+                    mealie_slug=None,
+                    scraped_ingredients_json=_json.dumps(ing_strings),
+                    scraped_time_minutes=_parse_minutes(detail.get("totalTime")),
+                    scraped_description=(detail.get("description") or "")[:500],
+                    last_scraped_at=datetime.utcnow(),
+                )
+                db.add(row)
+                db.flush()
+                recipe_id = row.id
 
         if recipe_id in excluded_recipe_ids:
             return None
@@ -760,12 +816,51 @@ def discover_and_score(
             "_pending_import":     True,
         }
 
-    # ── Pool X: re-scrape existing stubs ─────────────────────────────────────
+    # ── Pool X: score existing stubs (scrape only if cache is stale) ────────
+    # If a stub was scraped within stub_rescrape_days, score it from the
+    # cached DB columns instead of hitting the network again.  Only stubs
+    # older than the TTL (or never scraped) make a live HTTP request.
+    set_progress(
+        household_id, 47,
+        f"Scoring {len(existing_stubs)} known recipes against your pantry...",
+    )
     random.shuffle(existing_stubs)
-    stub_scraped = stub_scored = 0
+    stub_scraped = stub_scored = stub_cached = 0
+    cutoff = datetime.utcnow() - timedelta(days=rescrape_days)
+
     for stub in existing_stubs:
-        if stub_scraped >= stub_budget:
+        if stub_scraped + stub_cached >= stub_budget:
             break
+
+        # ── Use cached data if fresh enough ──────────────────────────────
+        if stub.last_scraped_at and stub.last_scraped_at >= cutoff and stub.scraped_ingredients_json:
+            import json as _json_cache
+            try:
+                ing_strings = _json_cache.loads(stub.scraped_ingredients_json or "[]")
+            except Exception:
+                ing_strings = []
+            cached_detail = {
+                "name":             stub.title,
+                "description":      stub.scraped_description or "",
+                "tags":             [],
+                "recipeIngredient": [{"note": s} for s in ing_strings],
+                "totalTime":        f"PT{stub.scraped_time_minutes}M" if stub.scraped_time_minutes else None,
+                "_source_url":      stub.source_url,
+            }
+            entry = _process(cached_detail, existing_row=stub)
+            stub_cached += 1
+            log.debug("Pool X CACHE HIT: '%s' (scraped %s)", stub.title, stub.last_scraped_at.date())
+            if entry:
+                scored.append(entry)
+                stub_scored += 1
+            continue
+
+        # ── Cache stale or missing — live scrape ─────────────────────────
+        set_progress(
+            household_id,
+            48 + min(stub_scraped, 6),
+            f"Re-scraping stale recipe: {stub.title[:50]}...",
+        )
         detail = _scrape_recipe(stub.source_url, user_agent, min_rating, min_reviews)
         stub_scraped += 1
         time.sleep(delay)
@@ -776,13 +871,28 @@ def discover_and_score(
             scored.append(entry)
             stub_scored += 1
 
-    log.info("Pool X (stubs): scraped %d → %d scored", stub_scraped, stub_scored)
+    log.info(
+        "Pool X (stubs): %d cache hits, %d scraped → %d scored",
+        stub_cached, stub_scraped, stub_scored,
+    )
 
     # ── Pool Y: scrape new URLs ───────────────────────────────────────────────
     new_scraped = new_scored = 0
+    _pool_y_total = min(len(candidate_urls), new_budget)
+    if _pool_y_total:
+        set_progress(
+            household_id, 57,
+            f"Discovering new recipes (0 of {_pool_y_total})...",
+        )
     for url in candidate_urls:
         if new_scraped >= new_budget or len(scored) >= max_results * 2:
             break
+        _pool_y_pct = 57 + int((new_scraped / max(_pool_y_total, 1)) * 33)
+        _display_url = url.rstrip("/").split("/")[-1].replace("-", " ").replace("_", " ")[:55]
+        set_progress(
+            household_id, min(_pool_y_pct, 90),
+            f"Scraping recipe {new_scraped + 1} of {_pool_y_total}: {_display_url}...",
+        )
         detail = _scrape_recipe(url, user_agent, min_rating, min_reviews)
         new_scraped += 1
         time.sleep(delay)
@@ -794,12 +904,14 @@ def discover_and_score(
             new_scored += 1
 
     log.info("Pool Y (new):   scraped %d → %d scored", new_scraped, new_scored)
+    set_progress(household_id, 93, "Ranking and filtering suggestions...")
 
     db.commit()
 
     scored.sort(key=lambda r: -r["score"])
     result = scored[:max_results]
 
+    set_progress(household_id, 100, "Done!")
     log.info(
         "=== Discovery end | total scored=%d | returning %d | top score=%.1f ===",
         len(scored), len(result), result[0]["score"] if result else 0.0,

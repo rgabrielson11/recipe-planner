@@ -29,7 +29,11 @@ class SourceIn(BaseModel):
 @router.get("/sources")
 def list_sources():
     """All sources from recipe_sources.yaml (enabled and disabled)."""
-    return config_files.get_recipe_sources().get("sources", [])
+    try:
+        return config_files.get_recipe_sources().get("sources", [])
+    except Exception as e:
+        log.error("Failed to load recipe_sources.yaml: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to load sources config: {e}")
 
 
 @router.post("/sources", status_code=201)
@@ -98,11 +102,16 @@ class DiscoverySettingsIn(BaseModel):
     mealie_favorites_count:     int   = 2
     min_scraped_rating:         float = 4.0
     min_scraped_reviews:        int   = 50
+    stub_rescrape_days:         int   = 7
 
 
 @router.get("/discovery")
 def get_discovery_settings():
-    return config_files.get_discovery_config()
+    try:
+        return config_files.get_discovery_config()
+    except Exception as e:
+        log.error("Failed to load discovery config: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to load discovery config: {e}")
 
 
 @router.put("/discovery")
@@ -116,6 +125,7 @@ def update_discovery_settings(payload: DiscoverySettingsIn):
     disc["mealie_favorites_count"] = payload.mealie_favorites_count
     disc["min_scraped_rating"]     = payload.min_scraped_rating
     disc["min_scraped_reviews"]    = payload.min_scraped_reviews
+    disc["stub_rescrape_days"]     = payload.stub_rescrape_days
     config_files.save_yaml("recipe_sources.yaml", data)
     log.info("Config: updated discovery settings")
     return dict(disc)
@@ -163,3 +173,91 @@ def get_cooking_methods():
     return {"methods": vocab.get("cooking_methods", []),
             "cookware": vocab.get("cookware", []),
             "skill_levels": vocab.get("skill_levels", [])}
+
+
+# ── Mealie URL ────────────────────────────────────────────────────────────────
+
+@router.get("/mealie-url")
+def get_mealie_url():
+    """
+    Returns the configured Mealie base URL and group slug so the frontend
+    can build deep links (e.g. manual import links for failed imports).
+    Safe to expose — this is a LAN-only deployment with no auth layer.
+    """
+    import os
+    base = os.getenv("MEALIE_BASE_URL", "").rstrip("/")
+    return {
+        "mealie_base_url": base,
+        "group_slug":      "home",   # default for single-household Mealie installs
+    }
+
+# ── RSS Feed Discovery ────────────────────────────────────────────────────────
+
+@router.post("/sources/discover")
+def discover_feeds(payload: dict):
+    """
+    Given a website URL, find its RSS/Atom feed URLs by:
+    1. Parsing <link rel="alternate"> autodiscovery tags in the HTML
+    2. Probing common feed path patterns as a fallback
+
+    Returns a list of candidate feed URLs the user can add as sources.
+    """
+    import requests as _req
+    from bs4 import BeautifulSoup as _BS
+
+    url = (payload.get("url") or "").strip()
+    if not url:
+        raise HTTPException(status_code=422, detail="url is required")
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+
+    from urllib.parse import urljoin, urlparse
+    base = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
+
+    found: list[str] = []
+    _HEADERS = {"User-Agent": "RecipePlanner/1.0 (RSS feed discovery)"}
+
+    # Step 1 — autodiscovery from HTML <link> tags
+    try:
+        resp = _req.get(url, headers=_HEADERS, timeout=10, allow_redirects=True)
+        resp.raise_for_status()
+        soup = _BS(resp.text, "html.parser")
+        for tag in soup.find_all("link", rel=lambda r: r and any(
+            x in (r if isinstance(r, list) else [r])
+            for x in ["alternate", "feed"]
+        )):
+            href = tag.get("href", "")
+            t    = tag.get("type", "")
+            if href and ("rss" in t or "atom" in t or "rss" in href or "feed" in href):
+                found.append(urljoin(url, href))
+    except Exception as e:
+        log.debug("Feed autodiscovery fetch failed for %s: %s", url, e)
+
+    # Step 2 — probe common feed paths
+    COMMON_PATHS = [
+        "/feed/", "/feed", "/rss/", "/rss", "/rss.xml",
+        "/feed.xml", "/atom.xml", "/index.xml", "/blog/feed/",
+        "/blog/rss/", "/wp-json/wp/v2/posts",
+    ]
+    for path in COMMON_PATHS:
+        candidate = base + path
+        if candidate in found:
+            continue
+        try:
+            r = _req.head(candidate, headers=_HEADERS, timeout=5, allow_redirects=True)
+            ct = r.headers.get("content-type", "")
+            if r.status_code == 200 and ("rss" in ct or "xml" in ct or "atom" in ct):
+                found.append(candidate)
+        except Exception:
+            pass
+
+    # Deduplicate preserving order
+    seen: set[str] = set()
+    unique = []
+    for f in found:
+        if f not in seen:
+            seen.add(f)
+            unique.append(f)
+
+    log.info("Feed discovery for %s: found %d candidate(s)", url, len(unique))
+    return {"url": url, "feeds": unique}

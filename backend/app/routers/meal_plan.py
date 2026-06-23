@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 import logging
-from app import models, schemas, mealie_client, matching_engine, shopping_list as sl
+from app import models, schemas, mealie_client, matching_engine, recipe_discovery, shopping_list as sl
 
 log = logging.getLogger(__name__)
 from app.database import get_db
@@ -180,6 +180,12 @@ def get_week_intent(
 
 # ── 3. Suggestions (flat ranked list) ────────────────────────────────────────
 
+@router.get("/suggest/progress")
+def suggest_progress(household_id: str):
+    """Poll while GET /suggest is in-flight — returns {pct, message}."""
+    return recipe_discovery.get_progress(household_id)
+
+
 @router.get("/suggest", response_model=schemas.WeeklySuggestion)
 def suggest(
     household_id: str,
@@ -317,6 +323,19 @@ def confirm_selections(
             continue
         try:
             log.info("Importing '%s' from %s", recipe.title, recipe.source_url)
+
+            # ── Dedup check: recipe may already exist in Mealie ───────────
+            # Handles DB-reset scenarios where our local slug was lost but
+            # the recipe still lives in Mealie. Avoids creating duplicates.
+            existing_slug = mealie_client.find_recipe_by_url(recipe.source_url)
+            if existing_slug:
+                log.info("Recipe already in Mealie (orgURL match): '%s' slug=%s", recipe.title, existing_slug)
+                recipe.mealie_slug = existing_slug
+                db.add(recipe)
+                db.commit()
+                import_results.append({"title": recipe.title, "status": "already_in_mealie", "slug": existing_slug})
+                continue
+
             slug = mealie_client.import_recipe_from_url(recipe.source_url)
 
             # ── Commit slug IMMEDIATELY, independently of tagging ──────────
@@ -338,7 +357,12 @@ def confirm_selections(
 
         except mealie_client.MealieError as e:
             log.warning("Mealie import FAILED for '%s': %s", recipe.title, e)
-            import_results.append({"title": recipe.title, "status": "import_failed", "error": str(e)})
+            import_results.append({
+                "title":      recipe.title,
+                "status":     "import_failed",
+                "error":      str(e),
+                "source_url": recipe.source_url,   # needed for manual-import deep link in UI
+            })
 
     db.commit()   # final commit for any remaining state
 

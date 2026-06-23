@@ -7,6 +7,11 @@ version: "3.9"
 # Security: only port 8111 is exposed. No database port, no separate network
 # needed (single container). Do NOT forward 8111 through your router —
 # this app has no auth layer; it is designed for trusted LAN access only.
+#
+# Homepage dashboard integration:
+#   Labels below enable automatic service discovery by the Homepage dashboard.
+#   Set RECIPE_PLANNER_URL in .env to your server's LAN address, e.g.:
+#     RECIPE_PLANNER_URL=http://192.168.111.189:8111
 
 services:
   app:
@@ -31,3 +36,9 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    labels:
+      - "homepage.group=Kitchen"
+      - "homepage.name=Recipe Planner"
+      - "homepage.icon=mdi-silverware-fork-knife.svg"
+      - "homepage.href=${RECIPE_PLANNER_URL:-http://localhost:8111}"
+      - "homepage.description=Weekly dinner meal planner"

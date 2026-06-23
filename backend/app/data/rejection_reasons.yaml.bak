@@ -1,0 +1,72 @@
+# Rejection reason vocabulary for the weekly recipe selection process.
+#
+# permanent: true  → recipe is PERMANENTLY excluded from future suggestions
+#                    for this household (allergy, genuine dislike, missing
+#                    equipment). The matching engine will never surface it again.
+#
+# permanent: false → recipe is TEMPORARILY suppressed for `suppress_weeks`
+#                    weeks, then resurfaces in future suggestion pools. Use
+#                    this for situational reasons ("not this week", "already
+#                    had it"). This keeps the catalog growing rather than
+#                    shrinking every time the household passes on something.
+#
+# Add new reasons here — no code change needed.
+
+reasons:
+
+  # ── Permanent rejections ─────────────────────────────────────────────────
+  - key: dislike
+    label: "Don't like this dish"
+    permanent: true
+
+  - key: disliked_ingredient
+    label: "Contains an ingredient we don't like"
+    permanent: true
+
+  - key: allergy
+    label: "Contains an allergen"
+    permanent: true
+
+  - key: cook_method_unavailable
+    label: "Cooking method not available (e.g. no smoker)"
+    permanent: true
+
+  - key: cookware_unavailable
+    label: "Required cookware not on hand"
+    permanent: true
+
+  # ── Temporary suppressions ───────────────────────────────────────────────
+  - key: not_this_week
+    label: "Not feeling it this week"
+    permanent: false
+    suppress_weeks: 2
+
+  - key: already_made_recently
+    label: "Already made this recently"
+    permanent: false
+    suppress_weeks: 3
+
+  - key: too_time_consuming
+    label: "Too time consuming right now"
+    permanent: false
+    suppress_weeks: 2
+
+  - key: too_expensive
+    label: "Too expensive right now"
+    permanent: false
+    suppress_weeks: 2
+
+  - key: too_complex
+    label: "Too complex for this week"
+    permanent: false
+    suppress_weeks: 2
+
+  - key: missing_key_ingredient
+    label: "Missing a key ingredient I don't want to buy"
+    permanent: false
+    suppress_weeks: 2
+
+  - key: other
+    label: "Other"
+    permanent: false
+    suppress_weeks: 1

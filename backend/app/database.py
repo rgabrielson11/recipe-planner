@@ -1,5 +1,5 @@
 """
-SQLite database — Phase 8
+SQLite database — Phase 10
 Added run_migrations() for safe column additions to existing installs.
 """
 
@@ -36,6 +36,7 @@ def run_migrations():
         ("recipes", "scraped_ingredients_json", "TEXT"),
         ("recipes", "scraped_time_minutes",     "INTEGER"),
         ("recipes", "scraped_description",      "TEXT"),
+        ("recipes", "last_scraped_at",          "DATETIME"),
     ]
     with engine.connect() as conn:
         for table, column, col_type in migrations:

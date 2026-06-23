@@ -138,3 +138,65 @@ def list_rejections(recipe_id: str, db: Session = Depends(get_db)):
     return db.query(models.RecipeRejection).filter(
         models.RecipeRejection.recipe_id == recipe_id
     ).all()
+
+
+@router.get("/{recipe_id}/print-data")
+def get_print_data(recipe_id: str, db: Session = Depends(get_db)):
+    """
+    Returns all available recipe data needed for the in-app print view.
+    Combines local DB fields (scraped ingredients, description, cook time)
+    with full instructions from Mealie when the recipe has been imported there.
+    """
+    import json as _json
+    import os as _os
+
+    recipe = db.query(models.Recipe).filter(models.Recipe.id == recipe_id).first()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    # ── Local data (always available after scraping) ──────────────────────────
+    try:
+        ingredients = _json.loads(recipe.scraped_ingredients_json or "[]")
+    except Exception:
+        ingredients = []
+
+    data = {
+        "title":               recipe.title,
+        "source_url":          recipe.source_url,
+        "total_time_minutes":  recipe.scraped_time_minutes,
+        "description":         recipe.scraped_description or "",
+        "ingredients":         ingredients,
+        "instructions":        [],          # filled below if Mealie has it
+        "mealie_url":          None,
+    }
+
+    # ── Mealie data (instructions, notes) — best-effort ──────────────────────
+    if recipe.mealie_slug:
+        mealie_base = _os.getenv("MEALIE_BASE_URL", "").rstrip("/")
+        if mealie_base:
+            data["mealie_url"] = f"{mealie_base}/g/home/r/{recipe.mealie_slug}"
+        try:
+            detail = mealie_client.get_recipe(recipe.mealie_slug)
+            # Prefer Mealie's ingredient list (has quantities + units) if richer
+            mealie_ings = [
+                " ".join(filter(None, [
+                    str(i.get("quantity", "") or "").strip(),
+                    (i.get("unit") or {}).get("name", ""),
+                    (i.get("food")  or {}).get("name", "") or i.get("note", ""),
+                ])).strip()
+                for i in (detail.get("recipeIngredient") or [])
+                if isinstance(i, dict)
+            ]
+            if mealie_ings:
+                data["ingredients"] = [i for i in mealie_ings if i]
+
+            # Instructions
+            data["instructions"] = [
+                step.get("text", "")
+                for step in (detail.get("recipeInstructions") or [])
+                if isinstance(step, dict) and step.get("text", "").strip()
+            ]
+        except Exception:
+            pass   # Mealie unavailable — fall back to scraped data only
+
+    return data

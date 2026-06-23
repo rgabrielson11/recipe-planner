@@ -151,6 +151,34 @@ def _strip_cost_fields(detail: dict) -> dict:
     return {k: v for k, v in detail.items() if k not in _COST_FIELDS}
 
 
+def find_recipe_by_url(url: str) -> Optional[str]:
+    """
+    Search Mealie for a recipe whose orgURL matches url.
+    Returns the slug if found, None otherwise.
+
+    Used as a dedup guard before importing: if Mealie already holds this
+    recipe (e.g. from a previous run or a DB reset) we return the existing
+    slug instead of creating a duplicate.
+    """
+    _check_configured()
+    try:
+        r = requests.get(
+            f"{MEALIE_BASE_URL}/api/recipes",
+            headers=_headers(),
+            params={"queryFilter": f'orgURL = "{url}"', "perPage": 5},
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        items = r.json().get("items", [])
+        if items:
+            slug = items[0].get("slug")
+            log.info("find_recipe_by_url: found existing slug='%s' for %s", slug, url)
+            return slug
+    except requests.RequestException as e:
+        log.debug("find_recipe_by_url: query failed for %s: %s", url, e)
+    return None
+
+
 def import_recipe_from_url(url: str) -> str:
     """
     Import a recipe from URL into Mealie via the URL importer.

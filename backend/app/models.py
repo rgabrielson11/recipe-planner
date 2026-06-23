@@ -1,6 +1,6 @@
 """
-SQLAlchemy models — Phase 8
-Added scraped_ingredients_json to Recipe for shopping list fallback.
+SQLAlchemy models — Phase 10
+Added last_scraped_at to Recipe so discovery can skip re-scraping fresh stubs.
 """
 
 import uuid
@@ -75,6 +75,7 @@ class Recipe(Base):
     scraped_ingredients_json  = Column(Text, nullable=True)   # JSON list[str] — fallback for shopping list
     scraped_time_minutes      = Column(Integer, nullable=True)
     scraped_description       = Column(Text, nullable=True)
+    last_scraped_at           = Column(DateTime, nullable=True)  # set on every successful scrape
     created_at                = Column(DateTime, default=datetime.utcnow)
 
     rejections        = relationship("RecipeRejection", back_populates="recipe", cascade="all, delete-orphan")

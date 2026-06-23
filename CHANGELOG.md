@@ -1,5 +1,211 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 6: real-time progress bar via polling endpoint
+
+### Changed
+
+**Progress bar now shows actual backend progress (not fake stages)**
+
+Previous: a `setInterval` cycling through 6 hardcoded labels every 900ms,
+completely disconnected from real work. Stuck at "Almost done..." for minutes
+on large RSS runs.
+
+New architecture:
+- `recipe_discovery.py` — thread-safe in-memory progress store
+  (`_progress: dict[household_id → {pct, message}]`) with `set_progress()`,
+  `get_progress()`, and `clear_progress()` helpers. `discover_and_score()`
+  writes to the store at every meaningful milestone:
+  - 3%  — "Building recipe catalog..."
+  - 5–45% — "Fetching {source name} ({n} of {total} feeds)..." per RSS feed
+  - 47%  — "Scoring {n} known recipes against your pantry..."
+  - 48–54% — "Re-scraping stale recipe: {title}..." (only stale stubs)
+  - 57%  — "Discovering new recipes (0 of {budget})..."
+  - 57–90% — "Scraping recipe {n} of {total}: {slug}..." per new URL
+  - 93%  — "Ranking and filtering suggestions..."
+  - 100% — "Done!"
+- `routers/meal_plan.py` — new `GET /meal-plan/suggest/progress?household_id=`
+  endpoint returns the current `{pct, message}` for a household
+- `index.html` — `loadSuggestions` polls the progress endpoint every 800ms
+  while the main `GET /suggest` call is in-flight, updating the bar with real
+  messages. Polling clears immediately when the response arrives.
+
+
+## Phase 10 — Patch 5: progress bar fix + UNIQUE constraint crash
+
+### Bug fixes
+
+**Progress bar caused blank screen (index.html)**
+The `progress` and `progressLabel` state variables were referenced in the JSX
+render but never declared — the `useState` declarations and the updated
+`loadSuggestions` body were both missing from the previous patch due to a
+failed string replacement. React threw a ReferenceError at render time,
+unmounting the entire page tree. Fixed by adding both `useState` declarations
+and replacing `loadSuggestions` with the staged progress version.
+
+**UNIQUE constraint crash on recipe suggestions (recipe_discovery.py)**
+`IntegrityError: UNIQUE constraint failed: recipes.source_url` was thrown
+during `GET /meal-plan/suggest` when a previously-rejected recipe's URL
+re-appeared in an RSS feed. Root cause: `existing_stubs` was filtered by
+`excluded_recipe_ids` (correct for Pool X scoring), but `all_known` was derived
+from that same filtered list — so rejected stubs' URLs were silently absent
+from the dedup set. Pool Y then treated the URL as new and tried to INSERT a
+duplicate row.
+
+Fix (two parts):
+- Decoupled `all_stub_urls` (used for Pool Y dedup, includes ALL stubs) from
+  `existing_stubs` (used for Pool X scoring, excludes rejected recipes)
+- Added a safety-net DB lookup in `_process` before any blind INSERT: if the
+  URL already exists despite passing the dedup check, the existing row is
+  updated instead of crashing
+
+
+## Phase 10 — Patch 4: six-fix update
+
+### Bug fixes
+
+**#6 — RSS Sources 500 "string index out of range"**
+Added a PyYAML fallback in `config_files.load_yaml()`. If ruamel.yaml raises
+any non-YAML exception during load (common ruamel round-trip bugs trigger bare
+`IndexError` etc.), the loader retries with `yaml.safe_load` and logs a warning.
+The config always loads now; ruamel is still used for writes so comments survive.
+Added `pyyaml` to `requirements.txt`.
+
+### New features
+
+**#1 — Progress bar when generating suggestions**
+The Generate Suggestions button now shows a staged animated progress bar while
+the backend scores recipes. Six stage labels cycle at 900ms intervals
+("Checking pantry...", "Scoring recipe matches...", etc.) and the bar jumps to
+100% + "Done!" when the response arrives, then fades out. No backend changes.
+
+**#2 — RSS feed discovery**
+New "🔍 Discover Feeds" button on the RSS Sources page opens a modal where you
+enter any food blog URL. The backend (`POST /config/sources/discover`) fetches
+the page, parses `<link rel="alternate">` autodiscovery tags, and probes 10
+common feed path patterns (`/feed/`, `/rss/`, `/atom.xml`, etc.). Found feeds
+appear as a list; clicking "Use" pre-fills the Add Source form.
+
+**#3 — Non-dinner keywords from rejection**
+Rejecting a recipe as "Not applicable" or "Side dish" now opens a modal showing
+clickable chips extracted from the recipe title (single words and bigrams, minus
+stop-words). Selected chips are appended to the `non_dinner_title_keywords` list
+in `recipe_sources.yaml` via `PUT /config/non-dinner-keywords`, so similar
+recipes are pre-filtered from future RSS imports automatically.
+
+**#4 — Mealie favourites at bottom of suggestions**
+The final sort in `matching_engine.py` now uses `(is_favorite_int, -score)` as
+the key, so newly discovered Pool B recipes float above Mealie favourites within
+the same score range. Pool A (Mealie) still appears — just below new discoveries.
+
+**#5 — Print / Save PDF shopping list**
+A "🖨️ Print / Save PDF" button now appears at the bottom of the Shopping List
+step. Clicking it opens a new tab with a clean print-ready HTML layout (all UI
+chrome hidden via `@media print`) and immediately triggers the browser's print
+dialog. Works for printing or saving as PDF via "Save as PDF" in the dialog.
+
+
+## Phase 10 — Patch 3: sources 500 fix, load-more button
+
+### Bug fixes
+
+**RSS Sources page — Internal Server Error on load**
+`DiscoverySettingsIn` schema was missing `stub_rescrape_days` (added in Phase 10).
+If the user saved Discovery Settings from the UI after Phase 10 was deployed,
+that field was silently stripped from the YAML on the PUT. Subsequent reads of
+the config could then fail depending on downstream code paths, surfacing as an
+opaque 500. Fix:
+- Added `stub_rescrape_days: int = 7` to `DiscoverySettingsIn`
+- Added `disc["stub_rescrape_days"]` to the PUT handler so the field survives saves
+- Added `stub_rescrape_days` to the Discovery Settings form in the UI (editable)
+- Wrapped `list_sources()` and `get_discovery_settings()` in try/except so any
+  YAML or filesystem error surfaces as a meaningful message instead of a generic 500
+
+### New features
+
+**Load more suggestions when all are rejected**
+When every suggestion in the pool has been rejected, a yellow banner now appears
+below the last card with two buttons:
+- **Load N+5 suggestions** — increments the suggestion count by 5 and re-runs
+  the scoring engine, pulling a larger slice from the known recipe pool
+- **Refresh same pool** — re-runs the engine with the same count (useful if
+  you want a different random sample without increasing the batch size)
+
+
+## Phase 10 — Patch 2: YAML-driven UI lists
+
+### Bug fixes & improvements
+
+All hardcoded lists in the frontend now read from their YAML sources via API.
+Adding, removing, or relabelling items in any YAML file is immediately reflected
+in the UI with no code change.
+
+**Rejection reasons (`rejection_reasons.yaml`)** — previously hardcoded 6 options;
+now fetched from `GET /recipes/rejection-reasons` on page load. All 14 reasons
+(including `not_applicable` and `side_dish` added in Patch 1) appear automatically.
+The modal trigger was also fixed: the old code checked for `'missing_equipment'`
+(a key that doesn't exist in the YAML). It now uses `_EQUIP_KEYS` and
+`_DISLIKE_KEYS` sets keyed to the actual YAML keys
+(`cook_method_unavailable`, `cookware_unavailable`, `dislike`, `allergy`,
+`disliked_ingredient`).
+
+**Cooking methods (`cooking_vocabulary.yaml`)** — removed two hardcoded
+`KNOWN_METHODS`/`METHODS` constants. Both the rejection feedback modal and the
+Settings Equipment tab now fetch from `GET /config/cooking-methods`.
+
+**Cookware (`cooking_vocabulary.yaml`)** — was entirely absent from the UI.
+Added a Cookware section to the Settings → Equipment tab (renamed from
+"Cooking Methods") showing all 16 items from the YAML as checkboxes backed
+by `prefs.available_cookware`.
+
+**Skill level (`cooking_vocabulary.yaml`)** — `skill_level` existed on the
+Preference model but was never editable. Added a Skill level dropdown to
+the Settings → Preferences tab, populated from `vocab.skill_levels`.
+
+
+## Phase 10 — Scraper cache, rejection fix, dedup import, failed-import links
+
+### New features
+
+**Scraper caching — Pool X no longer re-scrapes fresh stubs**
+Added `last_scraped_at` (DATETIME) column to the `recipes` table. Pool X now
+checks this timestamp against a configurable TTL (`stub_rescrape_days`, default 7)
+in `recipe_sources.yaml`. Stubs scraped within the TTL window are scored entirely
+from cached DB columns (`scraped_ingredients_json`, `scraped_time_minutes`,
+`scraped_description`) with no HTTP request. Only stale or never-scraped stubs
+hit the network. Logged as `Pool X CACHE HIT` at DEBUG level.
+
+**Failed import deep links**
+When a recipe fails to import into Mealie, the Import Status card now shows two
+links: "↗ Import in Mealie" (opens Mealie's import-by-URL form pre-filled with
+the recipe URL) and "🔗 View original" (direct link to the source page for
+manual copy/paste). Requires `GET /config/mealie-url` (new endpoint) which
+returns `MEALIE_BASE_URL` and `group_slug` so the frontend can build deep links
+without hardcoding the Mealie address.
+
+**Duplicate import prevention**
+Before importing a recipe, `confirm_selections` now calls
+`mealie_client.find_recipe_by_url()` which queries Mealie's `orgURL` field.
+If Mealie already holds that recipe (e.g. after a DB reset), the existing slug
+is synced back to our DB and the import is skipped. Prevents duplicate recipes
+accumulating in Mealie across re-runs.
+
+### Bug fixes
+
+**Rejecting one Mealie recipe rejected all Mealie recipes**
+Pool A recipes that had no local DB row were assigned `recipe_id = None`.
+All such recipes shared `None` as their ID, so rejecting any one caused all
+others to visually flip to the rejected state in the UI (the frontend
+`rejected` array contained `null`, which matched every other `null` recipe_id).
+Fix: `matching_engine.py` now creates a minimal local `Recipe` stub for any
+Mealie recipe that lacks one, assigning a real unique ID before building the
+suggestion dict. The title is backfilled once the Mealie detail response
+arrives.
+
+### Migration
+`database.py` `run_migrations()` automatically adds `recipes.last_scraped_at`
+on first startup — no manual action needed.
+
+
 ## Phase 9 — Patch 2: fix Mealie PATCH full-body requirement
 
 ### Bug fix

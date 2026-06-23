@@ -9,3 +9,4 @@ recipe-scrapers==14.55.0
 beautifulsoup4==4.12.3
 lxml==5.2.1
 feedparser==6.0.11
+pyyaml

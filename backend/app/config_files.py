@@ -1,14 +1,18 @@
+# auto-added logger
 """
 Loads and writes the human-editable YAML config files in app/data/.
 Uses ruamel.yaml round-trip mode so comments survive API writes.
 Reads fresh on every call — VS Code edits take effect immediately.
 """
 
+import logging
 from pathlib import Path
 from threading import Lock
 from typing import Any
 
 from ruamel.yaml import YAML
+
+log = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 _lock    = Lock()
@@ -39,8 +43,26 @@ def _to_plain(obj) -> object:
 
 
 def load_yaml(filename: str) -> Any:
-    with open(_path(filename)) as f:
-        return _yaml.load(f)
+    """
+    Load a YAML file with ruamel.yaml (round-trip mode).
+    Falls back to PyYAML safe_load if ruamel raises a non-YAML exception —
+    this guards against ruamel round-trip bugs ('string index out of range', etc.)
+    while still allowing ruamel to write comments on save.
+    """
+    try:
+        with open(_path(filename)) as f:
+            return _yaml.load(f)
+    except Exception as ruamel_err:
+        # ruamel.yaml can raise bare Python exceptions (IndexError, etc.) on
+        # certain YAML constructs it wrote itself. Fall back to PyYAML which
+        # is more lenient, then log so the issue can be investigated.
+        import yaml as _pyyaml
+        log.warning(
+            "ruamel.yaml failed loading %s (%s) — falling back to PyYAML",
+            filename, ruamel_err,
+        )
+        with open(_path(filename)) as f:
+            return _pyyaml.safe_load(f)
 
 
 def save_yaml(filename: str, data: Any) -> None:
