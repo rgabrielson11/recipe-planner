@@ -1,70 +1,86 @@
-## [0.6.1] — Hotfix — 2026-06-22
+# Recipe Planner — Changelog
 
-### Fixed
-- **"Household not found" on startup** — frontend now validates the stored
-  `householdId` against the API on every page load. If the record no longer
-  exists (e.g. DB was wiped, fresh container deploy), localStorage is cleared
-  automatically and the app falls back to the setup screen. No more manual
-  browser devtools intervention needed.
-- **`PUT /households/{id}` was missing** — Settings screen save was returning
-  405 Method Not Allowed when trying to update household name or people count.
-  Endpoint added. `DELETE /households/{id}` also added for completeness.
+## Phase 7 — Suggestion fixes, quality gate, and live log viewer
 
-# Changelog
+### Bug fixes
 
-## [0.6.0] — Phase 6 — 2026-06-22
+**Critical: suggestions empty after first run (Pool B stub loop)**
+The discovery engine previously added ALL Recipe table URLs to `known_urls`,
+which excluded stubs created in earlier runs from future scraping.  After the
+first discovery run, Pool B (new recipes) would return nothing because every
+URL it had ever seen was already in the DB.
 
-### Added
-- **Recipe discovery engine** (`recipe_discovery.py`)
-  - Fetches category pages from curated sites in `recipe_sources.yaml`
-  - Extracts recipe URLs via BeautifulSoup, filters already-known URLs
-  - Scrapes new recipes using the `recipe-scrapers` library
-  - Scores against pantry + preferences using the same engine as Mealie scoring
-  - Creates stub `Recipe` rows (mealie_slug=None) for newly found recipes
-- **`recipe_sources.yaml`** — 11 curated sites with category URLs, fully hand-editable
-  - Serious Eats, Simply Recipes, Budget Bytes, Half Baked Harvest, Cookie and Kate,
-    The Kitchn, AllRecipes, Food Network, Skinnytaste, Pinch of Yum, Damn Delicious
-  - Per-source `enabled: false` to pause without deleting
-  - `discovery` settings block: max_scraped_per_run, request_delay_seconds,
-    mealie_min_rating, mealie_favorites_count
-- **Auto-import on selection** (`routers/meal_plan.py`)
-  - When `POST /meal-plan/selections` is confirmed, any selected recipe that has
-    no `mealie_slug` yet is automatically imported into Mealie
-  - The dinner-planner tag is applied to the imported recipe so it enters the
-    Mealie pool in future weeks
-  - Response now includes `mealie_imports` with per-recipe import status
-- **`mealie_client.add_tag_to_recipe()`** — adds a tag without removing existing ones
-- **`mealie_client.get_top_rated_recipes()`** — fetches Mealie recipes above min_rating
-- `requirements.txt` — added `recipe-scrapers==14.55.0`, `beautifulsoup4==4.12.3`, `lxml==5.2.1`
+Fix: `known_urls` now contains only Mealie-imported URLs (recipes with a
+`mealie_slug`).  Stubs (in DB, not yet in Mealie) are queued for re-scraping
+each week in Pool X (up to `max_scrape // 2` per run), ensuring they are
+always scored and eligible for suggestion.
 
-### Changed
-- **Matching engine** (`matching_engine.py`) — dual-pool architecture:
-  - **Pool A (Mealie favourites):** 1–2 slots for proven 4★+ Mealie recipes
-  - **Pool B (Discovery):** remaining slots filled by newly scraped recipes
-  - `WeeklySuggestion` response now includes `mealie_favorites_shown` and
-    `discoveries_shown` instead of the old `favorites_in_pool`/`discoveries_in_pool`
-- `schemas.py` — `WeeklySelectionSummary` gains `mealie_imports` list
+**Mealie dinner-tag hard filter removed (issue 1 — featured items restrict too much)**
+Pool A previously hard-filtered to only Mealie recipes tagged with
+`mealie_dinner_tag`.  If no recipes in Mealie carried that tag, Pool A was
+always empty.  The filter is now a soft **+10 pt score boost** — tagged
+recipes are prioritised but un-tagged ones are still eligible.
 
-### How the catalog grows
-Each weekly session:
-  1. `GET /meal-plan/suggest` discovers N new recipes from curated sites
-  2. Household picks 2-5 of them
-  3. `POST /meal-plan/selections` auto-imports picked recipes into Mealie
-     and applies the `dinner-planner` tag
-  4. End-of-week ratings promote good recipes to 4★+
-  5. Next week: those 4★+ recipes appear in Pool A as proven favourites
+**Pool B discovery slot calculation fixed**
+`discovery_slots` was computed as `n - mealie_fav_cnt` (a constant), which
+could cap Pool B even when Pool A delivered fewer than `mealie_fav_cnt`
+results.  Pool B now always fills `n - len(actual_mealie_favs)` slots.
 
-## [0.5.0] — Phase 5 — 2026-06-22
-React SPA frontend, SQLite single container, Pantry Check section, port 8111.
+### New features
 
-## [0.4.0] — Phase 4 — 2026-06-22
-WeeklySelection, num_suggestions per week, two-tier rejection, shopping list.
+**Live log viewer — GET /api/logs**
+All application log records (DEBUG level and above) are captured in a
+1 000-entry in-memory ring buffer.  The `/api/logs` endpoint exposes them
+without requiring Docker log access:
 
-## [0.3.0] — Phase 3 — 2026-06-22
-Matching engine, Mealie tag filter, weekly intent hints.
+```
+GET /api/logs                              # last 200 records, all levels
+GET /api/logs?level=WARNING                # warnings + errors only
+GET /api/logs?logger_filter=discovery      # filter by module name
+GET /api/logs?level=DEBUG&last_n=500       # last 500 debug lines
+```
 
-## [0.2.0] — Phase 2 — 2026-06-21
-Mealie recipe import, rejection reasons, weekly review/favourites loop.
+Docker logs (`docker logs recipe-planner-backend`) also remain active.
 
-## [0.1.0] — Phase 1 — 2026-06-21
-Household + preferences CRUD, pantry + staples, Docker Compose, YAML configs.
+**Recipe quality gate for scraped recipes (issue 4)**
+Newly scraped recipes from community-rated sites (AllRecipes, Food Network,
+Skinnytaste…) are now subject to a quality gate:
+
+  - `min_scraped_rating: 4.0`   — reject recipes rated below 4 stars
+  - `min_scraped_reviews: 100`  — reject recipes with fewer than 100 ratings
+
+Both thresholds are configurable in `recipe_sources.yaml`.
+
+Editorial / blog sources (Serious Eats, Budget Bytes, Half Baked Harvest,
+Simply Recipes, Cookie and Kate, etc.) do not embed structured rating data in
+their markup, so the gate does not apply to them — all their recipes pass
+through to the scoring engine as before.
+
+### Configuration changes
+
+`backend/app/data/recipe_sources.yaml` — two new keys under `discovery:`:
+
+```yaml
+min_scraped_rating: 4.0     # stars, applies when structured data present
+min_scraped_reviews: 100    # review count, applies when structured data present
+```
+
+Set both to `0` to disable the quality gate entirely.
+
+---
+
+## Phase 6b — Recipe discovery + Mealie integration
+
+- Pool A/B matching engine
+- dinner_tag support
+- Shopping list PDF/Apple Reminders export
+
+## Phase 5 — Shopping list engine
+
+## Phase 4 — Weekly selection + review workflow
+
+## Phase 3 — Matching engine skeleton
+
+## Phase 2 — Pantry tracking + household preferences
+
+## Phase 1 — Project scaffold
