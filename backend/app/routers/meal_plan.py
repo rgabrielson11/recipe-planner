@@ -18,7 +18,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+import logging
 from app import models, schemas, mealie_client, matching_engine, shopping_list as sl
+
+log = logging.getLogger(__name__)
 from app.database import get_db
 
 router = APIRouter(prefix="/meal-plan", tags=["meal-plan"])
@@ -297,11 +300,54 @@ def confirm_selections(
 
     db.commit()
 
+    # ── Auto-import newly discovered recipes into Mealie ─────────────────
+    # Any selected recipe that has no mealie_slug yet was discovered via
+    # recipe-scrapers and has never been in Mealie. Import it now and apply
+    # the dinner-planner tag so it appears in future Mealie-based suggestions.
+    prefs = db.query(models.Preference).filter(
+        models.Preference.household_id == payload.household_id
+    ).first()
+    dinner_tag = (prefs.mealie_dinner_tag if prefs else "") or "dinner-planner"
+    import_results: list[dict] = []
+
+    for recipe in recipes:
+        if recipe.mealie_slug:
+            log.info("Selection '%s' already in Mealie (slug=%s)", recipe.title, recipe.mealie_slug)
+            import_results.append({"title": recipe.title, "status": "already_in_mealie", "slug": recipe.mealie_slug})
+            continue
+        try:
+            log.info("Importing '%s' from %s", recipe.title, recipe.source_url)
+            slug = mealie_client.import_recipe_from_url(recipe.source_url)
+
+            # ── Commit slug IMMEDIATELY, independently of tagging ──────────
+            # Tag failures must NEVER prevent the slug from being saved.
+            # The shopping list depends on this slug to fetch ingredients.
+            recipe.mealie_slug = slug
+            db.add(recipe)
+            db.commit()
+            log.info("Slug saved to DB: '%s' → %s", recipe.title, slug)
+
+            # Tag is best-effort — failure is logged but does not raise
+            try:
+                mealie_client.add_tag_to_recipe(slug, dinner_tag)
+                log.info("Tagged '%s' with '%s'", slug, dinner_tag)
+            except mealie_client.MealieError as tag_err:
+                log.warning("Tag failed for '%s' (slug=%s): %s — slug already saved, continuing", recipe.title, slug, tag_err)
+
+            import_results.append({"title": recipe.title, "status": "imported", "slug": slug})
+
+        except mealie_client.MealieError as e:
+            log.warning("Mealie import FAILED for '%s': %s", recipe.title, e)
+            import_results.append({"title": recipe.title, "status": "import_failed", "error": str(e)})
+
+    db.commit()   # final commit for any remaining state
+
     return {
         "week_start_date":     payload.week_start_date,
         "household_id":        payload.household_id,
         "selected_recipes":    recipes,
         "meal_plan_entry_ids": entry_ids,
+        "mealie_imports":      import_results,
     }
 
 

@@ -1,30 +1,29 @@
 """
 Shopping List Generator — Phase 5
 
-Builds a pantry-first, waste-minimizing shopping list from ONLY the recipes
-a household has selected for the current week (WeeklySelection rows).
+Builds a pantry-first, waste-minimising shopping list from the household's
+confirmed WeeklySelections for the given week.
 
 Pipeline:
-  1. Load selected recipes and fetch full ingredient details from Mealie
+  1. Fetch full ingredient details from Mealie for each selected recipe
   2. Scale all quantities to household size (recipe yield → num_people)
-  3. Aggregate totals across all selected recipes per ingredient+unit
-  4. Subtract on-hand pantry quantities (quantity-aware when units match;
-     flag as "on hand" when units differ or pantry has no quantity)
-  5. Subtract staples (always assumed on hand, never bought)
-  6. Round remaining quantities UP to real package sizes (package_sizes.yaml)
-  7. Group by store section (produce, meat, dairy, pantry, other)
+  3. Aggregate totals across all recipes (sum first, round once)
+  4. Subtract tracked pantry on-hand quantities (same unit, quantity-aware)
+  5. Separate staples into their own PANTRY CHECK section — assumed on hand
+     but listed with required quantities as a final verify-before-you-shop
+     reminder. They are NOT in the main buy list.
+  6. Round remaining BUY quantities up to real package sizes
+  7. Group main list by store section
 
-Design principles:
-  • Aggregate BEFORE rounding — sum all recipes first, then one rounding pass,
-    not per-recipe rounding that over-buys for each recipe individually.
-  • Pantry-first — always deplete what's on hand before buying.
-  • Flag unit mismatches as warnings rather than silently ignoring them.
-  • Degrade gracefully if Mealie is down — produce a partial list with warnings.
-
-Store section mapping lives in SECTION_KEYWORDS below; extend as needed
-without a code change (or move to YAML if you want it hand-editable).
+Output sections:
+  shopping_by_section  → items to buy, grouped by store section
+  pantry_check         → staples needed this week (assumed on hand, just verify)
+  using_from_pantry    → tracked pantry items being consumed
+  warnings             → unit mismatches, missing Mealie data, etc.
 """
 
+import json
+import logging
 import math
 import re
 from collections import defaultdict
@@ -35,18 +34,29 @@ from sqlalchemy.orm import Session
 
 from app import models, mealie_client, config_files
 
-# ── Section keywords ──────────────────────────────────────────────────────────
-# Maps ingredient name substrings → store section. First match wins.
+log = logging.getLogger(__name__)
+
+# ── Store section keywords ────────────────────────────────────────────────────
+def _guess_section(text: str) -> str:
+    """Quick section guess for scraped ingredient strings without Mealie categorisation."""
+    t = text.lower()
+    for section, keywords in SECTION_KEYWORDS.items():
+        if any(k in t for k in keywords):
+            return section
+    return "other"
+
+
 SECTION_KEYWORDS: dict[str, list[str]] = {
     "produce": [
         "lettuce", "spinach", "kale", "arugula", "cabbage", "bok choy",
         "broccoli", "cauliflower", "carrot", "celery", "cucumber", "zucchini",
         "squash", "eggplant", "pepper", "bell pepper", "jalapeño", "chili",
         "tomato", "onion", "shallot", "scallion", "green onion", "leek",
-        "garlic", "ginger", "potato", "sweet potato", "yam", "corn",
+        "garlic", "ginger", "potato", "sweet potato", "corn",
         "mushroom", "asparagus", "green bean", "pea", "edamame", "avocado",
-        "lemon", "lime", "orange", "apple", "berry", "herb", "cilantro",
-        "parsley", "basil", "thyme", "rosemary", "mint", "dill",
+        "lemon", "lime", "orange", "apple", "berry",
+        "cilantro", "parsley", "basil", "thyme", "rosemary", "mint", "dill",
+        "herb", "fresh herb",
     ],
     "meat & seafood": [
         "chicken", "beef", "pork", "lamb", "turkey", "duck",
@@ -67,14 +77,13 @@ SECTION_KEYWORDS: dict[str, list[str]] = {
     "canned & jarred": [
         "canned tomato", "tomato paste", "tomato sauce", "salsa",
         "canned bean", "chickpea", "lentil", "black bean", "kidney bean",
-        "coconut milk", "broth", "stock", "soup",
-        "olive", "pickle", "capers", "artichoke", "roasted pepper",
+        "coconut milk", "broth", "stock",
+        "olive", "pickle", "capers", "artichoke heart", "roasted pepper",
     ],
     "dry goods & pasta": [
         "pasta", "spaghetti", "penne", "fettuccine", "linguine", "rigatoni",
         "rice", "quinoa", "couscous", "orzo", "farro", "barley",
-        "flour", "cornmeal", "oat", "breadcrumb", "panko",
-        "lentil", "split pea", "dried bean",
+        "cornmeal", "oat", "dried bean", "split pea",
     ],
     "oils, sauces & condiments": [
         "oil", "vinegar", "soy sauce", "fish sauce", "oyster sauce",
@@ -82,35 +91,30 @@ SECTION_KEYWORDS: dict[str, list[str]] = {
         "mayo", "mayonnaise", "tahini", "miso", "hoisin",
     ],
     "spices & baking": [
-        "salt", "pepper", "cumin", "paprika", "turmeric", "coriander",
-        "cinnamon", "oregano", "thyme", "bay leaf", "chili powder",
-        "garlic powder", "onion powder", "cayenne", "nutmeg", "clove",
-        "sugar", "brown sugar", "honey", "maple syrup", "vanilla",
+        "cumin", "paprika", "turmeric", "coriander", "cinnamon", "oregano",
+        "thyme", "bay leaf", "chili powder", "cayenne", "nutmeg", "clove",
+        "brown sugar", "honey", "maple syrup", "vanilla",
         "baking soda", "baking powder", "cornstarch", "yeast",
     ],
     "frozen": [
-        "frozen", "ice cream", "frozen pea", "frozen corn",
+        "frozen", "ice cream", "frozen pea", "frozen corn", "frozen edamame",
     ],
     "beverages": [
-        "wine", "beer", "broth", "juice", "stock",
+        "wine", "beer", "juice",
     ],
 }
 
 
-def _section_for(ingredient_name: str) -> str:
-    name_lower = ingredient_name.lower()
+def _section_for(name: str) -> str:
+    n = name.lower()
     for section, keywords in SECTION_KEYWORDS.items():
-        if any(kw in name_lower for kw in keywords):
+        if any(kw in n for kw in keywords):
             return section
     return "other"
 
 
 # ── Unit normalisation ────────────────────────────────────────────────────────
-# Maps common recipe unit spellings to a canonical form for aggregation.
-# Only aggregates quantities when canonical units match.
-
 _UNIT_ALIASES: dict[str, str] = {
-    # volume
     "tablespoon": "tbsp", "tablespoons": "tbsp", "tbsps": "tbsp",
     "teaspoon": "tsp", "teaspoons": "tsp", "tsps": "tsp",
     "cup": "cup", "cups": "cup",
@@ -118,21 +122,19 @@ _UNIT_ALIASES: dict[str, str] = {
     "pint": "pt", "pints": "pt",
     "quart": "qt", "quarts": "qt",
     "gallon": "gal", "gallons": "gal",
-    "milliliter": "ml", "milliliters": "ml", "millilitre": "ml", "ml": "ml",
+    "milliliter": "ml", "milliliters": "ml", "ml": "ml",
     "liter": "l", "liters": "l", "litre": "l", "litres": "l",
-    # weight
     "ounce": "oz", "ounces": "oz",
     "pound": "lb", "pounds": "lb", "lbs": "lb",
     "gram": "g", "grams": "g",
     "kilogram": "kg", "kilograms": "kg",
-    # count
     "each": "each", "whole": "each", "piece": "each", "pieces": "each",
     "slice": "slice", "slices": "slice",
     "clove": "clove", "cloves": "clove",
     "sprig": "sprig", "sprigs": "sprig",
     "bunch": "bunch", "bunches": "bunch",
     "can": "can", "cans": "can",
-    "package": "pkg", "packages": "pkg", "pkg": "pkg",
+    "package": "pkg", "packages": "pkg",
 }
 
 
@@ -142,26 +144,19 @@ def _canonical_unit(unit: Optional[str]) -> Optional[str]:
     return _UNIT_ALIASES.get(unit.lower().strip(), unit.lower().strip())
 
 
-# ── Ingredient extraction from Mealie detail ──────────────────────────────────
+# ── Mealie ingredient extraction ──────────────────────────────────────────────
 
 def _parse_servings(detail: dict) -> Optional[float]:
-    """Extracts numeric servings from a Mealie recipe detail dict."""
-    # Mealie may use recipeYield (string) or recipeServings (int/float)
     raw = detail.get("recipeServings") or detail.get("recipeYield")
     if raw is None:
         return None
     if isinstance(raw, (int, float)):
         return float(raw)
-    # Try to extract first number from strings like "4 servings" or "Serves 6"
     m = re.search(r"(\d+(?:\.\d+)?)", str(raw))
     return float(m.group(1)) if m else None
 
 
 def _extract_ingredients(detail: dict) -> list[dict]:
-    """
-    Returns a list of dicts:
-      { "name": str, "quantity": float|None, "unit": str|None, "note": str|None }
-    """
     ingredients = []
     for ing in detail.get("recipeIngredient", []):
         if not isinstance(ing, dict):
@@ -175,9 +170,8 @@ def _extract_ingredients(detail: dict) -> list[dict]:
         name = name.strip()
         if not name:
             continue
-        qty_raw = ing.get("quantity")
         try:
-            qty = float(qty_raw) if qty_raw is not None else None
+            qty = float(ing["quantity"]) if ing.get("quantity") is not None else None
         except (TypeError, ValueError):
             qty = None
         unit_raw = ing.get("unit")
@@ -190,95 +184,87 @@ def _extract_ingredients(detail: dict) -> list[dict]:
             "name":     name.lower(),
             "quantity": qty,
             "unit":     _canonical_unit(unit),
-            "note":     ing.get("note", ""),
         })
     return ingredients
 
 
 # ── Aggregation ───────────────────────────────────────────────────────────────
 
-def _aggregate_ingredients(
+def _aggregate(
     all_ingredients: list[dict],
 ) -> dict[tuple[str, Optional[str]], float]:
-    """
-    Groups ingredients by (name, canonical_unit) and sums quantities.
-    Ingredients with no quantity are collected separately under quantity=0
-    (they'll appear on the list as "as needed").
-    """
     totals: dict[tuple[str, Optional[str]], float] = defaultdict(float)
     for ing in all_ingredients:
-        key = (ing["name"], ing["unit"])
-        totals[key] += ing["quantity"] or 0.0
+        totals[(ing["name"], ing["unit"])] += ing["quantity"] or 0.0
     return dict(totals)
 
 
-# ── Pantry subtraction ────────────────────────────────────────────────────────
+# ── Pantry + staples separation ───────────────────────────────────────────────
 
-def _subtract_pantry(
+def _apply_pantry_and_staples(
     totals: dict[tuple[str, Optional[str]], float],
-    pantry_items: list[models.PantryItem],
+    pantry_items: list,
     staples: list[str],
     warnings: list[str],
 ) -> tuple[
-    dict[tuple[str, Optional[str]], float],
-    list[dict],    # using_from_pantry
-    list[str],     # staples_relied_on
+    dict[tuple[str, Optional[str]], float],  # remaining (to buy)
+    list[dict],                               # pantry_check (staples with qty)
+    list[dict],                               # using_from_pantry
 ]:
-    """
-    Subtracts pantry and staples from the aggregated ingredient totals.
-    Returns (remaining, using_from_pantry, staples_relied_on).
-    """
-    remaining        = dict(totals)
+    remaining       = dict(totals)
+    pantry_check:   list[dict] = []   # staples needed — verify on hand
     using_from_pantry: list[dict] = []
-    staples_relied_on: list[str]  = []
-    staples_lower    = {s.lower() for s in staples}
+    staples_lower   = {s.lower() for s in staples}
 
-    # Staples pass — remove entirely
+    # ── Staples pass ────────────────────────────────────────────────────────
+    # Staples are assumed on hand. Remove from the buy list but record
+    # what quantity is needed in the pantry_check section.
     for key in list(remaining.keys()):
         name, unit = key
-        if any(s in name or name in s for s in staples_lower):
-            staples_relied_on.append(name)
-            del remaining[key]
+        is_staple = any(s in name or name in s for s in staples_lower)
+        if is_staple:
+            qty = remaining.pop(key)
+            pantry_check.append({
+                "item":     name,
+                "quantity": round(qty, 2) if qty else None,
+                "unit":     unit,
+                "note":     "assumed on hand — verify quantity before cooking",
+            })
 
-    # Pantry pass — subtract quantities where units match
+    # ── Tracked pantry pass ──────────────────────────────────────────────────
     for pitem in pantry_items:
         pname = pitem.name.lower()
         punit = _canonical_unit(pitem.unit)
         pqty  = float(pitem.quantity) if pitem.quantity is not None else None
 
-        matched_key: Optional[tuple] = None
-        for key in list(remaining.keys()):
-            name, unit = key
-            if pname in name or name in pname:
-                matched_key = key
-                break
-
+        matched_key = next(
+            (k for k in list(remaining.keys()) if pname in k[0] or k[0] in pname),
+            None,
+        )
         if matched_key is None:
-            continue  # pantry item not needed this week
+            continue
 
-        need_qty  = remaining[matched_key]
-        need_unit = matched_key[1]
+        need_qty, need_unit = remaining[matched_key], matched_key[1]
 
         if pqty is not None and need_qty and need_unit and punit == need_unit:
-            used    = min(pqty, need_qty)
-            leftover = need_qty - used
+            used = min(pqty, need_qty)
             using_from_pantry.append({
                 "item":     matched_key[0],
                 "quantity": round(used, 2),
                 "unit":     need_unit,
                 "note":     "will deplete remaining stock" if used >= pqty else None,
             })
+            leftover = need_qty - used
             if leftover <= 0:
                 del remaining[matched_key]
             else:
                 remaining[matched_key] = leftover
         else:
-            # Unit mismatch or no quantity tracked — flag as on-hand and remove
             if punit and need_unit and punit != need_unit:
                 warnings.append(
                     f"Unit mismatch for '{matched_key[0]}': "
                     f"pantry has {punit}, recipe needs {need_unit}. "
-                    f"Verify on hand and adjust list if needed."
+                    f"Verify on hand and adjust if needed."
                 )
             using_from_pantry.append({
                 "item":     matched_key[0],
@@ -288,31 +274,26 @@ def _subtract_pantry(
             })
             del remaining[matched_key]
 
-    return remaining, using_from_pantry, staples_relied_on
+    return remaining, pantry_check, using_from_pantry
 
 
 # ── Package size rounding ─────────────────────────────────────────────────────
 
 def _round_to_package(
     name: str,
-    quantity: float,
+    qty: float,
     unit: Optional[str],
     pkg_sizes: dict,
 ) -> tuple[Optional[float], Optional[str], Optional[str], Optional[int]]:
-    """
-    Returns (rounded_qty, unit, package_label, packages_needed).
-    Falls back to (quantity, unit, None, None) when no package size is defined.
-    """
     for key, spec in pkg_sizes.items():
         if key.lower() in name or name in key.lower():
             pkg_unit  = spec.get("unit")
             pkg_size  = float(spec.get("package_size", 1))
             pkg_label = spec.get("package_label")
             if pkg_unit == unit or not unit:
-                n_pkgs  = math.ceil(quantity / pkg_size) if quantity > 0 else 1
-                rounded = round(n_pkgs * pkg_size, 2)
-                return rounded, pkg_unit, pkg_label, n_pkgs
-    return (round(quantity, 2) if quantity else None, unit, None, None)
+                n     = math.ceil(qty / pkg_size) if qty > 0 else 1
+                return round(n * pkg_size, 2), pkg_unit, pkg_label, n
+    return (round(qty, 2) if qty else None, unit, None, None)
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
@@ -322,10 +303,6 @@ def build_shopping_list(
     week_start: date,
     db: Session,
 ) -> dict:
-    """
-    Builds the shopping list for the given week from the household's
-    confirmed WeeklySelections only.
-    """
     household = db.query(models.Household).filter(
         models.Household.id == household_id
     ).first()
@@ -336,108 +313,123 @@ def build_shopping_list(
         models.WeeklySelection.household_id == household_id,
         models.WeeklySelection.week_start_date == week_start,
     ).all()
-
     if not selections:
         raise ValueError(
             f"No selections found for week {week_start}. "
             "Confirm recipe selections first via POST /meal-plan/selections."
         )
 
-    # Fetch local recipe rows for all selections
-    recipe_ids   = [s.recipe_id for s in selections]
     recipe_rows  = {
         r.id: r
-        for r in db.query(models.Recipe).filter(models.Recipe.id.in_(recipe_ids)).all()
+        for r in db.query(models.Recipe).filter(
+            models.Recipe.id.in_([s.recipe_id for s in selections])
+        ).all()
     }
-    num_people   = household.num_people
     pkg_sizes    = config_files.get_package_sizes()
     pantry_items = db.query(models.PantryItem).filter(
         models.PantryItem.household_id == household_id
     ).all()
     staples      = config_files.get_staples()
-    warnings: list[str] = []
+    warnings:    list[str] = []
 
     # ── Step 1–2: fetch + scale ───────────────────────────────────────────
     all_ingredients: list[dict] = []
     selected_titles: list[str]  = []
-    missing_mealie: list[str]   = []
+    missing_mealie:  list[str]  = []
 
+    log.info("Shopping list: %d selections for week %s", len(selections), week_start)
     for sel in selections:
         recipe = recipe_rows.get(sel.recipe_id)
         if not recipe:
-            warnings.append(f"Recipe ID {sel.recipe_id} not found locally — skipped.")
+            warnings.append(f"Recipe ID {sel.recipe_id} not found — skipped.")
             continue
-
         selected_titles.append(recipe.title)
+        log.info("Processing recipe: '%s' | mealie_slug=%s", recipe.title, recipe.mealie_slug or "NONE")
 
         if not recipe.mealie_slug:
-            warnings.append(
-                f"'{recipe.title}' has no Mealie slug — ingredient details unavailable. "
-                "Add to shopping list manually."
-            )
-            missing_mealie.append(recipe.title)
+            # Fallback: use scraped ingredient strings stored at discovery time
+            if recipe.scraped_ingredients_json:
+                import json as _json
+                try:
+                    ing_strings = _json.loads(recipe.scraped_ingredients_json)
+                    for ing_str in ing_strings:
+                        if ing_str.strip():
+                            all_ingredients.append({
+                                "name": ing_str.strip(),
+                                "quantity": None,
+                                "unit": None,
+                                "note": ing_str.strip(),
+                                "section": _guess_section(ing_str),
+                                "_scraped_text": True,
+                            })
+                    warnings.append(
+                        f"'{recipe.title}': using scraped ingredient list (not yet in Mealie — "                        f"quantities not scaled; confirm and check Mealie import).")
+                except Exception:
+                    missing_mealie.append(recipe.title)
+            else:
+                warnings.append(
+                    f"'{recipe.title}' has no ingredient data — confirm selections "                    f"to trigger Mealie import, then regenerate shopping list.")
+                missing_mealie.append(recipe.title)
             continue
 
         try:
             detail   = mealie_client.get_recipe(recipe.mealie_slug)
             servings = _parse_servings(detail)
-            scale    = (num_people / servings) if servings and servings > 0 else 1.0
-            if abs(scale - 1.0) > 0.05 and servings:
-                # Only note scaling when it's meaningful
-                pass
-
-            for ing in _extract_ingredients(detail):
-                scaled_qty = round(ing["quantity"] * scale, 3) if ing["quantity"] else None
-                all_ingredients.append({**ing, "quantity": scaled_qty})
-
+            scale    = (household.num_people / servings) if servings and servings > 0 else 1.0
+            ings = _extract_ingredients(detail)
+            log.info("Mealie fetch OK: '%s' — %d ingredients, servings=%s, scale=%.2f",
+                     recipe.title, len(ings), servings, scale)
+            for ing in ings:
+                scaled = round(ing["quantity"] * scale, 3) if ing["quantity"] else None
+                all_ingredients.append({**ing, "quantity": scaled})
         except mealie_client.MealieError as e:
-            warnings.append(
-                f"Could not fetch ingredients for '{recipe.title}' from Mealie: {e}. "
-                "Add to shopping list manually."
-            )
+            log.warning("Mealie fetch FAILED for '%s' (slug=%s): %s", recipe.title, recipe.mealie_slug, e)
+            warnings.append(f"Mealie error for '{recipe.title}': {e} — add manually.")
             missing_mealie.append(recipe.title)
 
     # ── Step 3: aggregate ─────────────────────────────────────────────────
-    totals = _aggregate_ingredients(all_ingredients)
+    totals = _aggregate(all_ingredients)
 
-    # ── Step 4–5: subtract pantry + staples ───────────────────────────────
-    remaining, using_from_pantry, staples_relied_on = _subtract_pantry(
+    # ── Step 4–5: pantry + staples ────────────────────────────────────────
+    remaining, pantry_check, using_from_pantry = _apply_pantry_and_staples(
         totals, pantry_items, staples, warnings
     )
 
-    # ── Step 6–7: round to packages + group by section ────────────────────
+    # ── Step 6–7: round + group ───────────────────────────────────────────
     shopping_by_section: dict[str, list[dict]] = defaultdict(list)
 
     for (name, unit), qty in sorted(remaining.items(), key=lambda x: x[0][0]):
         rounded_qty, final_unit, pkg_label, n_pkgs = _round_to_package(
             name, qty, unit, pkg_sizes
         )
-        section = _section_for(name)
-        item_dict: dict = {
-            "item":           name,
-            "quantity":       rounded_qty,
-            "unit":           final_unit,
-            "package_label":  pkg_label,
+        shopping_by_section[_section_for(name)].append({
+            "item":            name,
+            "quantity":        rounded_qty,
+            "unit":            final_unit,
+            "package_label":   pkg_label,
             "packages_needed": n_pkgs,
-            "note":           None,
-        }
-        if qty == 0:
-            item_dict["note"] = "as needed — recipe lists ingredient but no quantity"
-        shopping_by_section[section].append(item_dict)
+            "note":            "as needed — no quantity in recipe" if qty == 0 else None,
+        })
 
     if missing_mealie:
-        warnings.insert(
-            0,
-            f"Ingredient data missing for: {', '.join(missing_mealie)}. "
-            "These recipes were excluded from the ingredient calculation."
+        warnings.insert(0,
+            f"Ingredient data unavailable for: {', '.join(missing_mealie)}. "
+            "These were excluded from the quantity calculation."
         )
 
+    log.info(
+        "Shopping list complete: %d sections, %d buy items, %d pantry check, %d warnings",
+        len(shopping_by_section),
+        sum(len(v) for v in shopping_by_section.values()),
+        len(pantry_check),
+        len(warnings),
+    )
     return {
-        "week_start_date":       week_start,
-        "household_id":          household_id,
+        "week_start_date":        week_start,
+        "household_id":           household_id,
         "selected_recipe_titles": selected_titles,
-        "shopping_by_section":   dict(shopping_by_section),
-        "using_from_pantry":     using_from_pantry,
-        "staples_relied_on":     sorted(set(staples_relied_on)),
-        "warnings":              warnings,
+        "shopping_by_section":    dict(shopping_by_section),
+        "pantry_check":           sorted(pantry_check, key=lambda x: x["item"]),
+        "using_from_pantry":      using_from_pantry,
+        "warnings":               warnings,
     }

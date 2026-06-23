@@ -1,0 +1,454 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Recipe Discovery Sources — Phase 7c
+#
+# Sources curated from FeedSpot Top 80 Home Cooking RSS Feeds (June 2026)
+# plus existing working sources.  Explicitly excluded:
+#   • Pure dessert/baking blogs (Cookies & Cups, Broma Bakery, sourdough)
+#   • Breakfast-primary blogs (Heavenly Home Cooking — "breakfast and brunch")
+#   • Non-recipe blogs (spice retailers, catering companies)
+#   • Very low-activity / Blogspot blogs with no real engagement
+#
+# DINNER FILTER
+# RSS entries are pre-screened against non_dinner_title_keywords before
+# scraping.  If the entry title or RSS categories contain any keyword the
+# recipe is dropped without using scrape budget.  Edit the list below to
+# tune the filter — regex word-boundary matching, case-insensitive.
+#
+# DISCOVERY SETTINGS
+#   max_scraped_per_run     Total recipe pages scraped per weekly run.
+#                           Budget split: half re-score stubs, half new URLs.
+#   request_delay_seconds   Polite pause between requests.
+#   feed_pages              RSS pages to paginate per feed (×10 entries each).
+#   user_agent              Sent in every HTTP request.
+#   mealie_min_rating       Star threshold for Mealie "proven favourite" pool.
+#   mealie_favorites_count  Mealie-favourite slots per weekly suggestion run.
+#   min_scraped_rating      Quality gate: min star rating where data exists.
+#   min_scraped_reviews     Quality gate: min review count where data exists.
+# ─────────────────────────────────────────────────────────────────────────────
+
+discovery:
+  max_scraped_per_run: 60       # more sources = more budget needed
+  request_delay_seconds: 1.5
+  feed_pages: 3                 # 3 pages × 10 entries = up to 30 URLs per feed
+  user_agent: "RecipePlanner/1.0 (personal household meal planner; RSS reader)"
+  mealie_min_rating: 4
+  mealie_favorites_count: 2
+  min_scraped_rating: 4.0
+  min_scraped_reviews: 50
+
+  # ── Non-dinner pre-filter ─────────────────────────────────────────────────
+  # Applied to RSS entry titles and category tags BEFORE scraping.
+  # Word-boundary matched, case-insensitive.  Add terms freely.
+  # Keep specific ("chocolate chip cookie") rather than broad ("chocolate")
+  # to avoid blocking chocolate chicken mole, chocolate chili, etc.
+  non_dinner_title_keywords:
+    # Dessert categories
+    - cupcake
+    - brownie
+    - cheesecake
+    - macaron
+    - macaroon
+    - tiramisu
+    - pavlova
+    - panna cotta
+    - creme brulee
+    - crème brûlée
+    - baklava
+    - profiterole
+    - eclair
+    - ice cream
+    - gelato
+    - sorbet
+    - fudge
+    - candy bar
+    - cookie dough
+    # Specific cake types (avoid blocking "chicken cake" or "fishcake")
+    - birthday cake
+    - layer cake
+    - bundt cake
+    - coffee cake
+    - pound cake
+    - vanilla cake
+    - carrot cake
+    - red velvet cake
+    - chocolate cake
+    - lemon drizzle cake
+    # Muffins / baked sweets
+    - muffin
+    - muffins
+    - cupcake
+    - cupcakes
+    # Breakfast items
+    - pancake
+    - pancakes
+    - waffle
+    - waffles
+    - french toast
+    - overnight oats
+    - acai bowl
+    - breakfast burrito      # comment out if you want breakfast-for-dinner
+    # Drinks
+    - cocktail
+    - smoothie
+    - milkshake
+    - sangria
+    - margarita
+    - lemonade
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sources
+#
+# Organized by category for readability.  All use standard WordPress RSS
+# feeds which are stable, never blocked, and return individual recipe URLs.
+#
+# Sources marked enabled: false are kept for reference.  Re-enable any time.
+# ─────────────────────────────────────────────────────────────────────────────
+
+sources:
+
+  # ── Tier 1A: High-traffic family dinner workhorses ────────────────────────
+
+  - name: Budget Bytes
+    enabled: true
+    notes: "Budget-conscious weeknight dinners. Very active."
+    feed_urls:
+      - https://www.budgetbytes.com/feed/
+    category_urls: []
+
+  - name: Damn Delicious
+    enabled: true
+    notes: "Quick/easy meals. Non-vegetarian focus."
+    feed_urls:
+      - https://damndelicious.net/feed
+    category_urls: []
+
+  - name: Spend With Pennies
+    enabled: true
+    notes: "Easy family recipes, 5.3M Facebook followers."
+    feed_urls:
+      - https://www.spendwithpennies.com/feed/
+    category_urls: []
+
+  - name: The Stay At Home Chef
+    enabled: true
+    notes: "Restaurant-quality home cooking. 8.7M Facebook followers."
+    feed_urls:
+      - https://thestayathomechef.com/feed/
+    category_urls: []
+
+  - name: Tastes Better From Scratch
+    enabled: true
+    notes: "Easy family-friendly from-scratch recipes. 1M Instagram."
+    feed_urls:
+      - https://tastesbetterfromscratch.com/feed/
+    category_urls: []
+
+  - name: The Recipe Critic
+    enabled: true
+    notes: "Wide variety of family dinners."
+    feed_urls:
+      - https://therecipecritic.com/feed/
+    category_urls: []
+
+  - name: RecipeTin Eats
+    enabled: true
+    notes: "Nagi Maehashi — tested family recipes, global flavors."
+    feed_urls:
+      - https://www.recipetineats.com/feed/
+    category_urls: []
+
+  - name: Natasha's Kitchen
+    enabled: true
+    notes: "Tested recipes, strong dinner focus."
+    feed_urls:
+      - https://natashaskitchen.com/feed/
+    category_urls: []
+
+  - name: Jo Cooks
+    enabled: true
+    notes: "Global weeknight dinners."
+    feed_urls:
+      - https://www.jocooks.com/feed/
+    category_urls: []
+
+  - name: Cafe Delites
+    enabled: true
+    notes: "Family-friendly, global flavors."
+    feed_urls:
+      - https://cafedelites.com/feed/
+    category_urls: []
+
+  # ── Tier 1B: Quality dinner blogs ────────────────────────────────────────
+
+  - name: Skinnytaste
+    enabled: true
+    notes: "Healthy dinner recipes. Mixed content — dinner filter applied."
+    feed_urls:
+      - https://www.skinnytaste.com/feed/
+    category_urls: []
+
+  - name: Half Baked Harvest
+    enabled: true
+    notes: "Creative comfort food. Mixed content — dinner filter applied."
+    feed_urls:
+      - https://www.halfbakedharvest.com/feed/
+    category_urls: []
+
+  - name: Pinch of Yum
+    enabled: true
+    notes: "Accessible home cooking. Mixed content — dinner filter applied."
+    feed_urls:
+      - https://pinchofyum.com/feed
+    category_urls: []
+
+  - name: Salt and Lavender
+    enabled: true
+    notes: "Quick dinners, strong sauce game."
+    feed_urls:
+      - https://www.saltandlavender.com/feed/
+    category_urls: []
+
+  - name: Two Peas and Their Pod
+    enabled: true
+    notes: "Family dinners, fresh ingredients."
+    feed_urls:
+      - https://www.twopeasandtheirpod.com/feed/
+    category_urls: []
+
+  - name: Nicky's Kitchen Sanctuary
+    enabled: true
+    notes: "Asian sesame chicken, pasta bakes, one-pots. UK-based."
+    feed_urls:
+      - https://www.kitchensanctuary.com/feed
+    category_urls: []
+
+  - name: Valerie's Kitchen
+    enabled: true
+    notes: "Simple seasonal cooking. Mom of four."
+    feed_urls:
+      - https://www.fromvalerieskitchen.com/feed/
+    category_urls: []
+
+  - name: Simply Home Cooked
+    enabled: true
+    notes: "Traditional Slavic and multicultural dinners."
+    feed_urls:
+      - https://simplyhomecooked.com/feed/
+    category_urls: []
+
+  - name: What's Gaby Cooking
+    enabled: true
+    notes: "Cookbook author. Best recipes and travel guides."
+    feed_urls:
+      - https://whatsgabycooking.com/feed/
+    category_urls: []
+
+  - name: Rachel Cooks
+    enabled: true
+    notes: "Easy accessible family recipes."
+    feed_urls:
+      - https://www.rachelcooks.com/feed/
+    category_urls: []
+
+  - name: Lauren's Latest
+    enabled: true
+    notes: "Professional recipe developer. Mixed content — dinner filter applied."
+    feed_urls:
+      - https://laurenslatest.com/feed/
+    category_urls: []
+
+  - name: Eat at Home
+    enabled: true
+    notes: "Explicitly dinner-focused. Wife/mom of four."
+    feed_urls:
+      - http://eatathomecooks.com/feed/
+    category_urls: []
+
+  # ── Tier 2: Specialty and global cuisine ─────────────────────────────────
+
+  - name: Korean Bapsang
+    enabled: true
+    notes: "Classic Korean home cooking. Hyosun Ro."
+    feed_urls:
+      - https://www.koreanbapsang.com/feed
+    category_urls: []
+
+  - name: Panlasang Pinoy
+    enabled: true
+    notes: "Filipino home cooking. 11.2M Facebook followers."
+    feed_urls:
+      - https://panlasangpinoy.com/feed/
+    category_urls: []
+
+  - name: Feasting At Home
+    enabled: true
+    notes: "Whole-food, globally inspired dinners. Vegetarian-forward."
+    feed_urls:
+      - https://www.feastingathome.com/feed/
+    category_urls: []
+
+  - name: Proud Italian Cook
+    enabled: true
+    notes: "Traditional Italian home cooking."
+    feed_urls:
+      - https://www.prouditaliancook.com/feed
+    category_urls: []
+
+  - name: Italian Home Cooking
+    enabled: true
+    notes: "Authentic traditional Italian recipes. UK-based."
+    feed_urls:
+      - https://italianhomecooking.co.uk/feed/
+    category_urls: []
+
+  - name: Homesick Texan
+    enabled: true
+    notes: "Texas home cooking — barbecue, Tex-Mex, Southern."
+    feed_urls:
+      - https://www.homesicktexan.com/feed/
+    category_urls: []
+
+  - name: Crunchtime Kitchen
+    enabled: true
+    notes: "1000+ homemade recipes, weekly meal plans, weeknight dinners."
+    feed_urls:
+      - https://www.crunchtimekitchen.com/feed/
+    category_urls: []
+
+  - name: DadCooksDinner
+    enabled: true
+    notes: "Pressure cooking, rotisserie, weeknight dinner focus."
+    feed_urls:
+      - https://www.dadcooksdinner.com/feed/
+    category_urls: []
+
+  - name: The Cooking Jar
+    enabled: true
+    notes: "Easy approachable home cooking. Everyday ingredients."
+    feed_urls:
+      - https://thecookingjar.com/feed/
+    category_urls: []
+
+  - name: Inspired Taste
+    enabled: true
+    notes: "Step-by-step home cooking with photography. 1.2M Instagram."
+    feed_urls:
+      - https://www.inspiredtaste.net/feed/
+    category_urls: []
+
+  - name: Smitten Kitchen
+    enabled: true
+    notes: "Deb Perelman — unfussy elevated home cooking. 1.8M Instagram."
+    feed_urls:
+      - https://smittenkitchen.com/feed/
+    category_urls: []
+
+  - name: Cookie and Kate
+    enabled: true
+    notes: "Vegetarian whole-food dinners. Mixed content — dinner filter applied."
+    feed_urls:
+      - https://cookieandkate.com/feed/
+    category_urls: []
+
+  - name: Simply Scratch
+    enabled: true
+    notes: "From-scratch step-by-step recipes."
+    feed_urls:
+      - http://www.simplyscratch.com/feed
+    category_urls: []
+
+  - name: The Southern Lady Cooks
+    enabled: true
+    notes: "Southern classics, 1M Facebook followers."
+    feed_urls:
+      - https://thesouthernladycooks.com/feed/
+    category_urls: []
+
+  - name: Foodology Geek
+    enabled: true
+    notes: "Forensic scientist turned chef. Comfort food to gourmet."
+    feed_urls:
+      - https://www.foodologygeek.com/feed/
+    category_urls: []
+
+  - name: Julia's Album
+    enabled: true
+    notes: "Comfort foods, savory focus. Mixed — dinner filter applied."
+    feed_urls:
+      - https://juliasalbum.com/feed/
+    category_urls: []
+
+  - name: The Food Blog
+    enabled: true
+    notes: "Fresh, seasonal, scratch cooking. Colleen."
+    feed_urls:
+      - https://www.thefoodblog.net/feed/
+    category_urls: []
+
+  - name: TASTE Cooking
+    enabled: true
+    notes: "Online magazine. 'Reporting from the front lines of dinner.'"
+    feed_urls:
+      - https://tastecooking.com/feed/
+    category_urls: []
+
+  # ── Disabled: Pure dessert / baking / breakfast focus ─────────────────────
+
+  - name: Cookies and Cups
+    enabled: false
+    notes: "Full dessert resource — not relevant for dinner planning."
+    feed_urls:
+      - https://cookiesandcups.com/feed
+    category_urls: []
+
+  - name: Broma Bakery
+    enabled: false
+    notes: "Cheesecake and desserts only."
+    feed_urls:
+      - https://bromabakery.com/feed/
+    category_urls: []
+
+  - name: Home Grown Happiness
+    enabled: false
+    notes: "Sourdough breads and baked goods."
+    feed_urls:
+      - https://homegrownhappiness.com/feed/
+    category_urls: []
+
+  - name: Heavenly Home Cooking
+    enabled: false
+    notes: "Explicitly 'breakfast and brunch' focused."
+    feed_urls: []
+    category_urls: []
+
+  # ── Disabled: Dotdash/Meredith network (403 on all scraping) ──────────────
+
+  - name: Serious Eats
+    enabled: false
+    notes: "Dotdash/Meredith — 403 on all requests. Add via Mealie manually."
+    feed_urls: []
+    category_urls: []
+
+  - name: Simply Recipes
+    enabled: false
+    notes: "Dotdash/Meredith — 403 on all requests."
+    feed_urls: []
+    category_urls: []
+
+  - name: The Kitchn
+    enabled: false
+    notes: "Dotdash/Meredith — 403 on all requests."
+    feed_urls: []
+    category_urls: []
+
+  - name: AllRecipes
+    enabled: false
+    notes: "Cloudflare-protected, 403 on all recipe pages."
+    feed_urls: []
+    category_urls: []
+
+  - name: Food Network
+    enabled: false
+    notes: "Dotdash/Meredith — 403 on all requests."
+    feed_urls: []
+    category_urls: []

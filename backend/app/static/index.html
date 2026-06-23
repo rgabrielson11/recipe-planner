@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Recipe Planner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;color:#1e293b}
+:root{--brand:#2563eb;--brand-dark:#1d4ed8;--green:#16a34a;--red:#dc2626;--amber:#d97706;--gray:#64748b;--border:#e2e8f0;--card:#fff}
+button{cursor:pointer;border:none;border-radius:6px;font-size:14px;font-weight:500;padding:7px 14px;transition:all .15s}
+.btn-primary{background:var(--brand);color:#fff}.btn-primary:hover{background:var(--brand-dark)}
+.btn-secondary{background:#f1f5f9;color:#334155;border:1px solid var(--border)}.btn-secondary:hover{background:#e2e8f0}
+.btn-danger{background:var(--red);color:#fff}.btn-danger:hover{background:#b91c1c}
+.btn-success{background:var(--green);color:#fff}.btn-success:hover{background:#15803d}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-icon{padding:6px;background:transparent;border-radius:4px;line-height:1}.btn-icon:hover{background:#f1f5f9}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--brand);box-shadow:0 0 0 2px #bfdbfe}
+label{font-size:13px;font-weight:500;color:#475569;display:block;margin-bottom:4px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+.badge-green{background:#dcfce7;color:#15803d}.badge-blue{background:#dbeafe;color:#1d4ed8}
+.badge-amber{background:#fef3c7;color:#92400e}.badge-red{background:#fee2e2;color:#b91c1c}
+.badge-gray{background:#f1f5f9;color:#475569}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#f1f5f9;border-radius:99px;font-size:12px}
+.tag button{background:none;padding:0;font-size:14px;color:#94a3b8;line-height:1}.tag button:hover{color:var(--red)}
+.nav{width:220px;min-height:100vh;background:#1e293b;padding:20px 0;position:fixed;left:0;top:0;overflow-y:auto}
+.nav-logo{padding:0 20px 20px;font-size:17px;font-weight:700;color:#fff;border-bottom:1px solid #334155}
+.nav-logo span{color:#60a5fa}
+.nav-section{padding:16px 20px 6px;font-size:10px;font-weight:700;color:#64748b;letter-spacing:.08em;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;color:#94a3b8;font-size:14px;font-weight:500;cursor:pointer;transition:all .15s}
+.nav-item:hover{background:#334155;color:#fff}.nav-item.active{background:#2563eb;color:#fff}
+.nav-item .icon{font-size:17px;width:20px;text-align:center}
+.main{margin-left:220px;padding:28px;min-height:100vh}
+.page-title{font-size:22px;font-weight:700;color:#0f172a}
+.page-sub{font-size:14px;color:var(--gray);margin-top:4px}
+.page-header{margin-bottom:24px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px}
+.stat-val{font-size:28px;font-weight:700;color:#0f172a}
+.stat-label{font-size:13px;color:var(--gray);margin-top:2px}
+.table{width:100%;border-collapse:collapse}
+.table th{text-align:left;padding:10px 12px;font-size:12px;font-weight:600;color:#64748b;background:#f8fafc;border-bottom:1px solid var(--border)}
+.table td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle}
+.table tr:hover td{background:#f8fafc}
+.form-row{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:end}
+.alert{padding:12px 16px;border-radius:8px;font-size:13px;margin-bottom:12px}
+.alert-warning{background:#fffbeb;border:1px solid #fde68a;color:#92400e}
+.alert-error{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c}
+.alert-success{background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d}
+.alert-info{background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8}
+.step-bar{display:flex;gap:0;margin-bottom:28px;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.step{flex:1;padding:12px 8px;text-align:center;font-size:12px;font-weight:600;border-right:1px solid var(--border);color:var(--gray);cursor:pointer;background:#fff}
+.step:last-child{border-right:none}.step.active{background:#eff6ff;color:var(--brand)}
+.step.done{background:#f0fdf4;color:var(--green)}
+.recipe-card{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--card);margin-bottom:10px}
+.recipe-card-hdr{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;user-select:none}
+.recipe-card-hdr:hover{background:#f8fafc}
+.recipe-card-body{padding:16px;border-top:1px solid var(--border)}
+.ing-pill{padding:3px 10px;border-radius:99px;font-size:12px;font-weight:500;display:inline-block;margin:2px}
+.ing-need{background:#fee2e2;color:#b91c1c}.ing-have{background:#dcfce7;color:#15803d}
+.toggle{position:relative;width:40px;height:22px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:#cbd5e1;border-radius:99px;cursor:pointer;transition:.3s}
+.toggle-slider:before{content:'';position:absolute;width:16px;height:16px;bottom:3px;left:3px;background:#fff;border-radius:50%;transition:.3s}
+.toggle input:checked+.toggle-slider{background:var(--brand)}
+.toggle input:checked+.toggle-slider:before{transform:translateX(18px)}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab{padding:10px 18px;font-size:14px;font-weight:500;color:var(--gray);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.active{color:var(--brand);border-color:var(--brand)}.tab:hover:not(.active){color:#334155}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:#fff;border-radius:12px;padding:24px;width:520px;max-width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal h2{font-size:18px;font-weight:700;margin-bottom:16px}
+.spinner{border:3px solid #e2e8f0;border-top-color:var(--brand);border-radius:50%;width:32px;height:32px;animation:spin .7s linear infinite;margin:40px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.chip-list{display:flex;flex-wrap:wrap;gap:8px}
+.section-title{font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px}
+.check-item{display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:background .1s}
+.check-item:hover{background:#f8fafc}.check-item.selected{background:#eff6ff;border-color:#bfdbfe}
+.check-item input[type=checkbox]{margin-top:1px;flex-shrink:0;width:auto}
+.sl-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f9}
+.sl-item{flex:1;font-weight:500;font-size:14px}
+.sl-qty{font-size:13px;color:#475569;min-width:80px}
+.sl-pkg{font-size:12px;color:#94a3b8}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useCallback,useRef} = React;
+
+const API = async (method,path,body)=>{
+  const r=await fetch(`/api${path}`,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||r.statusText);}
+  if(r.status===204)return null; return r.json();
+};
+const get=p=>API('GET',p);
+const post=(p,b)=>API('POST',p,b);
+const put=(p,b)=>API('PUT',p,b);
+const del=p=>API('DELETE',p);
+const patch=(p,b)=>API('PATCH',p,b);
+
+const weekMonday=(d=new Date())=>{const dd=new Date(d);const day=dd.getDay();dd.setDate(dd.getDate()-(day===0?6:day-1));return dd.toISOString().split('T')[0];};
+const fmt=s=>s?new Date(s+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'—';
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+const ToastCtx=React.createContext(null);
+const ToastProvider=({children})=>{
+  const [toasts,setToasts]=useState([]);
+  const add=(msg,type='success')=>{const id=Date.now();setToasts(t=>[...t,{id,msg,type}]);setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),3500);};
+  return <ToastCtx.Provider value={add}>
+    {children}
+    <div style={{position:'fixed',bottom:20,right:20,display:'flex',flexDirection:'column',gap:8,zIndex:200}}>
+      {toasts.map(t=><div key={t.id} className={`alert alert-${t.type}`} style={{minWidth:260,boxShadow:'0 4px 12px rgba(0,0,0,.15)'}}>{t.msg}</div>)}
+    </div>
+  </ToastCtx.Provider>;
+};
+const useToast=()=>React.useContext(ToastCtx);
+
+// ── Nav ───────────────────────────────────────────────────────────────────────
+const NAV=[
+  {section:'Planning'},{key:'planner',icon:'📅',label:'Weekly Planner'},
+  {key:'pantry',icon:'🥫',label:'Pantry'},
+  {section:'Configuration'},{key:'settings',icon:'⚙️',label:'Preferences'},
+  {key:'sources',icon:'📡',label:'RSS Sources'},{key:'keywords',icon:'🔍',label:'Dinner Filter'},
+  {section:'Tools'},{key:'rejections',icon:'🚫',label:'Rejections'},{key:'logs',icon:'📋',label:'Logs'},
+];
+const Nav=({page,setPage})=>(
+  <nav className="nav">
+    <div className="nav-logo">🍽️ <span>Recipe</span> Planner</div>
+    {NAV.map((item,i)=>item.section
+      ?<div key={i} className="nav-section">{item.section}</div>
+      :<div key={item.key} className={`nav-item${page===item.key?' active':''}`} onClick={()=>setPage(item.key)}>
+        <span className="icon">{item.icon}</span>{item.label}
+      </div>)}
+  </nav>
+);
+
+// ── Household gate ────────────────────────────────────────────────────────────
+const HouseholdGate=({onSave})=>{
+  const [list,setList]=useState([]);const [name,setName]=useState('My Household');const [num,setNum]=useState(4);const toast=useToast();
+  useEffect(()=>{get('/households').then(setList).catch(()=>{});},[]);
+  const create=async()=>{try{const h=await post('/households',{name,num_people:num});onSave(h.id);toast('Household created');}catch(e){toast(e.message,'error');}};
+  return(
+    <div style={{maxWidth:460,margin:'80px auto',padding:32}}>
+      <div className="card">
+        <h2 style={{fontSize:20,fontWeight:700,marginBottom:16}}>🍽️ Recipe Planner</h2>
+        {list.length>0&&<>{list.map(h=><button key={h.id} className="btn-primary" style={{width:'100%',marginBottom:8,textAlign:'left'}} onClick={()=>onSave(h.id)}>{h.name} — {h.num_people} people</button>)}<hr style={{margin:'16px 0',borderColor:'var(--border)'}}/></>}
+        <div style={{display:'grid',gap:10}}>
+          <div><label>Household name</label><input value={name} onChange={e=>setName(e.target.value)}/></div>
+          <div><label>Number of people</label><input type="number" min={1} max={20} value={num} onChange={e=>setNum(+e.target.value)}/></div>
+          <button className="btn-primary" onClick={create}>Create & Continue →</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Rejection feedback modal ──────────────────────────────────────────────────
+const KNOWN_METHODS=['slow_cooker','instant_pot_pressure_cooker','air_fryer','sous_vide','smoker','grill','oven','stovetop','microwave'];
+
+const RejectionModal=({recipe,reason,hid,prefs,onDone,onCancel})=>{
+  const [selIngredients,setSelIngredients]=useState([]);
+  const [ingAction,setIngAction]=useState('excluded_items');
+  const [selMethods,setSelMethods]=useState([]);
+  const toast=useToast();
+  const isEquip=reason==='missing_equipment';
+  const isDislike=reason==='dislike'||reason==='allergy';
+  const ingredients=recipe?.missing_ingredients||[];
+
+  const toggleIng=ing=>setSelIngredients(s=>s.includes(ing)?s.filter(x=>x!==ing):[...s,ing]);
+  const toggleMethod=m=>setSelMethods(s=>s.includes(m)?s.filter(x=>x!==m):[...s,m]);
+
+  const apply=async()=>{
+    let changed=false;
+    try{
+      if(isDislike&&selIngredients.length>0&&prefs){
+        const cur=prefs[ingAction]||[];
+        const next=[...new Set([...cur,...selIngredients])];
+        const updated={...prefs,[ingAction]:next};
+        await put(`/preferences/${hid}`,updated);
+        toast(`Added ${selIngredients.length} item(s) to ${ingAction==='excluded_items'?'excluded':'disliked'} list`);
+        changed=true;
+      }
+      if(isEquip&&selMethods.length>0&&prefs){
+        const cur=prefs.available_methods||[];
+        const next=cur.filter(m=>!selMethods.includes(m));
+        await put(`/preferences/${hid}`,{...prefs,available_methods:next});
+        toast(`Removed ${selMethods.length} method(s) from available equipment`);
+        changed=true;
+      }
+    }catch(e){toast(e.message,'error');}
+    onDone(changed);
+  };
+
+  return(
+    <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&onCancel()}>
+      <div className="modal">
+        <h2>{isEquip?'🔧 Missing Equipment':'🚫 Ingredient Issues'}</h2>
+        <p style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>
+          Rejecting <strong>{recipe?.title}</strong>.
+          {isEquip?' Select equipment you don\'t have to exclude from future suggestions:'
+                  :' Select ingredients to add to your exclude or dislike list:'}
+        </p>
+
+        {isDislike&&ingredients.length>0&&<>
+          <div style={{marginBottom:12}}>
+            <label>Add selected to:</label>
+            <select value={ingAction} onChange={e=>setIngAction(e.target.value)}>
+              <option value="excluded_items">Excluded ingredients (hard filter — never suggest)</option>
+              <option value="disliked_items">Disliked items (soft penalty — deprioritized)</option>
+            </select>
+          </div>
+          <div style={{display:'grid',gap:6,maxHeight:260,overflowY:'auto',marginBottom:16}}>
+            {ingredients.map(ing=>(
+              <label key={ing} className={`check-item${selIngredients.includes(ing)?' selected':''}`}>
+                <input type="checkbox" checked={selIngredients.includes(ing)} onChange={()=>toggleIng(ing)}/>
+                <span style={{fontSize:14}}>{ing}</span>
+              </label>
+            ))}
+          </div>
+          {ingredients.length===0&&<p style={{color:'var(--gray)',fontSize:13,marginBottom:16}}>No specific missing ingredients recorded for this recipe.</p>}
+        </>}
+
+        {isEquip&&<>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,maxHeight:300,overflowY:'auto',marginBottom:16}}>
+            {KNOWN_METHODS.map(m=>(
+              <label key={m} className={`check-item${selMethods.includes(m)?' selected':''}`}>
+                <input type="checkbox" checked={selMethods.includes(m)} onChange={()=>toggleMethod(m)}/>
+                <span style={{fontSize:13,textTransform:'capitalize'}}>{m.replace(/_/g,' ')}</span>
+              </label>
+            ))}
+          </div>
+        </>}
+
+        <div style={{display:'flex',gap:8}}>
+          <button className="btn-primary" onClick={apply}>Apply & Reject</button>
+          <button className="btn-secondary" onClick={()=>onDone(false)}>Reject without saving</button>
+          <button className="btn-secondary" onClick={onCancel}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Recipe card ───────────────────────────────────────────────────────────────
+const RecipeCard=({r,pantryItems,onConfirm,onReject,confirmed,rejected,hid,prefs})=>{
+  const [open,setOpen]=useState(false);
+  const [rejReason,setRejReason]=useState('not_this_week');
+  const [showFeedback,setShowFeedback]=useState(false);
+  const isConf=confirmed.includes(r.recipe_id);
+  const isRej=rejected.includes(r.recipe_id);
+
+  const doReject=()=>{
+    if(rejReason==='dislike'||rejReason==='allergy'||rejReason==='missing_equipment'){
+      setShowFeedback(true);
+    } else {
+      onReject(r.recipe_id,rejReason);
+    }
+  };
+
+  return(
+    <>
+    <div className="recipe-card" style={{opacity:isRej?.5:1}}>
+      <div className="recipe-card-hdr" onClick={()=>setOpen(o=>!o)}
+        style={{background:isConf?'#f0fdf4':isRej?'#fef2f2':''}}>
+        <div style={{flex:1}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+            <span style={{fontWeight:700,fontSize:15}}>{r.title}</span>
+            {r.is_favorite&&<span className="badge badge-amber">⭐ Favourite</span>}
+            {isConf&&<span className="badge badge-green">✓ Selected</span>}
+            {isRej&&<span className="badge badge-red">✗ Rejected</span>}
+          </div>
+          <div style={{display:'flex',gap:12,marginTop:5,flexWrap:'wrap',fontSize:12,color:'var(--gray)'}}>
+            <span>Score: <b>{r.score}</b></span>
+            <span>🥫 {r.pantry_overlap_pct}% on hand</span>
+            {r.total_time_minutes&&<span>⏱ {r.total_time_minutes}m</span>}
+            <span>🛒 {(r.missing_ingredients||[]).length} to buy</span>
+          </div>
+        </div>
+        <span style={{fontSize:18,color:'var(--gray)'}}>{open?'▲':'▼'}</span>
+      </div>
+      {open&&(
+        <div className="recipe-card-body">
+          {r.source_url&&<p style={{marginBottom:10}}><a href={r.source_url} target="_blank" rel="noopener" style={{fontSize:13}}>🔗 View original recipe →</a></p>}
+          {(r.missing_ingredients||[]).length>0&&<>
+            <p style={{fontSize:13,fontWeight:600,marginBottom:6}}>🛒 Need to buy ({r.missing_ingredients.length})</p>
+            <div style={{marginBottom:10}}>{r.missing_ingredients.map((ing,i)=><span key={i} className="ing-pill ing-need">{ing}</span>)}</div>
+          </>}
+          {r.pantry_overlap_pct>0&&<p style={{fontSize:12,color:'var(--green)',marginBottom:10}}>✓ {r.pantry_overlap_pct}% of ingredients already on hand</p>}
+          {!isConf&&!isRej&&<div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:6}}>
+            <button className="btn-success btn-sm" onClick={()=>onConfirm(r.recipe_id)}>✓ Select</button>
+            <select value={rejReason} onChange={e=>setRejReason(e.target.value)} style={{width:'auto',padding:'4px 8px',fontSize:12}}>
+              <option value="not_this_week">Not this week</option>
+              <option value="dislike">Dislike ingredients</option>
+              <option value="allergy">Allergy / intolerance</option>
+              <option value="missing_equipment">Missing equipment</option>
+              <option value="too_complex">Too complex</option>
+              <option value="already_made_recently">Made recently</option>
+            </select>
+            <button className="btn-danger btn-sm" onClick={doReject}>✗ Reject</button>
+          </div>}
+          {isConf&&<button className="btn-secondary btn-sm" onClick={()=>onConfirm(r.recipe_id,true)}>↩ Undo</button>}
+          {isRej&&<button className="btn-secondary btn-sm" onClick={()=>onReject(r.recipe_id,null)}>↩ Undo</button>}
+        </div>
+      )}
+    </div>
+    {showFeedback&&(
+      <RejectionModal recipe={r} reason={rejReason} hid={hid} prefs={prefs}
+        onDone={(changed)=>{setShowFeedback(false);onReject(r.recipe_id,rejReason);}}
+        onCancel={()=>setShowFeedback(false)}/>
+    )}
+    </>
+  );
+};
+
+// ── Weekly Planner ────────────────────────────────────────────────────────────
+const STEPS=['Pantry Review','Week Intent','Suggestions','Confirm','Shopping List'];
+
+const PlannerPage=({hid})=>{
+  const [step,setStep]=useState(0);
+  const [week]=useState(weekMonday);
+  const [pantry,setPantry]=useState([]);
+  const [prefs,setPrefs]=useState(null);
+  const [hints,setHints]=useState('');
+  const [numSug,setNumSug]=useState(10);
+  const [suggestions,setSug]=useState([]);
+  const [confirmed,setConf]=useState([]);
+  const [rejected,setRej]=useState([]);
+  const [shoppingList,setSL]=useState(null);
+  const [loading,setLoading]=useState(false);
+  const [importResults,setImportResults]=useState(null);
+  const toast=useToast();
+
+  useEffect(()=>{
+    get(`/pantry?household_id=${hid}`).then(setPantry).catch(()=>{});
+    get(`/preferences/${hid}`).then(setPrefs).catch(()=>{});
+  },[hid]);
+
+  const loadSuggestions=async()=>{
+    setLoading(true);setSug([]);
+    try{
+      await post(`/meal-plan/week-intent/${hid}/${week}`,{
+        ingredient_hints:hints.split(',').map(s=>s.trim()).filter(Boolean),
+        num_suggestions:numSug,
+      });
+      const r=await get(`/meal-plan/suggest?household_id=${hid}&week_start_date=${week}&num=${numSug}`);
+      setSug(r.suggestions||[]);toast(`${r.suggestions?.length||0} suggestions loaded`);setStep(2);
+    }catch(e){toast(e.message,'error');}
+    finally{setLoading(false);}
+  };
+
+  const toggleConfirm=(id,undo=false)=>{
+    if(undo){setConf(c=>c.filter(x=>x!==id));return;}
+    setConf(c=>c.includes(id)?c.filter(x=>x!==id):[...c,id]);
+    setRej(r=>r.filter(x=>x!==id));
+  };
+
+  const toggleReject=async(id,reason)=>{
+    if(!reason){setRej(r=>r.filter(x=>x!==id));return;}
+    setRej(r=>[...r.filter(x=>x!==id),id]);
+    setConf(c=>c.filter(x=>x!==id));
+    try{await post(`/recipes/${id}/reject`,{reason_category:reason,household_id:hid,week_start_date:week});}catch(e){}
+  };
+
+  const confirmSelections=async()=>{
+    if(!confirmed.length){toast('Select at least one meal','warning');return;}
+    setLoading(true);
+    try{
+      const r=await post('/meal-plan/selections',{household_id:hid,week_start_date:week,recipe_ids:confirmed});
+      setImportResults(r.mealie_imports||[]);toast(`${confirmed.length} meals confirmed`);setStep(3);
+    }catch(e){toast(e.message,'error');}
+    finally{setLoading(false);}
+  };
+
+  const loadShoppingList=async()=>{
+    setLoading(true);
+    try{
+      const r=await get(`/meal-plan/shopping-list?household_id=${hid}&week_start_date=${week}`);
+      setSL(r);setStep(4);
+    }catch(e){toast(e.message,'error');}
+    finally{setLoading(false);}
+  };
+
+  const expired=pantry.filter(p=>p.expiry_date&&new Date(p.expiry_date)<new Date());
+
+  return(
+    <div>
+      <div className="page-header"><h1 className="page-title">📅 Weekly Planner</h1><p className="page-sub">Week of {fmt(week)}</p></div>
+      <div className="step-bar">{STEPS.map((s,i)=><div key={i} className={`step${step===i?' active':step>i?' done':''}`} onClick={()=>step>i&&setStep(i)}>{step>i?'✓ ':''}{s}</div>)}</div>
+
+      {/* Step 0 */}
+      {step===0&&<div>
+        <div className="card" style={{marginBottom:16}}>
+          <h3 className="section-title">Pantry Status</h3>
+          {expired.length>0&&<div className="alert alert-warning">⚠️ {expired.length} expired: {expired.map(p=>p.name).join(', ')}</div>}
+          <div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:8}}>
+            <div className="stat-card" style={{flex:1}}><div className="stat-val">{pantry.length}</div><div className="stat-label">Tracked items</div></div>
+            <div className="stat-card" style={{flex:1}}><div className="stat-val" style={{color:'var(--red)'}}>{expired.length}</div><div className="stat-label">Expired</div></div>
+          </div>
+        </div>
+        <button className="btn-primary" onClick={()=>setStep(1)}>Continue →</button>
+      </div>}
+
+      {/* Step 1 */}
+      {step===1&&<div>
+        <div className="card" style={{marginBottom:16}}>
+          <h3 className="section-title">What's on the menu this week?</h3>
+          <div style={{display:'grid',gap:14}}>
+            <div>
+              <label>Ingredient hints (comma-separated — boosts matching scores by +15 each)</label>
+              <input placeholder="e.g. chicken thighs, salmon, italian, quick weeknight" value={hints} onChange={e=>setHints(e.target.value)}/>
+            </div>
+            <div style={{maxWidth:200}}>
+              <label>Number of suggestions</label>
+              <input type="number" min={3} max={30} value={numSug} onChange={e=>setNumSug(+e.target.value)}/>
+            </div>
+          </div>
+        </div>
+        {loading?<div className="spinner"/>:<button className="btn-primary" onClick={loadSuggestions}>🔍 Generate Suggestions →</button>}
+      </div>}
+
+      {/* Step 2 */}
+      {step===2&&<div>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
+          <h3 className="section-title" style={{margin:0}}>{suggestions.length} Suggestions — {confirmed.length} selected</h3>
+          <button className="btn-secondary btn-sm" onClick={loadSuggestions}>↺ Refresh</button>
+        </div>
+        {suggestions.length===0&&!loading&&<div style={{textAlign:'center',padding:48,color:'var(--gray)'}}>
+          <div style={{fontSize:48}}>🍽️</div>
+          <p>No suggestions. Check RSS Sources to ensure feeds are enabled.</p>
+        </div>}
+        {suggestions.map(r=><RecipeCard key={r.recipe_id} r={r} pantryItems={pantry}
+          onConfirm={toggleConfirm} onReject={toggleReject}
+          confirmed={confirmed} rejected={rejected} hid={hid} prefs={prefs}/>)}
+        {confirmed.length>0&&<div style={{marginTop:16,padding:16,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8}}>
+          <strong>✓ Selected ({confirmed.length}):</strong>{' '}
+          {suggestions.filter(s=>confirmed.includes(s.recipe_id)).map(s=>s.title).join(', ')}
+          <div style={{marginTop:12}}>
+            <button className="btn-success" onClick={()=>setStep(3)}>Confirm {confirmed.length} Selection{confirmed.length!==1?'s':''} →</button>
+          </div>
+        </div>}
+      </div>}
+
+      {/* Step 3 */}
+      {step===3&&<div>
+        <div className="card" style={{marginBottom:16}}>
+          <h3 className="section-title">Confirm Your Selections</h3>
+          {suggestions.filter(s=>confirmed.includes(s.recipe_id)).map(r=>(
+            <div key={r.recipe_id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
+              <span>🍽️</span>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600}}>{r.title}</div>
+                <div style={{fontSize:12,color:'var(--gray)'}}>{r.total_time_minutes?`⏱ ${r.total_time_minutes}m · `:''}🛒 {r.missing_ingredients?.length||0} items to buy</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {importResults&&<div className="card" style={{marginBottom:16}}>
+          <h3 className="section-title">Mealie Import Status</h3>
+          {importResults.map((r,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',fontSize:13}}>
+              <span>{r.status==='imported'?'✅':r.status==='already_in_mealie'?'ℹ️':'⚠️'}</span>
+              <span style={{flex:1}}>{r.title}</span>
+              <span className={`badge badge-${r.status==='imported'?'green':r.status==='already_in_mealie'?'blue':'amber'}`}>{r.status}</span>
+              {r.slug&&<span style={{fontSize:11,color:'var(--gray)'}}>{r.slug}</span>}
+            </div>
+          ))}
+        </div>}
+
+        {loading?<div className="spinner"/>:<>
+          {!importResults
+            ?<button className="btn-success" onClick={confirmSelections} disabled={!confirmed.length}>✓ Lock In & Import to Mealie</button>
+            :<button className="btn-primary" onClick={loadShoppingList}>🛒 Generate Shopping List →</button>
+          }
+        </>}
+      </div>}
+
+      {/* Step 4: Shopping List */}
+      {step===4&&<div>
+        {!shoppingList?(loading?<div className="spinner"/>:<button className="btn-primary" onClick={loadShoppingList}>🛒 Load Shopping List</button>):<>
+          {(shoppingList.warnings||[]).map((w,i)=><div key={i} className="alert alert-warning">⚠️ {w}</div>)}
+
+          {Object.keys(shoppingList.shopping_by_section||{}).length===0&&(shoppingList.warnings||[]).length===0&&(
+            <div className="alert alert-success">✅ Your pantry and staples cover all ingredients this week — nothing to buy!</div>
+          )}
+
+          {Object.entries(shoppingList.shopping_by_section||{}).map(([section,items])=>(
+            <div key={section} className="card" style={{marginBottom:12}}>
+              <h3 className="section-title" style={{textTransform:'capitalize',marginBottom:12}}>{section}</h3>
+              {items.map((item,i)=>(
+                <div key={i} className="sl-row">
+                  <span className="sl-item">{item.item}</span>
+                  <span className="sl-qty">
+                    {item.quantity!=null?`${item.quantity} ${item.unit||''}`.trim():'as needed'}
+                  </span>
+                  <span className="sl-pkg">{item.package_label||''}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+
+          {(shoppingList.pantry_check||[]).length>0&&(
+            <div className="card" style={{marginBottom:12,background:'#f8fafc'}}>
+              <h3 className="section-title">🥫 Pantry Check (should already have)</h3>
+              {shoppingList.pantry_check.map((item,i)=>(
+                <div key={i} className="sl-row">
+                  <span className="sl-item">{item.item}</span>
+                  <span className="sl-qty">{item.quantity!=null?`${item.quantity} ${item.unit||''}`.trim():'some'}</span>
+                  <span className="sl-pkg" style={{color:'var(--green)'}}>✓ on hand</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {(shoppingList.selected_recipe_titles||[]).length>0&&(
+            <p style={{fontSize:12,color:'var(--gray)',marginTop:8}}>
+              Based on: {shoppingList.selected_recipe_titles.join(', ')}
+            </p>
+          )}
+        </>}
+      </div>}
+    </div>
+  );
+};
+
+// ── Pantry ────────────────────────────────────────────────────────────────────
+const PantryPage=({hid})=>{
+  const [items,setItems]=useState([]);
+  const [form,setForm]=useState({name:'',quantity:'',unit:'',category:'',expiry_date:''});
+  const [editId,setEditId]=useState(null);
+  const [filter,setFilter]=useState('');
+  const toast=useToast();
+  const load=()=>get(`/pantry?household_id=${hid}`).then(setItems).catch(()=>{});
+  useEffect(()=>{load();},[hid]);
+  const save=async()=>{
+    if(!form.name.trim()){toast('Name required','warning');return;}
+    try{
+      const p={...form,household_id:hid,quantity:form.quantity?+form.quantity:null,expiry_date:form.expiry_date||null};
+      if(editId)await patch(`/pantry/${editId}`,p);else await post('/pantry',p);
+      setForm({name:'',quantity:'',unit:'',category:'',expiry_date:''});setEditId(null);load();toast(editId?'Updated':'Added');
+    }catch(e){toast(e.message,'error');}
+  };
+  const startEdit=item=>{setEditId(item.id);setForm({name:item.name,quantity:item.quantity||'',unit:item.unit||'',category:item.category||'',expiry_date:item.expiry_date||''});};
+  const remove=async id=>{if(!confirm('Remove?'))return;try{await del(`/pantry/${id}`);load();toast('Removed');}catch(e){toast(e.message,'error');}};
+  const today=new Date().toISOString().split('T')[0];
+  const filtered=items.filter(i=>i.name.toLowerCase().includes(filter.toLowerCase()));
+  return(
+    <div>
+      <div className="page-header"><h1 className="page-title">🥫 Pantry</h1><p className="page-sub">{items.length} items</p></div>
+      <div className="card" style={{marginBottom:16}}>
+        <h3 className="section-title">{editId?'Edit':'Add'} Item</h3>
+        <div className="form-row">
+          <div><label>Name *</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Chicken breasts"/></div>
+          <div><label>Qty</label><input type="number" value={form.quantity} onChange={e=>setForm(f=>({...f,quantity:e.target.value}))} placeholder="2"/></div>
+          <div><label>Unit</label><input value={form.unit} onChange={e=>setForm(f=>({...f,unit:e.target.value}))} placeholder="lbs"/></div>
+          <div><label>Category</label>
+            <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>
+              <option value="">— select —</option>
+              {['produce','meat & seafood','dairy & eggs','dry goods & pasta','canned & jarred','frozen','other'].map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div><label>Expiry</label><input type="date" value={form.expiry_date} onChange={e=>setForm(f=>({...f,expiry_date:e.target.value}))}/></div>
+          <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
+            <button className="btn-primary" onClick={save}>{editId?'Update':'Add'}</button>
+            {editId&&<button className="btn-secondary" onClick={()=>{setEditId(null);setForm({name:'',quantity:'',unit:'',category:'',expiry_date:''});}}>Cancel</button>}
+          </div>
+        </div>
+      </div>
+      <div className="card">
+        <div style={{display:'flex',gap:12,marginBottom:12,alignItems:'center'}}>
+          <input style={{maxWidth:280}} placeholder="🔍 Filter..." value={filter} onChange={e=>setFilter(e.target.value)}/>
+          <span style={{fontSize:13,color:'var(--gray)'}}>{filtered.length} shown</span>
+        </div>
+        <table className="table"><thead><tr><th>Name</th><th>Qty</th><th>Unit</th><th>Category</th><th>Expiry</th><th></th></tr></thead>
+          <tbody>{filtered.map(item=>{
+            const exp=item.expiry_date&&item.expiry_date<today;
+            const soon=item.expiry_date&&!exp&&item.expiry_date<=new Date(Date.now()+7*864e5).toISOString().split('T')[0];
+            return(<tr key={item.id} style={{background:exp?'#fef2f2':soon?'#fffbeb':''}}>
+              <td style={{fontWeight:500}}>{item.name}</td><td>{item.quantity||'—'}</td><td>{item.unit||'—'}</td><td>{item.category||'—'}</td>
+              <td>{item.expiry_date?<span className={`badge badge-${exp?'red':soon?'amber':'green'}`}>{exp?'⚠️ ':soon?'⏰ ':''}{fmt(item.expiry_date)}</span>:'—'}</td>
+              <td><button className="btn-icon" onClick={()=>startEdit(item)}>✏️</button><button className="btn-icon" onClick={()=>remove(item.id)}>🗑️</button></td>
+            </tr>);
+          })}
+          {filtered.length===0&&<tr><td colSpan={6} style={{textAlign:'center',color:'var(--gray)',padding:32}}>No items</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+const SettingsPage=({hid})=>{
+  const [tab,setTab]=useState('prefs');
+  const [prefs,setPrefs]=useState(null);
+  const [staples,setStaples]=useState([]);
+  const [newStaple,setNewStaple]=useState('');
+  const toast=useToast();
+  const METHODS=['slow_cooker','instant_pot_pressure_cooker','air_fryer','sous_vide','smoker','grill','oven','stovetop','microwave'];
+  useEffect(()=>{
+    get(`/preferences/${hid}`).then(setPrefs).catch(()=>{});
+    get('/pantry/staples').then(d=>setStaples(d.staples||[])).catch(()=>{});
+  },[hid]);
+  const savePrefs=async()=>{try{await put(`/preferences/${hid}`,prefs);toast('Saved');}catch(e){toast(e.message,'error');}};
+  const addStaple=async()=>{if(!newStaple.trim())return;try{const r=await post('/pantry/staples',{name:newStaple});setStaples(r.staples||[]);setNewStaple('');toast('Added');}catch(e){toast(e.message,'error');}};
+  const rmStaple=async n=>{try{const r=await del(`/pantry/staples/${encodeURIComponent(n)}`);setStaples(r.staples||[]);toast('Removed');}catch(e){toast(e.message,'error');}};
+  const toggleMethod=m=>{if(!prefs)return;const cur=prefs.available_methods||[];setPrefs(p=>({...p,available_methods:cur.includes(m)?cur.filter(x=>x!==m):[...cur,m]}));};
+  const ArrayEditor=({label,fk})=>{
+    const [v,setV]=useState('');const items=prefs?.[fk]||[];
+    return(<div style={{marginBottom:16}}>
+      <label>{label}</label>
+      <div className="chip-list" style={{marginBottom:8}}>
+        {items.map((it,i)=><span key={i} className="tag">{it}<button onClick={()=>setPrefs(p=>({...p,[fk]:items.filter((_,j)=>j!==i)}))}>×</button></span>)}
+        {!items.length&&<span style={{fontSize:13,color:'var(--gray)'}}>None</span>}
+      </div>
+      <div style={{display:'flex',gap:8}}>
+        <input style={{maxWidth:280}} value={v} onChange={e=>setV(e.target.value)} placeholder={`Add to ${label.toLowerCase()}...`}
+          onKeyDown={e=>{if(e.key==='Enter'&&v.trim()){setPrefs(p=>({...p,[fk]:[...items,v.trim()]}));setV('');}}}/>
+        <button className="btn-secondary btn-sm" onClick={()=>{if(v.trim()){setPrefs(p=>({...p,[fk]:[...items,v.trim()]}));setV('');}}} >Add</button>
+      </div>
+    </div>);
+  };
+  return(
+    <div>
+      <div className="page-header"><h1 className="page-title">⚙️ Settings</h1></div>
+      <div className="tabs">{[['prefs','Preferences'],['methods','Cooking Methods'],['staples','Pantry Staples']].map(([k,l])=><div key={k} className={`tab${tab===k?' active':''}`} onClick={()=>setTab(k)}>{l}</div>)}</div>
+      {tab==='prefs'&&prefs&&<div className="card"><div style={{display:'grid',gap:16}}>
+        <ArrayEditor label="Liked items" fk="liked_items"/>
+        <ArrayEditor label="Disliked items" fk="disliked_items"/>
+        <ArrayEditor label="Excluded ingredients (hard filter)" fk="excluded_items"/>
+        <div className="form-row">
+          <div><label>Max cook time (min)</label><input type="number" value={prefs.max_cook_time_minutes||''} onChange={e=>setPrefs(p=>({...p,max_cook_time_minutes:e.target.value?+e.target.value:null}))} placeholder="e.g. 60"/></div>
+          <div><label>Default suggestions</label><input type="number" min={3} max={30} value={prefs.default_num_suggestions||10} onChange={e=>setPrefs(p=>({...p,default_num_suggestions:+e.target.value}))}/></div>
+          <div><label>Favourite threshold (★)</label><select value={prefs.favorite_rating_threshold||4} onChange={e=>setPrefs(p=>({...p,favorite_rating_threshold:+e.target.value}))}>{[3,4,5].map(n=><option key={n} value={n}>{n} stars</option>)}</select></div>
+          <div><label>Mealie dinner tag</label><input value={prefs.mealie_dinner_tag||''} onChange={e=>setPrefs(p=>({...p,mealie_dinner_tag:e.target.value}))} placeholder="dinner-planner"/></div>
+        </div>
+        <button className="btn-primary" style={{alignSelf:'start'}} onClick={savePrefs}>Save Preferences</button>
+      </div></div>}
+      {tab==='methods'&&prefs&&<div className="card">
+        <p style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>Recipes requiring unchecked equipment are hard-filtered from suggestions.</p>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          {METHODS.map(m=><label key={m} style={{display:'flex',alignItems:'center',gap:10,cursor:'pointer',padding:'10px 14px',border:'1px solid var(--border)',borderRadius:8,background:(prefs.available_methods||[]).includes(m)?'#eff6ff':''}}>
+            <input type="checkbox" checked={(prefs.available_methods||[]).includes(m)} onChange={()=>toggleMethod(m)} style={{width:'auto'}}/>
+            <span style={{fontSize:14,textTransform:'capitalize'}}>{m.replace(/_/g,' ')}</span>
+          </label>)}
+        </div>
+        <button className="btn-primary" style={{marginTop:16}} onClick={savePrefs}>Save</button>
+      </div>}
+      {tab==='staples'&&<div className="card">
+        <p style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>Staples are always assumed on hand and appear in the Pantry Check section, never the buy list.</p>
+        <div style={{display:'flex',gap:8,marginBottom:16}}><input style={{maxWidth:300}} value={newStaple} onChange={e=>setNewStaple(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addStaple()} placeholder="e.g. olive oil"/><button className="btn-primary" onClick={addStaple}>Add</button></div>
+        <div className="chip-list">{staples.map(s=><span key={s} className="tag">{s}<button onClick={()=>rmStaple(s)}>×</button></span>)}</div>
+      </div>}
+    </div>
+  );
+};
+
+// ── RSS Sources ───────────────────────────────────────────────────────────────
+const SourcesPage=()=>{
+  const [sources,setSources]=useState([]);
+  const [disc,setDisc]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState(null);
+  const [showForm,setShowForm]=useState(false);
+  const [editName,setEditName]=useState(null);
+  const [form,setForm]=useState({name:'',enabled:true,feed_urls:'',category_urls:'',notes:''});
+  const toast=useToast();
+
+  const load=async()=>{
+    setLoading(true);setError(null);
+    try{
+      const [s,d]=await Promise.all([get('/config/sources'),get('/config/discovery')]);
+      setSources(Array.isArray(s)?s:[]); setDisc(d);
+    }catch(e){setError(e.message);}
+    finally{setLoading(false);}
+  };
+  useEffect(()=>{load();},[]);
+
+  const toggleEnabled=async src=>{
+    try{
+      await put(`/config/sources/${encodeURIComponent(src.name)}`,{
+        ...src,enabled:!src.enabled,
+        feed_urls:src.feed_urls||[],category_urls:src.category_urls||[],
+      });
+      toast(src.enabled?'Disabled':'Enabled');load();
+    }catch(e){toast(e.message,'error');}
+  };
+
+  const openAdd=()=>{setEditName(null);setForm({name:'',enabled:true,feed_urls:'',category_urls:'',notes:''});setShowForm(true);};
+  const openEdit=src=>{
+    setEditName(src.name);
+    setForm({name:src.name,enabled:src.enabled!==false,
+      feed_urls:(src.feed_urls||[]).join('\n'),
+      category_urls:(src.category_urls||[]).join('\n'),
+      notes:src.notes||''});
+    setShowForm(true);
+  };
+  const saveForm=async()=>{
+    if(!form.name.trim()){toast('Name required','warning');return;}
+    const payload={name:form.name.trim(),enabled:form.enabled,
+      feed_urls:form.feed_urls.split('\n').map(s=>s.trim()).filter(Boolean),
+      category_urls:form.category_urls.split('\n').map(s=>s.trim()).filter(Boolean),
+      notes:form.notes||null};
+    try{
+      if(editName)await put(`/config/sources/${encodeURIComponent(editName)}`,payload);
+      else await post('/config/sources',payload);
+      toast(editName?'Updated':'Added');setShowForm(false);load();
+    }catch(e){toast(e.message,'error');}
+  };
+  const deleteSrc=async name=>{if(!confirm(`Delete "${name}"?`))return;try{await del(`/config/sources/${encodeURIComponent(name)}`);toast('Deleted');load();}catch(e){toast(e.message,'error');}};
+  const saveDisc=async()=>{try{await put('/config/discovery',disc);toast('Discovery settings saved');}catch(e){toast(e.message,'error');}};
+
+  const enabled=sources.filter(s=>s.enabled!==false);
+  const disabled=sources.filter(s=>s.enabled===false);
+
+  return(
+    <div>
+      <div className="page-header" style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
+        <div><h1 className="page-title">📡 RSS Sources</h1>
+          <p className="page-sub">{loading?'Loading…':error?'Error loading sources':`${enabled.length} active · ${disabled.length} disabled · ${sources.length} total`}</p>
+        </div>
+        <button className="btn-primary" onClick={openAdd}>+ Add Source</button>
+      </div>
+
+      {error&&<div className="alert alert-error">❌ {error} — check that /api/config/sources is reachable.</div>}
+      {loading&&<div className="spinner"/>}
+
+      {!loading&&!error&&disc&&(
+        <div className="card" style={{marginBottom:16}}>
+          <h3 className="section-title">Discovery Settings</h3>
+          <div className="form-row">
+            {[['max_scraped_per_run','Max scrapes/run','number'],['request_delay_seconds','Delay (sec)','number'],['feed_pages','RSS pages/feed','number'],['min_scraped_rating','Min rating (0=off)','number'],['min_scraped_reviews','Min reviews (0=off)','number'],['mealie_favorites_count','Mealie fav slots','number']].map(([k,l,t])=>(
+              <div key={k}><label>{l}</label><input type={t} value={disc[k]??''} step={k==='request_delay_seconds'?.5:1} onChange={e=>setDisc(d=>({...d,[k]:+e.target.value}))}/></div>
+            ))}
+          </div>
+          <button className="btn-primary btn-sm" style={{marginTop:12}} onClick={saveDisc}>Save Discovery Settings</button>
+        </div>
+      )}
+
+      {!loading&&!error&&<>
+        <div className="card">
+          <h3 className="section-title">Active Sources ({enabled.length})</h3>
+          {enabled.length===0&&<p style={{color:'var(--gray)',fontSize:13,padding:'12px 0'}}>No active sources. Add one above.</p>}
+          {enabled.map(src=>(
+            <div key={src.name} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
+              <label className="toggle" title="Disable"><input type="checkbox" checked={true} onChange={()=>toggleEnabled(src)}/><span className="toggle-slider"/></label>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:14}}>{src.name}</div>
+                <div style={{fontSize:12,color:'var(--gray)'}}>
+                  {(src.feed_urls||[]).length} feed URL{(src.feed_urls||[]).length!==1?'s':''}
+                  {src.notes&&<> · <em>{String(src.notes).slice(0,70)}{String(src.notes).length>70?'…':''}</em></>}
+                </div>
+              </div>
+              <button className="btn-secondary btn-sm" onClick={()=>openEdit(src)}>Edit</button>
+              <button className="btn-icon" onClick={()=>deleteSrc(src.name)}>🗑️</button>
+            </div>
+          ))}
+        </div>
+
+        {disabled.length>0&&<div className="card" style={{marginTop:16}}>
+          <h3 className="section-title">Disabled Sources ({disabled.length})</h3>
+          {disabled.map(src=>(
+            <div key={src.name} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid var(--border)',opacity:.65}}>
+              <label className="toggle"><input type="checkbox" checked={false} onChange={()=>toggleEnabled(src)}/><span className="toggle-slider"/></label>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:14}}>{src.name}</div>
+                <div style={{fontSize:12,color:'var(--gray)'}}>{src.notes?String(src.notes).slice(0,80):''}</div>
+              </div>
+              <button className="btn-secondary btn-sm" onClick={()=>openEdit(src)}>Edit</button>
+              <button className="btn-icon" onClick={()=>deleteSrc(src.name)}>🗑️</button>
+            </div>
+          ))}
+        </div>}
+      </>}
+
+      {showForm&&<div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setShowForm(false)}>
+        <div className="modal">
+          <h2>{editName?'Edit Source':'Add RSS Source'}</h2>
+          <div style={{display:'grid',gap:12}}>
+            <div><label>Source name *</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="My Favourite Blog"/></div>
+            <div><label>RSS / Atom feed URLs (one per line)</label>
+              <textarea rows={4} value={form.feed_urls} onChange={e=>setForm(f=>({...f,feed_urls:e.target.value}))} placeholder={"https://example.com/feed/\nhttps://example.com/recipes/feed/"}/>
+            </div>
+            <div><label>HTML category URLs (fallback — one per line)</label>
+              <textarea rows={2} value={form.category_urls} onChange={e=>setForm(f=>({...f,category_urls:e.target.value}))} placeholder="https://example.com/category/dinner/"/>
+            </div>
+            <div><label>Notes (optional)</label><input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="Brief description"/></div>
+            <label style={{display:'flex',gap:8,alignItems:'center',cursor:'pointer',marginBottom:0}}>
+              <input type="checkbox" checked={form.enabled} onChange={e=>setForm(f=>({...f,enabled:e.target.checked}))} style={{width:'auto'}}/>Enabled immediately
+            </label>
+          </div>
+          <div style={{display:'flex',gap:8,marginTop:16}}>
+            <button className="btn-primary" onClick={saveForm}>{editName?'Update':'Add'}</button>
+            <button className="btn-secondary" onClick={()=>setShowForm(false)}>Cancel</button>
+          </div>
+        </div>
+      </div>}
+    </div>
+  );
+};
+
+// ── Keywords ──────────────────────────────────────────────────────────────────
+const KeywordsPage=()=>{
+  const [keywords,setKeywords]=useState([]);const [nk,setNk]=useState('');const toast=useToast();
+  const load=()=>get('/config/non-dinner-keywords').then(r=>setKeywords(r.keywords||[])).catch(()=>{});
+  useEffect(()=>{load();},[]);
+  const save=async kws=>{try{await put('/config/non-dinner-keywords',{keywords:kws});toast('Saved');}catch(e){toast(e.message,'error');}};
+  const add=()=>{const k=nk.trim().toLowerCase();if(!k||keywords.includes(k))return;const n=[...keywords,k];setKeywords(n);setNk('');save(n);};
+  const remove=kw=>{const n=keywords.filter(k=>k!==kw);setKeywords(n);save(n);};
+  return(
+    <div>
+      <div className="page-header"><h1 className="page-title">🔍 Dinner Filter</h1><p className="page-sub">RSS entries whose title matches any keyword are skipped before scraping</p></div>
+      <div className="card">
+        <div className="alert alert-info" style={{marginBottom:16}}>ℹ️ Word-boundary matching, case-insensitive. "birthday cake" won't block "pancake" but will block "Chocolate Birthday Cake". Changes save immediately.</div>
+        <div style={{display:'flex',gap:8,marginBottom:16}}>
+          <input style={{maxWidth:320}} value={nk} onChange={e=>setNk(e.target.value)} onKeyDown={e=>e.key==='Enter'&&add()} placeholder="Add keyword (e.g. cheesecake)"/>
+          <button className="btn-primary" onClick={add}>Add</button>
+        </div>
+        <div className="chip-list">{keywords.map(kw=><span key={kw} className="tag">{kw}<button onClick={()=>remove(kw)}>×</button></span>)}</div>
+        {!keywords.length&&<p style={{color:'var(--gray)',fontSize:13}}>No keywords — all RSS entries will be scraped.</p>}
+        <p style={{marginTop:12,fontSize:12,color:'var(--gray)'}}>{keywords.length} keywords active</p>
+      </div>
+    </div>
+  );
+};
+
+// ── Rejections ────────────────────────────────────────────────────────────────
+const RejectionsPage=({hid})=>{
+  const [prefs,setPrefs]=useState(null);const toast=useToast();
+  useEffect(()=>{get(`/preferences/${hid}`).then(setPrefs).catch(()=>{});},[hid]);
+  const removeExcluded=async item=>{if(!prefs)return;const next={...prefs,excluded_items:(prefs.excluded_items||[]).filter(x=>x!==item)};try{await put(`/preferences/${hid}`,next);setPrefs(next);toast('Removed');}catch(e){toast(e.message,'error');}};
+  const removeDisliked=async item=>{if(!prefs)return;const next={...prefs,disliked_items:(prefs.disliked_items||[]).filter(x=>x!==item)};try{await put(`/preferences/${hid}`,next);setPrefs(next);toast('Removed');}catch(e){toast(e.message,'error');}};
+  const addToList=async(field,val)=>{if(!val.trim()||!prefs)return;const cur=prefs[field]||[];if(cur.includes(val.trim()))return;const next={...prefs,[field]:[...cur,val.trim()]};try{await put(`/preferences/${hid}`,next);setPrefs(next);toast('Added');}catch(e){toast(e.message,'error');}};
+  const [newExcl,setNewExcl]=useState('');const [newDisl,setNewDisl]=useState('');
+  return(
+    <div>
+      <div className="page-header"><h1 className="page-title">🚫 Exclusions & Dislikes</h1><p className="page-sub">Manage the ingredient lists that feed back into recipe scoring and filtering</p></div>
+      {!prefs&&<div className="spinner"/>}
+      {prefs&&<>
+        <div className="card" style={{marginBottom:16}}>
+          <h3 className="section-title">🚫 Excluded Ingredients (hard filter — never suggest recipes containing these)</h3>
+          <div className="chip-list" style={{marginBottom:12}}>
+            {(prefs.excluded_items||[]).map(item=><span key={item} className="tag" style={{background:'#fee2e2',color:'#b91c1c'}}>{item}<button onClick={()=>removeExcluded(item)}>×</button></span>)}
+            {!(prefs.excluded_items||[]).length&&<span style={{fontSize:13,color:'var(--gray)'}}>None</span>}
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <input style={{maxWidth:280}} value={newExcl} onChange={e=>setNewExcl(e.target.value)} placeholder="Add excluded ingredient..." onKeyDown={e=>{if(e.key==='Enter'){addToList('excluded_items',newExcl);setNewExcl('');}}}/>
+            <button className="btn-secondary btn-sm" onClick={()=>{addToList('excluded_items',newExcl);setNewExcl('');}}>Add</button>
+          </div>
+        </div>
+        <div className="card" style={{marginBottom:16}}>
+          <h3 className="section-title">👎 Disliked Items (soft penalty — deprioritized in scoring, not blocked)</h3>
+          <div className="chip-list" style={{marginBottom:12}}>
+            {(prefs.disliked_items||[]).map(item=><span key={item} className="tag" style={{background:'#fef3c7',color:'#92400e'}}>{item}<button onClick={()=>removeDisliked(item)}>×</button></span>)}
+            {!(prefs.disliked_items||[]).length&&<span style={{fontSize:13,color:'var(--gray)'}}>None</span>}
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <input style={{maxWidth:280}} value={newDisl} onChange={e=>setNewDisl(e.target.value)} placeholder="Add disliked item..." onKeyDown={e=>{if(e.key==='Enter'){addToList('disliked_items',newDisl);setNewDisl('');}}}/>
+            <button className="btn-secondary btn-sm" onClick={()=>{addToList('disliked_items',newDisl);setNewDisl('');}}>Add</button>
+          </div>
+        </div>
+        <div className="alert alert-info">
+          💡 When you reject a recipe for "Dislike ingredients" or "Missing equipment", a modal will appear letting you add specific items to these lists directly from the suggestion card.
+        </div>
+      </>}
+    </div>
+  );
+};
+
+// ── Logs ──────────────────────────────────────────────────────────────────────
+const LogsPage=()=>{
+  const [logs,setLogs]=useState([]);const [level,setLevel]=useState('INFO');const [filter,setFilter]=useState('');const [auto,setAuto]=useState(false);const ref=useRef(null);
+  const load=useCallback(()=>{fetch(`/api/logs?level=${level}&last_n=500&logger_filter=${filter}`).then(r=>r.json()).then(d=>setLogs(d.logs||[]));},[level,filter]);
+  useEffect(()=>{load();},[load]);
+  useEffect(()=>{if(!auto)return;const t=setInterval(load,3000);return()=>clearInterval(t);},[auto,load]);
+  useEffect(()=>{if(ref.current)ref.current.scrollTop=ref.current.scrollHeight;},[logs]);
+  const C={DEBUG:'#94a3b8',INFO:'#60a5fa',WARNING:'#fbbf24',ERROR:'#f87171',CRITICAL:'#c084fc'};
+  return(
+    <div>
+      <div className="page-header"><h1 className="page-title">📋 System Logs</h1></div>
+      <div className="card" style={{marginBottom:12}}>
+        <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+          <select style={{width:'auto'}} value={level} onChange={e=>setLevel(e.target.value)}>{['DEBUG','INFO','WARNING','ERROR'].map(l=><option key={l}>{l}</option>)}</select>
+          <input style={{maxWidth:220}} value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Filter by module..."/>
+          <button className="btn-secondary btn-sm" onClick={load}>↺ Refresh</button>
+          <label style={{display:'flex',gap:6,alignItems:'center',cursor:'pointer',marginBottom:0}}><input type="checkbox" checked={auto} onChange={e=>setAuto(e.target.checked)} style={{width:'auto'}}/>Auto (3s)</label>
+          <span style={{fontSize:12,color:'var(--gray)'}}>{logs.length} entries</span>
+        </div>
+      </div>
+      <div ref={ref} style={{background:'#0f172a',borderRadius:10,padding:16,height:'60vh',overflowY:'auto',fontFamily:'monospace',fontSize:12}}>
+        {logs.map((l,i)=><div key={i} style={{color:C[l.level]||'#e2e8f0',marginBottom:2,lineHeight:1.5,wordBreak:'break-all'}}>
+          <span style={{color:'#475569'}}>{l.ts.slice(11,19)} </span>
+          <span style={{color:C[l.level],fontWeight:700}}>{l.level.padEnd(8)}</span>{' '}{l.message}
+        </div>)}
+        {!logs.length&&<div style={{color:'#475569',padding:20,textAlign:'center'}}>No logs</div>}
+      </div>
+    </div>
+  );
+};
+
+// ── App ───────────────────────────────────────────────────────────────────────
+const App=()=>{
+  const [page,setPage]=useState('planner');
+  const [hid,setHid]=useState(()=>localStorage.getItem('householdId')||'');
+  const [valid,setValid]=useState(false);
+  const saveHid=id=>{localStorage.setItem('householdId',id);setHid(id);};
+  useEffect(()=>{
+    if(!hid){setValid(false);return;}
+    get(`/households/${hid}`).then(()=>setValid(true)).catch(()=>{setValid(false);saveHid('');});
+  },[hid]);
+  if(!hid||!valid)return<ToastProvider><HouseholdGate onSave={saveHid}/></ToastProvider>;
+  const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>};
+  return(
+    <ToastProvider>
+      <Nav page={page} setPage={setPage}/>
+      <main className="main">{pages[page]||<div style={{textAlign:'center',padding:60,color:'var(--gray)'}}>🚧 Coming soon</div>}</main>
+    </ToastProvider>
+  );
+};
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
