@@ -126,7 +126,7 @@ const NAV=[
   {section:'Planning'},{key:'planner',icon:'📅',label:'Weekly Planner'},
   {key:'pantry',icon:'🥫',label:'Pantry'},
   {section:'Configuration'},{key:'settings',icon:'⚙️',label:'Preferences'},
-  {key:'sources',icon:'📡',label:'RSS Sources'},{key:'keywords',icon:'🔍',label:'Dinner Filter'},
+  {key:'sources',icon:'🌐',label:'Recipe Sources'},{key:'keywords',icon:'🔍',label:'Dinner Filter'},
   {section:'Tools'},{key:'rejections',icon:'🚫',label:'Rejections'},{key:'logs',icon:'📋',label:'Logs'},
 ];
 const Nav=({page,setPage})=>(
@@ -272,7 +272,7 @@ const RejectionModal=({recipe,reason,hid,prefs,cookingMethods,onDone,onCancel})=
 
         {isNonDinner&&<>
           {titleKeywords.length>0?<>
-            <p style={{fontSize:12,color:'var(--gray)',marginBottom:8}}>Selected keywords will be added to the non-dinner pre-filter and screened from future RSS imports.</p>
+            <p style={{fontSize:12,color:'var(--gray)',marginBottom:8}}>Selected keywords will be added to the non-dinner pre-filter and screened from future imports.</p>
             <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:16}}>
               {titleKeywords.map(k=>(
                 <span key={k} onClick={()=>toggleKw(k)}
@@ -538,7 +538,7 @@ const PlannerPage=({hid})=>{
         </div>
         {suggestions.length===0&&!loading&&<div style={{textAlign:'center',padding:48,color:'var(--gray)'}}>
           <div style={{fontSize:48}}>🍽️</div>
-          <p>No suggestions. Check RSS Sources to ensure feeds are enabled.</p>
+          <p>No suggestions. Check Recipe Sources to ensure sources are enabled.</p>
         </div>}
         {suggestions.map(r=><RecipeCard key={r.recipe_id} r={r} pantryItems={pantry}
           onConfirm={toggleConfirm} onReject={toggleReject}
@@ -833,7 +833,7 @@ const SettingsPage=({hid})=>{
   );
 };
 
-// ── RSS Sources ───────────────────────────────────────────────────────────────
+// ── Recipe Sources ────────────────────────────────────────────────────────────
 const SourcesPage=()=>{
   const [sources,setSources]=useState([]);
   const [disc,setDisc]=useState(null);
@@ -841,11 +841,7 @@ const SourcesPage=()=>{
   const [error,setError]=useState(null);
   const [showForm,setShowForm]=useState(false);
   const [editName,setEditName]=useState(null);
-  const [form,setForm]=useState({name:'',enabled:true,feed_urls:'',category_urls:'',notes:''});
-  const [showDiscover,setShowDiscover]=useState(false);
-  const [discoverUrl,setDiscoverUrl]=useState('');
-  const [discoverResults,setDiscoverResults]=useState(null);
-  const [discoverLoading,setDiscoverLoading]=useState(false);
+  const [form,setForm]=useState({name:'',enabled:true,category_urls:'',notes:''});
   const toast=useToast();
 
   const load=async()=>{
@@ -858,38 +854,20 @@ const SourcesPage=()=>{
   };
   useEffect(()=>{load();},[]);
 
-  const discoverFeeds=async()=>{
-    if(!discoverUrl.trim())return;
-    setDiscoverLoading(true);setDiscoverResults(null);
-    try{
-      const r=await post('/config/sources/discover',{url:discoverUrl.trim()});
-      setDiscoverResults(r.feeds||[]);
-      if(!(r.feeds||[]).length)toast('No RSS feeds found at that URL','error');
-    }catch(e){toast(e.message,'error');}
-    finally{setDiscoverLoading(false);}
-  };
-
-  const useDiscoveredFeed=feedUrl=>{
-    const name=discoverUrl.replace(/https?:\/\//,'').split('/')[0];
-    setForm({name,enabled:true,feed_urls:feedUrl,category_urls:'',notes:'Discovered via RSS autodiscovery'});
-    setEditName(null);setShowDiscover(false);setShowForm(true);
-  };
-
   const toggleEnabled=async src=>{
     try{
       await put(`/config/sources/${encodeURIComponent(src.name)}`,{
         ...src,enabled:!src.enabled,
-        feed_urls:src.feed_urls||[],category_urls:src.category_urls||[],
+        category_urls:src.category_urls||[],
       });
       toast(src.enabled?'Disabled':'Enabled');load();
     }catch(e){toast(e.message,'error');}
   };
 
-  const openAdd=()=>{setEditName(null);setForm({name:'',enabled:true,feed_urls:'',category_urls:'',notes:''});setShowForm(true);};
+  const openAdd=()=>{setEditName(null);setForm({name:'',enabled:true,category_urls:'',notes:''});setShowForm(true);};
   const openEdit=src=>{
     setEditName(src.name);
     setForm({name:src.name,enabled:src.enabled!==false,
-      feed_urls:(src.feed_urls||[]).join('\n'),
       category_urls:(src.category_urls||[]).join('\n'),
       notes:src.notes||''});
     setShowForm(true);
@@ -897,7 +875,6 @@ const SourcesPage=()=>{
   const saveForm=async()=>{
     if(!form.name.trim()){toast('Name required','warning');return;}
     const payload={name:form.name.trim(),enabled:form.enabled,
-      feed_urls:form.feed_urls.split('\n').map(s=>s.trim()).filter(Boolean),
       category_urls:form.category_urls.split('\n').map(s=>s.trim()).filter(Boolean),
       notes:form.notes||null};
     try{
@@ -915,11 +892,10 @@ const SourcesPage=()=>{
   return(
     <div>
       <div className="page-header" style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
-        <div><h1 className="page-title">📡 RSS Sources</h1>
+        <div><h1 className="page-title">🌐 Recipe Sources</h1>
           <p className="page-sub">{loading?'Loading…':error?'Error loading sources':`${enabled.length} active · ${disabled.length} disabled · ${sources.length} total`}</p>
         </div>
         <div style={{display:'flex',gap:8}}>
-          <button className="btn-secondary" onClick={()=>{setShowDiscover(true);setDiscoverResults(null);setDiscoverUrl('');}}>🔍 Discover Feeds</button>
           <button className="btn-primary" onClick={openAdd}>+ Add Source</button>
         </div>
       </div>
@@ -931,7 +907,7 @@ const SourcesPage=()=>{
         <div className="card" style={{marginBottom:16}}>
           <h3 className="section-title">Discovery Settings</h3>
           <div className="form-row">
-            {[['max_scraped_per_run','Max scrapes/run','number'],['request_delay_seconds','Delay (sec)','number'],['feed_pages','RSS pages/feed','number'],['stub_rescrape_days','Stub cache TTL (days)','number'],['min_scraped_rating','Min rating (0=off)','number'],['min_scraped_reviews','Min reviews (0=off)','number'],['mealie_favorites_count','Mealie fav slots','number']].map(([k,l,t])=>(
+            {[['max_scraped_per_run','Max scrapes/run','number'],['request_delay_seconds','Delay (sec)','number'],['stub_rescrape_days','Stub cache TTL (days)','number'],['min_scraped_rating','Min rating (0=off)','number'],['min_scraped_reviews','Min reviews (0=off)','number'],['mealie_favorites_count','Mealie fav slots','number']].map(([k,l,t])=>(
               <div key={k}><label>{l}</label><input type={t} value={disc[k]??''} step={k==='request_delay_seconds'?.5:1} onChange={e=>setDisc(d=>({...d,[k]:+e.target.value}))}/></div>
             ))}
           </div>
@@ -949,7 +925,7 @@ const SourcesPage=()=>{
               <div style={{flex:1}}>
                 <div style={{fontWeight:600,fontSize:14}}>{src.name}</div>
                 <div style={{fontSize:12,color:'var(--gray)'}}>
-                  {(src.feed_urls||[]).length} feed URL{(src.feed_urls||[]).length!==1?'s':''}
+                  {(src.category_urls||[]).length} page URL{(src.category_urls||[]).length!==1?'s':''}
                   {src.notes&&<> · <em>{String(src.notes).slice(0,70)}{String(src.notes).length>70?'…':''}</em></>}
                 </div>
               </div>
@@ -975,47 +951,13 @@ const SourcesPage=()=>{
         </div>}
       </>}
 
-      {showDiscover&&<div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setShowDiscover(false)}>
-        <div className="modal">
-          <h2>🔍 Discover RSS Feeds</h2>
-          <p style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>Enter a food blog or recipe website URL to automatically find its RSS/Atom feeds.</p>
-          <div style={{display:'flex',gap:8,marginBottom:16}}>
-            <input style={{flex:1}} value={discoverUrl} onChange={e=>setDiscoverUrl(e.target.value)}
-              onKeyDown={e=>e.key==='Enter'&&discoverFeeds()}
-              placeholder="https://www.seriouseats.com"/>
-            <button className="btn-primary" onClick={discoverFeeds} disabled={discoverLoading}>
-              {discoverLoading?'Searching…':'Search'}
-            </button>
-          </div>
-          {discoverResults!==null&&(discoverResults.length===0?(
-            <div className="alert alert-warning">No RSS feeds found. Try a different URL or add the feed URL manually.</div>
-          ):(
-            <div>
-              <p style={{fontSize:13,fontWeight:600,marginBottom:8}}>Found {discoverResults.length} feed{discoverResults.length!==1?'s':''}:</p>
-              {discoverResults.map((f,i)=>(
-                <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
-                  <span style={{flex:1,fontSize:13,wordBreak:'break-all',color:'var(--gray)'}}>{f}</span>
-                  <button className="btn-primary btn-sm" onClick={()=>useDiscoveredFeed(f)}>Use</button>
-                </div>
-              ))}
-            </div>
-          ))}
-          <div style={{marginTop:16}}>
-            <button className="btn-secondary" onClick={()=>setShowDiscover(false)}>Close</button>
-          </div>
-        </div>
-      </div>}
-
       {showForm&&<div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setShowForm(false)}>
         <div className="modal">
-          <h2>{editName?'Edit Source':'Add RSS Source'}</h2>
+          <h2>{editName?'Edit Source':'Add Source'}</h2>
           <div style={{display:'grid',gap:12}}>
-            <div><label>Source name *</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="My Favourite Blog"/></div>
-            <div><label>RSS / Atom feed URLs (one per line)</label>
-              <textarea rows={4} value={form.feed_urls} onChange={e=>setForm(f=>({...f,feed_urls:e.target.value}))} placeholder={"https://example.com/feed/\nhttps://example.com/recipes/feed/"}/>
-            </div>
-            <div><label>HTML category URLs (fallback — one per line)</label>
-              <textarea rows={2} value={form.category_urls} onChange={e=>setForm(f=>({...f,category_urls:e.target.value}))} placeholder="https://example.com/category/dinner/"/>
+            <div><label>Source name *</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="HelloFresh"/></div>
+            <div><label>Category / directory page URLs (one per line)</label>
+              <textarea rows={4} value={form.category_urls} onChange={e=>setForm(f=>({...f,category_urls:e.target.value}))} placeholder={"https://www.hellofresh.com/pages/sitemap/recipes-a\nhttps://www.hellofresh.com/pages/sitemap/recipes-b"}/>
             </div>
             <div><label>Notes (optional)</label><input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="Brief description"/></div>
             <label style={{display:'flex',gap:8,alignItems:'center',cursor:'pointer',marginBottom:0}}>
@@ -1042,7 +984,7 @@ const KeywordsPage=()=>{
   const remove=kw=>{const n=keywords.filter(k=>k!==kw);setKeywords(n);save(n);};
   return(
     <div>
-      <div className="page-header"><h1 className="page-title">🔍 Dinner Filter</h1><p className="page-sub">RSS entries whose title matches any keyword are skipped before scraping</p></div>
+      <div className="page-header"><h1 className="page-title">🔍 Dinner Filter</h1><p className="page-sub">Recipes whose name matches any keyword are skipped before scraping</p></div>
       <div className="card">
         <div className="alert alert-info" style={{marginBottom:16}}>ℹ️ Word-boundary matching, case-insensitive. "birthday cake" won't block "pancake" but will block "Chocolate Birthday Cake". Changes save immediately.</div>
         <div style={{display:'flex',gap:8,marginBottom:16}}>
@@ -1050,7 +992,7 @@ const KeywordsPage=()=>{
           <button className="btn-primary" onClick={add}>Add</button>
         </div>
         <div className="chip-list">{keywords.map(kw=><span key={kw} className="tag">{kw}<button onClick={()=>remove(kw)}>×</button></span>)}</div>
-        {!keywords.length&&<p style={{color:'var(--gray)',fontSize:13}}>No keywords — all RSS entries will be scraped.</p>}
+        {!keywords.length&&<p style={{color:'var(--gray)',fontSize:13}}>No keywords — all discovered recipes will be scraped.</p>}
         <p style={{marginTop:12,fontSize:12,color:'var(--gray)'}}>{keywords.length} keywords active</p>
       </div>
     </div>

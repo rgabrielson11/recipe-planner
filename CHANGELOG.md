@@ -1,5 +1,50 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 11: HelloFresh source; RSS discovery removed
+
+### Changed
+
+**Discovery now uses exactly two sources: HelloFresh + local Mealie**
+
+- `recipe_sources.yaml` rewritten: all RSS blog sources removed; single
+  `HelloFresh` source crawled via its 25 server-rendered A–Z recipe
+  directory pages (`/pages/sitemap/recipes-a` … `-z`, no X). HelloFresh has
+  no RSS feed and bot-gated XML sitemaps, but the HTML directory pages are
+  plain link lists that fetch cleanly. The Mealie "proven favourite" pool
+  is unchanged (`mealie_min_rating` / `mealie_favorites_count`).
+
+**All RSS functionality removed**
+
+- `recipe_discovery.py`: removed feedparser import, `_clean_feed_url`,
+  `_is_valid_feed_url`, `_fetch_feed_urls_with_entries`, `_fetch_feed_urls`,
+  `_is_dinner_entry`, and the entire RSS collection phase. The HTML phase is
+  now Phase 1 with per-page progress reporting (5–45%).
+- `routers/config.py`: removed `feed_urls` from source payloads,
+  `feed_pages` from discovery settings, and the `/config/sources/discover`
+  RSS autodiscovery endpoint.
+- Frontend: "RSS Sources" page renamed "Recipe Sources"; feed-URL form
+  field, Discover Feeds modal, and "RSS pages/feed" setting removed; copy
+  updated throughout.
+- `requirements.txt`: `feedparser` dropped.
+- `feed_pages` config key no longer read; stale keys in deployed YAML are
+  ignored harmlessly.
+
+### Added
+
+**HelloFresh URL validation (Gap A)**
+
+- `_HELLOFRESH_RECIPE` pattern: HelloFresh recipe URLs must end in the
+  24-char hex recipe ID (`/recipes/<slug>-651320e7…`). Hub/category pages
+  (`/recipes/american-recipes`, `/eat/top-recipes`) linked from directory
+  pages no longer leak into the scrape budget.
+
+**Slug-based non-dinner filter on the HTML path (Gap B)**
+
+- `_is_dinner_url()`: candidate URL slugs (recipe name is in the slug,
+  trailing hex ID stripped, hyphens → spaces) are screened against
+  `non_dinner_title_keywords` before scraping — the HTML-path equivalent of
+  the old RSS title filter. Applies to every HTML source.
+
 ## Phase 10 — Patch 6: real-time progress bar via polling endpoint
 
 ### Changed

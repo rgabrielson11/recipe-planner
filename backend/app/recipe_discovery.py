@@ -1,37 +1,34 @@
 """
-Recipe Discovery Engine — Phase 7b
-====================================
+Recipe Discovery Engine — Phase 10 Patch 11
+=============================================
 
-Phase 7b rewrites the URL-collection layer to use RSS / Atom feeds as the
-primary mechanism, replacing HTML category-page crawling which proved
-unreliable for most sources.
+Patch 11 removes all RSS / Atom feed functionality.  Recipes come from
+exactly two sources:
 
-Why RSS beats category-page crawling
---------------------------------------
-  • RSS feeds are designed for syndication — they are never bot-blocked.
-  • WordPress feeds return the actual individual recipe URL in <link> tags;
-    category-page crawling extracted sub-category index URLs instead.
-  • Dotdash/Meredith sites (Serious Eats, Simply Recipes, AllRecipes, etc.)
-    return 403 on every request — both category pages AND recipe pages —
-    making HTML scraping impossible without a headless browser.
+  • HelloFresh — crawled via their server-rendered A–Z recipe directory
+    pages (category_urls in recipe_sources.yaml).  HelloFresh publishes no
+    RSS feed and its XML sitemaps are bot-gated, but the HTML directory
+    pages are plain link lists and fetch cleanly.  Individual recipe URLs
+    always end in a 24-char hex ID (/recipes/<slug>-651320e7…), which the
+    URL validator requires so hub/category pages never waste scrape budget.
+  • Mealie — the local Mealie library ("proven favourite" pool), selected
+    elsewhere via mealie_min_rating / mealie_favorites_count.
 
 Flow (per weekly run)
 ----------------------
-  1. RSS phase   — parse feed_urls from recipe_sources.yaml, collect
-                   individual recipe URLs.  Paginate up to feed_pages deep.
-  2. HTML phase  — fetch category_urls (fallback for non-WordPress sources).
+  1. HTML phase  — fetch category_urls per source, extract recipe links.
                    A robust exclusion filter strips pagination, category,
-                   tag, auth, and other non-recipe URLs before they enter
-                   the candidate pool.
-  3. Pool X      — re-scrape existing DB stubs (mealie_slug IS NULL, not
+                   tag, auth, and other non-recipe URLs, and the non-dinner
+                   keyword filter screens URL slugs, before candidates enter
+                   the pool.
+  2. Pool X      — re-scrape existing DB stubs (mealie_slug IS NULL, not
                    rejected) for fresh scoring.  Capped at max_scrape // 2.
-  4. Pool Y      — scrape new URLs from phases 1+2.  Capped at
-                   max_scrape // 2.
-  5. Quality gate — scraped pages exposing schema.org aggregateRating are
+  3. Pool Y      — scrape new URLs from phase 1.  Capped at max_scrape // 2.
+  4. Quality gate — scraped pages exposing schema.org aggregateRating are
                    rejected if rating < min_scraped_rating OR
                    review_count < min_scraped_reviews.
-                   Editorial blogs without schema ratings pass through.
-  6. Score + return top max_results entries.
+                   Pages without schema ratings pass through.
+  5. Score + return top max_results entries.
 
 Stub loop fix (from Phase 7)
 ------------------------------
@@ -53,12 +50,6 @@ import threading
 import requests
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
-
-try:
-    import feedparser
-    _FEEDPARSER_AVAILABLE = True
-except ImportError:
-    _FEEDPARSER_AVAILABLE = False
 
 try:
     from recipe_scrapers import scrape_html
@@ -97,7 +88,7 @@ log = logging.getLogger(__name__)
 # ── URL filtering ─────────────────────────────────────────────────────────────
 
 # Patterns that definitively indicate a non-recipe page.
-# Applied to BOTH RSS and HTML-scraped URLs.
+# Applied to all HTML-scraped URLs.
 _EXCLUDE_PATTERNS = re.compile(
     r"""
     /page/\d+                           # pagination  (/page/2, /page/3 …)
@@ -133,53 +124,18 @@ _EXCLUDE_PATTERNS = re.compile(
 # use /recipes/ (plural) followed by a number.  Filter out the plural form.
 _ALLRECIPES_CATEGORY = re.compile(r"/recipes/\d+/", re.IGNORECASE)
 
-
-def _clean_feed_url(url: str) -> str:
-    """
-    Strip query string and fragment from a feed entry URL.
-
-    Many food blogs distribute their RSS feeds through mailing list services
-    (ActiveCampaign, Mailchimp, ConvertKit) which append email-tracking
-    parameters to every link, e.g.:
-        https://www.skinnytaste.com/oven-fried-chicken/?adt_ei=*|EMAIL|*
-        https://cookieandkate.com/peach-salad/?ck_subscriber_id=123456
-
-    The base URL before the '?' is the canonical recipe page we want.
-    Stripping the query string here means the validator and the scraper both
-    see the clean URL, and the DB stub row stores the canonical URL (avoiding
-    duplicates if the same recipe appears in a future feed page with a
-    different tracking token).
-    """
-    parsed = urlparse(url)
-    return parsed._replace(query="", fragment="").geturl()
+# HelloFresh: individual recipes always end in a 24-char hex ID
+# (/recipes/everything-bagel-avocado-toasts-651320e7b6b74f3addadb4f5).
+# Hub/category pages (/recipes/american-recipes, /eat/top-recipes) do not,
+# so requiring the ID keeps them out of the scrape budget.
+_HELLOFRESH_RECIPE = re.compile(r"/recipes/[^/]+-[0-9a-f]{24}$", re.IGNORECASE)
 
 
-def _is_valid_feed_url(url: str) -> bool:
-    """
-    Lightweight validator for URLs sourced from RSS / Atom feeds.
-
-    Call _clean_feed_url() first to strip tracking query strings.
-
-    RSS entries are curated content links — they don't need the same deep
-    heuristics as HTML-scraped URLs.  We just verify the URL is HTTP(S), has
-    at least one meaningful path segment, and doesn't match exclusion patterns.
-
-    NOTE: Most WordPress recipe blogs use single-slug URLs like
-    /chicken-parmesan/ — requiring 2+ segments incorrectly rejected all of them.
-    """
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        return False
-    # After _clean_feed_url() there should be no query string, but guard anyway
-    if parsed.query:
-        return False
-    path = parsed.path.rstrip("/")
-    segments = [s for s in path.split("/") if s]
-    if not segments:          # bare domain — not a recipe page
-        return False
-    if _EXCLUDE_PATTERNS.search(path):
-        return False
-    return True
+def _is_hellofresh_host(netloc: str) -> bool:
+    host = netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host == "hellofresh.com" or host.startswith("hellofresh.")
 
 
 def _looks_like_recipe_url(url: str) -> bool:
@@ -207,6 +163,11 @@ def _looks_like_recipe_url(url: str) -> bool:
     # AllRecipes category pattern (/recipes/80/ is a category, /recipe/12345/ is a recipe)
     if "allrecipes.com" in parsed.netloc and _ALLRECIPES_CATEGORY.search(path):
         return False
+
+    # HelloFresh: require the trailing 24-char hex recipe ID — everything
+    # else on the domain is a hub/category/marketing page.
+    if _is_hellofresh_host(parsed.netloc):
+        return bool(_HELLOFRESH_RECIPE.search(path))
 
     host = parsed.netloc.lstrip("www.")
     if host in SUPPORTED_SCRAPERS:
@@ -237,28 +198,27 @@ def _build_non_dinner_re(keywords: list[str]) -> Optional[re.Pattern]:
     return re.compile(pattern, re.IGNORECASE)
 
 
-def _is_dinner_entry(entry, non_dinner_re: Optional[re.Pattern]) -> bool:
+def _is_dinner_url(url: str, non_dinner_re: Optional[re.Pattern]) -> bool:
     """
-    Returns True if an RSS entry looks like a dinner recipe.
+    Returns True if a candidate URL's slug looks like a dinner recipe.
 
-    Checks the entry title and any RSS category/tag terms against the
-    compiled non-dinner pattern.  Called BEFORE scraping so we don't
-    waste scrape budget on pancakes and cheesecakes.
+    Recipe slugs contain the recipe name (HelloFresh:
+    /recipes/everything-bagel-avocado-toasts-651320e7…).  The slug is
+    de-hyphenated and screened against the compiled non-dinner pattern
+    BEFORE scraping so we don't waste scrape budget on pancakes and
+    cheesecakes.
     """
     if non_dinner_re is None:
         return True   # filter disabled
 
-    title = (getattr(entry, "title", "") or "").strip()
-    # RSS category tags (feedparser stores them as entry.tags[].term)
-    categories = " ".join(
-        (c.get("term", "") if isinstance(c, dict) else str(c))
-        for c in getattr(entry, "tags", [])
-    )
-    combined = f"{title} {categories}"
+    slug = urlparse(url).path.rstrip("/").split("/")[-1]
+    # Strip a trailing hex ID (HelloFresh) so it can't confuse matching
+    slug = re.sub(r"-[0-9a-f]{24}$", "", slug, flags=re.IGNORECASE)
+    text = slug.replace("-", " ").replace("_", " ")
 
-    m = non_dinner_re.search(combined)
+    m = non_dinner_re.search(text)
     if m:
-        log.debug("NON-DINNER filter: '%s' (matched '%s')", title, m.group(0))
+        log.debug("NON-DINNER filter: '%s' (matched '%s')", text, m.group(0))
         return False
     return True
 
@@ -277,87 +237,6 @@ def _extract_recipe_urls(html: str, base_url: str) -> list[str]:
         if _same_host(full, base_url) and _looks_like_recipe_url(full):
             found.add(full)
     return list(found)
-
-
-# ── RSS / Atom feed fetching ──────────────────────────────────────────────────
-
-def _fetch_feed_urls_with_entries(
-    feed_url: str,
-    user_agent: str,
-    max_pages: int = 3,
-) -> tuple[list, list[str]]:
-    """
-    Parse an RSS or Atom feed and return (entries, clean_urls) as parallel lists.
-
-    Returning the feedparser entry objects alongside URLs allows callers to
-    inspect entry.title and entry.tags for dinner pre-filtering without
-    requiring an extra HTTP request.
-
-    Paginates WordPress feeds via ?paged=N up to max_pages.
-    Returns ([], []) if feedparser is not installed.
-    """
-    if not _FEEDPARSER_AVAILABLE:
-        log.warning("feedparser not installed — RSS discovery unavailable for %s", feed_url)
-        return [], []
-
-    entries_out: list = []
-    urls_out: list[str] = []
-
-    for page in range(1, max_pages + 1):
-        paged = f"{feed_url}?paged={page}" if page > 1 else feed_url
-        try:
-            feed = feedparser.parse(paged, agent=user_agent)
-
-            if feed.bozo and not feed.entries:
-                log.debug("Feed parse error for %s (page %d): %s", feed_url, page, feed.bozo_exception)
-                break
-
-            if not feed.entries:
-                log.debug("Feed %s page %d has no entries — stopping pagination", feed_url, page)
-                break
-
-            page_pairs: list[tuple] = []
-            rejected: list[str]    = []
-
-            for entry in feed.entries:
-                raw_link = getattr(entry, "link", None)
-                if not raw_link:
-                    continue
-                # Strip email-tracking params (?adt_ei=*|EMAIL|*, ?ck_subscriber_id=…)
-                link = _clean_feed_url(raw_link)
-                if _is_valid_feed_url(link):
-                    page_pairs.append((entry, link))
-                else:
-                    rejected.append(link)
-
-            if rejected:
-                log.debug(
-                    "Feed %s page %d: %d URL-rejected (e.g. %s)",
-                    feed_url, page, len(rejected), rejected[0],
-                )
-            log.debug(
-                "Feed %s page %d: %d entries → %d valid URLs, %d rejected",
-                feed_url, page, len(feed.entries), len(page_pairs), len(rejected),
-            )
-
-            for entry, url in page_pairs:
-                entries_out.append(entry)
-                urls_out.append(url)
-
-            if len(feed.entries) < 10:
-                break
-
-        except Exception as e:
-            log.warning("Feed fetch failed for %s (page %d): %s", feed_url, page, e)
-            break
-
-    return entries_out, urls_out
-
-
-def _fetch_feed_urls(feed_url: str, user_agent: str, max_pages: int = 3) -> list[str]:
-    """Convenience wrapper — returns only URLs (no entry objects)."""
-    _, urls = _fetch_feed_urls_with_entries(feed_url, user_agent, max_pages)
-    return urls
 
 
 # ── Scraping ──────────────────────────────────────────────────────────────────
@@ -619,7 +498,6 @@ def discover_and_score(
     cfg              = config_files.get_discovery_config()
     sources          = config_files.get_enabled_sources()
     delay            = float(cfg.get("request_delay_seconds", 2.0))
-    feed_pages       = int(cfg.get("feed_pages", 4))
     user_agent       = str(cfg.get("user_agent", "RecipePlanner/1.0"))
     max_scrape       = int(cfg.get("max_scraped_per_run", 40))
     min_rating       = float(cfg.get("min_scraped_rating", 4.0))
@@ -663,46 +541,23 @@ def discover_and_score(
         len(mealie_imported_urls), len(all_stubs), len(existing_stubs),
     )
 
-    # ── Phase 1: collect URLs from RSS feeds ──────────────────────────────────
-    feed_candidate_urls: list[str] = []
-    _total_feeds = sum(len(s.get("feed_urls", [])) for s in sources)
-    _feed_idx    = 0
-    for source in sources:
-        for feed_url in source.get("feed_urls", []):
-            _feed_idx += 1
-            _feed_pct = 5 + int((_feed_idx / max(_total_feeds, 1)) * 40)
-            set_progress(
-                household_id, _feed_pct,
-                f"Fetching {source['name']} ({_feed_idx} of {_total_feeds} feeds)...",
-            )
-            log.info("Fetching RSS feed: %s (%s)", feed_url, source["name"])
-            raw_entries, raw_urls = _fetch_feed_urls_with_entries(feed_url, user_agent, max_pages=feed_pages)
-            # Apply dinner pre-filter against RSS entry titles/categories
-            dinner_urls = []
-            nd_skipped  = 0
-            for entry, url in zip(raw_entries, raw_urls):
-                if not _is_dinner_entry(entry, non_dinner_re):
-                    nd_skipped += 1
-                    continue
-                dinner_urls.append(url)
-            new = [u for u in dinner_urls if u not in all_known and u not in feed_candidate_urls]
-            feed_candidate_urls.extend(new)
-            log.info(
-                "Feed '%s' — %s: %d URLs → %d dinner, %d non-dinner skipped, %d new",
-                source["name"], feed_url, len(raw_urls), len(dinner_urls),
-                nd_skipped, len(new),
-            )
-            time.sleep(delay * 0.5)
-
-    # ── Phase 2: collect URLs from HTML category pages (fallback) ─────────────
+    # ── Phase 1: collect URLs from HTML category / directory pages ────────────
     html_candidate_urls: list[str] = []
     headers = {
         "User-Agent": user_agent,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
     }
+    _total_pages = sum(len(s.get("category_urls", [])) for s in sources)
+    _page_idx    = 0
     for source in sources:
         for cat_url in source.get("category_urls", []):
+            _page_idx += 1
+            _page_pct = 5 + int((_page_idx / max(_total_pages, 1)) * 40)
+            set_progress(
+                household_id, _page_pct,
+                f"Fetching {source['name']} ({_page_idx} of {_total_pages} pages)...",
+            )
             try:
                 resp = requests.get(cat_url, headers=headers, timeout=15)
                 if resp.status_code != 200:
@@ -711,29 +566,30 @@ def discover_and_score(
                     )
                     continue
                 found = _extract_recipe_urls(resp.text, cat_url)
-                new   = [u for u in found if u not in all_known and u not in html_candidate_urls]
+                # Non-dinner pre-filter against URL slugs (recipe name is in the slug)
+                dinner     = [u for u in found if _is_dinner_url(u, non_dinner_re)]
+                nd_skipped = len(found) - len(dinner)
+                new = [u for u in dinner if u not in all_known and u not in html_candidate_urls]
                 html_candidate_urls.extend(new)
                 log.info(
-                    "HTML '%s' — %s: %d links extracted, %d new",
-                    source["name"], cat_url, len(found), len(new),
+                    "HTML '%s' — %s: %d links extracted, %d non-dinner skipped, %d new",
+                    source["name"], cat_url, len(found), nd_skipped, len(new),
                 )
                 time.sleep(delay)
             except Exception as e:
                 log.warning("Category page failed (%s: %s): %s", source["name"], cat_url, e)
 
-    # Combine: RSS first (higher quality), then HTML
-    all_candidate_urls = feed_candidate_urls + html_candidate_urls
     # Deduplicate while preserving order
     seen: set[str] = set()
     candidate_urls: list[str] = []
-    for u in all_candidate_urls:
+    for u in html_candidate_urls:
         if u not in seen:
             seen.add(u)
             candidate_urls.append(u)
 
     log.info(
-        "Candidate URLs: %d from RSS, %d from HTML, %d total after dedup",
-        len(feed_candidate_urls), len(html_candidate_urls), len(candidate_urls),
+        "Candidate URLs: %d from HTML pages, %d after dedup",
+        len(html_candidate_urls), len(candidate_urls),
     )
 
     random.shuffle(candidate_urls)

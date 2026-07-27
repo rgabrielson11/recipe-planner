@@ -21,7 +21,6 @@ router = APIRouter(prefix="/config", tags=["config"])
 class SourceIn(BaseModel):
     name:          str
     enabled:       bool          = True
-    feed_urls:     list[str]     = []
     category_urls: list[str]     = []
     notes:         Optional[str] = None
 
@@ -38,7 +37,7 @@ def list_sources():
 
 @router.post("/sources", status_code=201)
 def add_source(payload: SourceIn):
-    """Add a new RSS source."""
+    """Add a new source (HTML category / directory page URLs)."""
     data    = config_files.load_yaml("recipe_sources.yaml")
     sources = data.setdefault("sources", [])
     if any(s.get("name") == payload.name for s in sources):
@@ -46,7 +45,6 @@ def add_source(payload: SourceIn):
     entry: dict[str, Any] = {
         "name":          payload.name,
         "enabled":       payload.enabled,
-        "feed_urls":     payload.feed_urls,
         "category_urls": payload.category_urls,
     }
     if payload.notes:
@@ -68,7 +66,6 @@ def update_source(name: str, payload: SourceIn):
     entry: dict[str, Any] = {
         "name":          payload.name,
         "enabled":       payload.enabled,
-        "feed_urls":     payload.feed_urls,
         "category_urls": payload.category_urls,
     }
     if payload.notes:
@@ -97,7 +94,6 @@ def delete_source(name: str):
 class DiscoverySettingsIn(BaseModel):
     max_scraped_per_run:        int   = 60
     request_delay_seconds:      float = 1.5
-    feed_pages:                 int   = 3
     mealie_min_rating:          int   = 4
     mealie_favorites_count:     int   = 2
     min_scraped_rating:         float = 4.0
@@ -120,7 +116,6 @@ def update_discovery_settings(payload: DiscoverySettingsIn):
     disc = data.setdefault("discovery", {})
     disc["max_scraped_per_run"]    = payload.max_scraped_per_run
     disc["request_delay_seconds"]  = payload.request_delay_seconds
-    disc["feed_pages"]             = payload.feed_pages
     disc["mealie_min_rating"]      = payload.mealie_min_rating
     disc["mealie_favorites_count"] = payload.mealie_favorites_count
     disc["min_scraped_rating"]     = payload.min_scraped_rating
@@ -191,73 +186,5 @@ def get_mealie_url():
         "group_slug":      "home",   # default for single-household Mealie installs
     }
 
-# ── RSS Feed Discovery ────────────────────────────────────────────────────────
-
-@router.post("/sources/discover")
-def discover_feeds(payload: dict):
-    """
-    Given a website URL, find its RSS/Atom feed URLs by:
-    1. Parsing <link rel="alternate"> autodiscovery tags in the HTML
-    2. Probing common feed path patterns as a fallback
-
-    Returns a list of candidate feed URLs the user can add as sources.
-    """
-    import requests as _req
-    from bs4 import BeautifulSoup as _BS
-
-    url = (payload.get("url") or "").strip()
-    if not url:
-        raise HTTPException(status_code=422, detail="url is required")
-    if not url.startswith(("http://", "https://")):
-        url = "https://" + url
-
-    from urllib.parse import urljoin, urlparse
-    base = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
-
-    found: list[str] = []
-    _HEADERS = {"User-Agent": "RecipePlanner/1.0 (RSS feed discovery)"}
-
-    # Step 1 — autodiscovery from HTML <link> tags
-    try:
-        resp = _req.get(url, headers=_HEADERS, timeout=10, allow_redirects=True)
-        resp.raise_for_status()
-        soup = _BS(resp.text, "html.parser")
-        for tag in soup.find_all("link", rel=lambda r: r and any(
-            x in (r if isinstance(r, list) else [r])
-            for x in ["alternate", "feed"]
-        )):
-            href = tag.get("href", "")
-            t    = tag.get("type", "")
-            if href and ("rss" in t or "atom" in t or "rss" in href or "feed" in href):
-                found.append(urljoin(url, href))
-    except Exception as e:
-        log.debug("Feed autodiscovery fetch failed for %s: %s", url, e)
-
-    # Step 2 — probe common feed paths
-    COMMON_PATHS = [
-        "/feed/", "/feed", "/rss/", "/rss", "/rss.xml",
-        "/feed.xml", "/atom.xml", "/index.xml", "/blog/feed/",
-        "/blog/rss/", "/wp-json/wp/v2/posts",
-    ]
-    for path in COMMON_PATHS:
-        candidate = base + path
-        if candidate in found:
-            continue
-        try:
-            r = _req.head(candidate, headers=_HEADERS, timeout=5, allow_redirects=True)
-            ct = r.headers.get("content-type", "")
-            if r.status_code == 200 and ("rss" in ct or "xml" in ct or "atom" in ct):
-                found.append(candidate)
-        except Exception:
-            pass
-
-    # Deduplicate preserving order
-    seen: set[str] = set()
-    unique = []
-    for f in found:
-        if f not in seen:
-            seen.add(f)
-            unique.append(f)
-
-    log.info("Feed discovery for %s: found %d candidate(s)", url, len(unique))
-    return {"url": url, "feeds": unique}
+# (RSS feed discovery endpoint removed in Phase 10 Patch 11 — sources are
+# HTML category/directory pages only.)
