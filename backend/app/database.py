@@ -38,6 +38,8 @@ def run_migrations():
         ("recipes", "scraped_description",      "TEXT"),
         ("recipes", "last_scraped_at",          "DATETIME"),
         ("recipes", "scraped_tokens_json",      "TEXT"),      # Patch 12
+        ("recipes", "scraped_rating",           "FLOAT"),     # Patch 13
+        ("recipes", "scraped_reviews",          "INTEGER"),   # Patch 13
     ]
     with engine.connect() as conn:
         for table, column, col_type in migrations:

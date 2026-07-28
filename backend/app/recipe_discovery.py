@@ -244,18 +244,55 @@ def _extract_recipe_urls(html: str, base_url: str) -> list[str]:
 
 # ── Scraping ──────────────────────────────────────────────────────────────────
 
+def _extract_rating_and_reviews(scraper) -> tuple[Optional[float], Optional[int]]:
+    """
+    Pull star rating and review count off a recipe-scrapers scraper object.
+
+    Not every site's scraper class implements both methods — HelloFresh's
+    ratings() works but ratings_count() raises AttributeError even though
+    the review count is present in the page's schema.org JSON-LD
+    (aggregateRating.ratingCount).  When the library method fails, fall back
+    to reading that field directly off the parsed schema data.
+    """
+    rating: Optional[float] = None
+    try:
+        raw_rating = scraper.ratings()
+        if raw_rating is not None:
+            rating = float(raw_rating)
+    except Exception:
+        pass
+
+    reviews: Optional[int] = None
+    try:
+        raw_count = scraper.ratings_count()
+        if raw_count is not None:
+            reviews = int(raw_count)
+    except Exception:
+        try:
+            agg = (scraper.schema.data or {}).get("aggregateRating") or {}
+            raw_count = agg.get("ratingCount") or agg.get("reviewCount")
+            if raw_count is not None:
+                reviews = int(float(raw_count))
+        except Exception:
+            pass
+
+    return rating, reviews
+
+
 def _scrape_recipe(
     url: str,
     user_agent: str,
-    min_rating: float,
-    min_reviews: int,
     timeout: int = 20,
 ) -> Optional[dict]:
     """
     Scrape a single recipe URL using recipe-scrapers.
 
-    Returns a Mealie-compatible detail dict if the recipe passes all quality
-    filters, or None on failure / quality gate rejection.
+    Returns a Mealie-compatible detail dict (with "_rating"/"_reviews" keys
+    populated where available) on success, or None if the page couldn't be
+    scraped at all.  Rating/review-count thresholds are NOT enforced here —
+    see score_cached(), which applies them against the stored values so
+    threshold changes take effect on the whole cached catalog immediately,
+    not just newly-scraped recipes (Patch 13).
     """
     if not _SCRAPERS_AVAILABLE:
         return None
@@ -271,27 +308,7 @@ def _scrape_recipe(
             return None
 
         scraper = scrape_html(resp.text, org_url=url)
-
-        # ── Quality gate ──────────────────────────────────────────────────
-        if min_rating > 0 or min_reviews > 0:
-            try:
-                raw_rating = scraper.ratings()
-                raw_count  = scraper.ratings_count()
-
-                if raw_rating is not None and raw_count is not None:
-                    rating  = float(raw_rating)
-                    reviews = int(raw_count)
-                    if rating < min_rating or reviews < min_reviews:
-                        log.debug(
-                            "QUALITY SKIP %s — %.1f★/%d reviews (need ≥%.1f★/≥%d)",
-                            url, rating, reviews, min_rating, min_reviews,
-                        )
-                        return None
-                    log.debug("QUALITY OK %s — %.1f★ / %d reviews", url, rating, reviews)
-                else:
-                    log.debug("QUALITY N/A %s — no schema rating; editorial source, accepting", url)
-            except Exception:
-                log.debug("QUALITY N/A %s — rating check error; accepting", url)
+        rating, reviews = _extract_rating_and_reviews(scraper)
 
         # ── Extract fields ────────────────────────────────────────────────
         title = ""
@@ -343,8 +360,11 @@ def _scrape_recipe(
             return None
 
         log.debug(
-            "Scraped OK '%s' — %d ingredients, time=%s (%s)",
-            title, len(ingredients), total_time_raw or "?", url,
+            "Scraped OK '%s' — %d ingredients, time=%s, rating=%s/%s (%s)",
+            title, len(ingredients), total_time_raw or "?",
+            rating if rating is not None else "?",
+            reviews if reviews is not None else "?",
+            url,
         )
         return {
             "name":             title,
@@ -355,6 +375,8 @@ def _scrape_recipe(
             "totalTime":        total_time_raw,
             "recipeServings":   yields_raw,
             "_source_url":      url,
+            "_rating":          rating,
+            "_reviews":         reviews,
         }
 
     except Exception as e:
@@ -503,6 +525,8 @@ def _update_row_from_detail(row: models.Recipe, detail: dict) -> None:
     row.scraped_time_minutes     = _parse_minutes(detail.get("totalTime"))
     row.scraped_description      = (detail.get("description") or "")[:500]
     row.scraped_tokens_json      = _json.dumps(sorted(_ingredient_names_from_text(detail)))
+    row.scraped_rating           = detail.get("_rating")
+    row.scraped_reviews          = detail.get("_reviews")
     row.last_scraped_at          = datetime.utcnow()
 
 
@@ -538,8 +562,6 @@ def collect_and_scrape(
         delay         = float(cfg.get("request_delay_seconds", 2.0))
         user_agent    = str(cfg.get("user_agent", "RecipePlanner/1.0"))
         max_scrape    = int(budget if budget is not None else cfg.get("max_scraped_per_run", 40))
-        min_rating    = float(cfg.get("min_scraped_rating", 4.0))
-        min_reviews   = int(cfg.get("min_scraped_reviews", 50))
         non_dinner_re = _build_non_dinner_re(list(cfg.get("non_dinner_title_keywords", [])))
         rescrape_days = int(cfg.get("stub_rescrape_days", 7))
 
@@ -627,17 +649,21 @@ def collect_and_scrape(
         stub_budget = max_scrape // 2
         new_budget  = max_scrape - stub_budget
 
-        # ── Refresh stale / token-less stubs ─────────────────────────────────
+        # ── Refresh stale / token-less / rating-less stubs ───────────────────
+        # Stubs scraped before Patch 13 have no scraped_rating yet — treating
+        # them as stale here backfills rating data within one scrape budget
+        # instead of waiting a full stub_rescrape_days cycle.
         cutoff = datetime.utcnow() - timedelta(days=rescrape_days)
         stale = [
             s for s in all_stubs
-            if not s.last_scraped_at or s.last_scraped_at < cutoff or not s.scraped_tokens_json
+            if not s.last_scraped_at or s.last_scraped_at < cutoff
+            or not s.scraped_tokens_json or s.scraped_rating is None
         ]
         random.shuffle(stale)
         stubs_refreshed = 0
         for i, stub in enumerate(stale[:stub_budget]):
             _prog(47 + min(i, 8), f"Re-scraping stale recipe: {stub.title[:50]}...")
-            detail = _scrape_recipe(stub.source_url, user_agent, min_rating, min_reviews)
+            detail = _scrape_recipe(stub.source_url, user_agent)
             time.sleep(delay)
             if detail:
                 _update_row_from_detail(stub, detail)
@@ -658,7 +684,7 @@ def collect_and_scrape(
                 min(57 + int((attempts / max(_new_total, 1)) * 33), 90),
                 f"Scraping recipe {attempts + 1} of {_new_total}: {_display}...",
             )
-            detail = _scrape_recipe(url, user_agent, min_rating, min_reviews)
+            detail = _scrape_recipe(url, user_agent)
             attempts += 1
             time.sleep(delay)
             if not detail:
@@ -710,9 +736,21 @@ def score_cached(
     Score every cached (non-rejected, non-imported) stub against the current
     pantry.  Pure CPU — no network I/O.  Uses precomputed ingredient tokens
     where available (Patch 12) so 10K stubs score in well under a second.
+
+    Rating/review-count thresholds (min_scraped_rating, min_scraped_reviews)
+    are applied here against each stub's stored scraped_rating/scraped_reviews
+    (Patch 13), not at scrape time — so changing the threshold in Discovery
+    Settings takes effect on the whole cached catalog on the very next
+    suggest run, without waiting for a re-scrape.  A stub with no rating data
+    yet (not backfilled by the background scraper) passes through rather
+    than being silently dropped.
     """
     import json as _json
     t0 = time.perf_counter()
+
+    cfg         = config_files.get_discovery_config()
+    min_rating  = float(cfg.get("min_scraped_rating", 0) or 0)
+    min_reviews = int(cfg.get("min_scraped_reviews", 0) or 0)
 
     stubs = db.query(models.Recipe).filter(
         models.Recipe.mealie_slug.is_(None),
@@ -722,9 +760,16 @@ def score_cached(
 
     scored: list[dict] = []
     excluded = 0
+    below_rating = 0
     for stub in stubs:
         if stub.id in excluded_recipe_ids:
             excluded += 1
+            continue
+        if min_rating > 0 and stub.scraped_rating is not None and stub.scraped_rating < min_rating:
+            below_rating += 1
+            continue
+        if min_reviews > 0 and stub.scraped_reviews is not None and stub.scraped_reviews < min_reviews:
+            below_rating += 1
             continue
         try:
             ing_strings = _json.loads(stub.scraped_ingredients_json or "[]")
@@ -766,8 +811,9 @@ def score_cached(
     scored.sort(key=lambda r: -r["score"])
     ms = (time.perf_counter() - t0) * 1000
     log.info(
-        "score_cached: scored %d of %d stubs in %.0f ms (%d excluded) — DB stub pool size is safe while this stays low",
-        len(scored), len(stubs), ms, excluded,
+        "score_cached: scored %d of %d stubs in %.0f ms (%d excluded, %d below rating≥%.1f★/reviews≥%d) "
+        "— DB stub pool size is safe while this stays low",
+        len(scored), len(stubs), ms, excluded, below_rating, min_rating, min_reviews,
     )
     return scored[:max_results]
 

@@ -51,57 +51,57 @@ discovery:
   # to avoid blocking chocolate chicken mole, chocolate chili, etc.
   non_dinner_title_keywords:
     # Dessert categories
-    - cupcake
-    - brownie
-    - cheesecake
-    - macaron
-    - macaroon
-    - tiramisu
-    - pavlova
-    - panna cotta
-    - creme brulee
-    - crème brûlée
-    - baklava
-    - profiterole
-    - eclair
-    - ice cream
-    - gelato
-    - sorbet
-    - fudge
-    - candy bar
-    - cookie dough
+  - cupcake
+  - brownie
+  - cheesecake
+  - macaron
+  - macaroon
+  - tiramisu
+  - pavlova
+  - panna cotta
+  - creme brulee
+  - crème brûlée
+  - baklava
+  - profiterole
+  - eclair
+  - ice cream
+  - gelato
+  - sorbet
+  - fudge
+  - candy bar
+  - cookie dough
     # Specific cake types (avoid blocking "chicken cake" or "fishcake")
-    - birthday cake
-    - layer cake
-    - bundt cake
-    - coffee cake
-    - pound cake
-    - vanilla cake
-    - carrot cake
-    - red velvet cake
-    - chocolate cake
-    - lemon drizzle cake
+  - birthday cake
+  - layer cake
+  - bundt cake
+  - coffee cake
+  - pound cake
+  - vanilla cake
+  - carrot cake
+  - red velvet cake
+  - chocolate cake
+  - lemon drizzle cake
     # Muffins / baked sweets
-    - muffin
-    - muffins
-    - cupcake
-    - cupcakes
+  - muffin
+  - muffins
+  - cupcake
+  - cupcakes
     # Breakfast items
-    - pancake
-    - pancakes
-    - waffle
-    - waffles
-    - french toast
-    - overnight oats
-    - acai bowl
-    - breakfast burrito      # comment out if you want breakfast-for-dinner
+  - pancake
+  - pancakes
+  - waffle
+  - waffles
+  - french toast
+  - overnight oats
+  - acai bowl
+  - breakfast burrito        # comment out if you want breakfast-for-dinner
     # Drinks
-    - cocktail
-    - smoothie
-    - milkshake
-    - sangria
-    - margarita
-    - lemonade
+  - cocktail
+  - smoothie
+  - milkshake
+  - sangria
+  - margarita
+  - lemonade
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Sources
@@ -115,32 +115,33 @@ discovery:
 
 sources:
 
-  - name: HelloFresh
-    enabled: true
-    notes: "Meal-kit recipes — tested, family-scaled, rich ratings data. No RSS; crawled via A–Z recipe directory."
-    category_urls:
-      - https://www.hellofresh.com/pages/sitemap/recipes-a
-      - https://www.hellofresh.com/pages/sitemap/recipes-b
-      - https://www.hellofresh.com/pages/sitemap/recipes-c
-      - https://www.hellofresh.com/pages/sitemap/recipes-d
-      - https://www.hellofresh.com/pages/sitemap/recipes-e
-      - https://www.hellofresh.com/pages/sitemap/recipes-f
-      - https://www.hellofresh.com/pages/sitemap/recipes-g
-      - https://www.hellofresh.com/pages/sitemap/recipes-h
-      - https://www.hellofresh.com/pages/sitemap/recipes-i
-      - https://www.hellofresh.com/pages/sitemap/recipes-j
-      - https://www.hellofresh.com/pages/sitemap/recipes-k
-      - https://www.hellofresh.com/pages/sitemap/recipes-l
-      - https://www.hellofresh.com/pages/sitemap/recipes-m
-      - https://www.hellofresh.com/pages/sitemap/recipes-n
-      - https://www.hellofresh.com/pages/sitemap/recipes-o
-      - https://www.hellofresh.com/pages/sitemap/recipes-p
-      - https://www.hellofresh.com/pages/sitemap/recipes-q
-      - https://www.hellofresh.com/pages/sitemap/recipes-r
-      - https://www.hellofresh.com/pages/sitemap/recipes-s
-      - https://www.hellofresh.com/pages/sitemap/recipes-t
-      - https://www.hellofresh.com/pages/sitemap/recipes-u
-      - https://www.hellofresh.com/pages/sitemap/recipes-v
-      - https://www.hellofresh.com/pages/sitemap/recipes-w
-      - https://www.hellofresh.com/pages/sitemap/recipes-y
-      - https://www.hellofresh.com/pages/sitemap/recipes-z
+- name: HelloFresh
+  enabled: true
+  notes: "Meal-kit recipes — tested, family-scaled, rich ratings data. No RSS; crawled
+    via A–Z recipe directory."
+  category_urls:
+  - https://www.hellofresh.com/pages/sitemap/recipes-a
+  - https://www.hellofresh.com/pages/sitemap/recipes-b
+  - https://www.hellofresh.com/pages/sitemap/recipes-c
+  - https://www.hellofresh.com/pages/sitemap/recipes-d
+  - https://www.hellofresh.com/pages/sitemap/recipes-e
+  - https://www.hellofresh.com/pages/sitemap/recipes-f
+  - https://www.hellofresh.com/pages/sitemap/recipes-g
+  - https://www.hellofresh.com/pages/sitemap/recipes-h
+  - https://www.hellofresh.com/pages/sitemap/recipes-i
+  - https://www.hellofresh.com/pages/sitemap/recipes-j
+  - https://www.hellofresh.com/pages/sitemap/recipes-k
+  - https://www.hellofresh.com/pages/sitemap/recipes-l
+  - https://www.hellofresh.com/pages/sitemap/recipes-m
+  - https://www.hellofresh.com/pages/sitemap/recipes-n
+  - https://www.hellofresh.com/pages/sitemap/recipes-o
+  - https://www.hellofresh.com/pages/sitemap/recipes-p
+  - https://www.hellofresh.com/pages/sitemap/recipes-q
+  - https://www.hellofresh.com/pages/sitemap/recipes-r
+  - https://www.hellofresh.com/pages/sitemap/recipes-s
+  - https://www.hellofresh.com/pages/sitemap/recipes-t
+  - https://www.hellofresh.com/pages/sitemap/recipes-u
+  - https://www.hellofresh.com/pages/sitemap/recipes-v
+  - https://www.hellofresh.com/pages/sitemap/recipes-w
+  - https://www.hellofresh.com/pages/sitemap/recipes-y
+  - https://www.hellofresh.com/pages/sitemap/recipes-z

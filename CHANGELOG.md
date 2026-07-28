@@ -1,5 +1,58 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 13: fix rating/review filter for HelloFresh; filter at score time
+
+### Fixed
+
+**`min_scraped_rating` / `min_scraped_reviews` were silently inert for every HelloFresh recipe**
+
+- `recipe-scrapers`'s `HelloFresh` class implements `.ratings()` but not
+  `.ratings_count()` — calling it raised `AttributeError`. The old quality
+  gate wrapped both calls in one `try/except`, so that exception caused the
+  entire check to be skipped and every recipe silently passed regardless of
+  rating.  Since HelloFresh is now the only source, this setting has had
+  zero effect since Patch 11.
+- New `_extract_rating_and_reviews()`: rating and review count are now
+  extracted independently, each wrapped in its own `try/except`. When
+  `ratings_count()` fails, it falls back to reading the review count
+  straight from the page's schema.org JSON-LD
+  (`aggregateRating.ratingCount`), which HelloFresh does populate correctly
+  — confirmed live (4.19★ / 1834 reviews on a sample recipe).
+
+### Changed
+
+**Rating/review filtering moved from scrape time to score time**
+
+- `_scrape_recipe()` no longer rejects recipes based on rating — it always
+  returns the scraped detail (with `_rating`/`_reviews` populated when
+  available) so a low-rated recipe still gets written to the DB cache
+  instead of being silently discarded.
+- New `recipes.scraped_rating` (Float) and `recipes.scraped_reviews`
+  (Integer) columns (migration included), populated at scrape time.
+- `score_cached()` now applies `min_scraped_rating` / `min_scraped_reviews`
+  against each stub's stored values before scoring it. This means:
+  - Changing the threshold in Discovery Settings takes effect on the
+    **entire cached catalog on the very next suggest run** — no waiting for
+    a re-scrape cycle.
+  - A stub with no rating data yet (not backfilled) passes through rather
+    than being dropped, so nothing vanishes while the background job catches
+    up.
+  - No more wasted scrape budget repeatedly re-fetching a URL that will
+    always fail the same threshold — it's scraped once, cached with its
+    rating, and simply excluded from results until the threshold changes or
+    the rating does.
+- Stubs scraped before this patch (no `scraped_rating` yet) are now treated
+  as "stale" by `collect_and_scrape()`'s refresh loop so they get their
+  rating backfilled within one scrape budget instead of waiting a full
+  `stub_rescrape_days` cycle.
+
+### Where to change the threshold
+
+Recipe Sources page → **Discovery Settings** card → "Min rating (0=off)" /
+"Min reviews (0=off)". Both were already present in the UI (Patch 10-era) but
+had no real effect for HelloFresh until this patch. Default remains 4.0★ /
+50 reviews; set either to `0` to disable that check.
+
 ## Phase 10 — Patch 12: nightly background scraping + fast cached scoring
 
 ### Added

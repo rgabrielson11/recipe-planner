@@ -6,7 +6,7 @@ Added last_scraped_at to Recipe so discovery can skip re-scraping fresh stubs.
 import uuid
 from datetime import datetime, date
 
-from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Date, Numeric, Boolean, Text, JSON
+from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Date, Numeric, Float, Boolean, Text, JSON
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -76,6 +76,8 @@ class Recipe(Base):
     scraped_time_minutes      = Column(Integer, nullable=True)
     scraped_description       = Column(Text, nullable=True)
     scraped_tokens_json       = Column(Text, nullable=True)   # JSON list[str] — canonical ingredient tokens, set at scrape time (Patch 12)
+    scraped_rating            = Column(Float, nullable=True)     # star rating at scrape time, e.g. 4.19 (Patch 13)
+    scraped_reviews           = Column(Integer, nullable=True)   # review count at scrape time (Patch 13)
     last_scraped_at           = Column(DateTime, nullable=True)  # set on every successful scrape
     created_at                = Column(DateTime, default=datetime.utcnow)
 
