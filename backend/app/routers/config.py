@@ -99,6 +99,9 @@ class DiscoverySettingsIn(BaseModel):
     min_scraped_rating:         float = 4.0
     min_scraped_reviews:        int   = 50
     stub_rescrape_days:         int   = 7
+    background_scrape_enabled:  bool  = True
+    background_scrape_hour:     int   = 3
+    background_max_scraped:     int   = 60
 
 
 @router.get("/discovery")
@@ -118,9 +121,12 @@ def update_discovery_settings(payload: DiscoverySettingsIn):
     disc["request_delay_seconds"]  = payload.request_delay_seconds
     disc["mealie_min_rating"]      = payload.mealie_min_rating
     disc["mealie_favorites_count"] = payload.mealie_favorites_count
-    disc["min_scraped_rating"]     = payload.min_scraped_rating
-    disc["min_scraped_reviews"]    = payload.min_scraped_reviews
-    disc["stub_rescrape_days"]     = payload.stub_rescrape_days
+    disc["min_scraped_rating"]        = payload.min_scraped_rating
+    disc["min_scraped_reviews"]       = payload.min_scraped_reviews
+    disc["stub_rescrape_days"]        = payload.stub_rescrape_days
+    disc["background_scrape_enabled"] = payload.background_scrape_enabled
+    disc["background_scrape_hour"]    = payload.background_scrape_hour
+    disc["background_max_scraped"]    = payload.background_max_scraped
     config_files.save_yaml("recipe_sources.yaml", data)
     log.info("Config: updated discovery settings")
     return dict(disc)
@@ -188,3 +194,28 @@ def get_mealie_url():
 
 # (RSS feed discovery endpoint removed in Phase 10 Patch 11 — sources are
 # HTML category/directory pages only.)
+
+# ── Background scrape job (Patch 12) ──────────────────────────────────────────
+
+@router.get("/scrape-status")
+def scrape_status():
+    """Last background scrape run stats (from scrape_status.json)."""
+    from app import scrape_job
+    return scrape_job.get_status()
+
+
+@router.post("/scrape-now", status_code=202)
+def scrape_now():
+    """
+    Manually trigger a background scrape (fire-and-forget).  Skips with a
+    logged message if a scrape is already running.  Poll /config/scrape-status
+    for the result.
+    """
+    import threading
+    from app import scrape_job
+    threading.Thread(
+        target=scrape_job.run_scrape_once,
+        kwargs={"trigger": "manual"},
+        daemon=True,
+    ).start()
+    return {"started": True}

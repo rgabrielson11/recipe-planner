@@ -10,7 +10,7 @@ from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from app.database import Base, engine, run_migrations
+from app.database import Base, engine, run_migrations, tune_sqlite
 from app.routers import households, pantry, preferences, recipes, meal_plan
 from app.routers import config as config_router
 
@@ -69,7 +69,21 @@ app = FastAPI(
 
 run_migrations()
 Base.metadata.create_all(bind=engine)
+tune_sqlite()
 log.info("Recipe Planner v0.8.0 started")
+
+# ── Background scrape scheduler (Patch 12) ────────────────────────────────────
+from app import scrape_job
+
+
+@app.on_event("startup")
+def _start_scrape_job():
+    scrape_job.start()
+
+
+@app.on_event("shutdown")
+def _stop_scrape_job():
+    scrape_job.stop()
 
 app.include_router(households.router,    prefix="/api")
 app.include_router(pantry.router,        prefix="/api")

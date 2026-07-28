@@ -37,6 +37,13 @@ discovery:
   min_scraped_reviews: 50
   stub_rescrape_days: 7       # re-scrape stubs older than this; score from DB cache if fresher
 
+  # ── Background scrape job (Patch 12) ──────────────────────────────────────
+  # A nightly job scrapes new/stale recipes so suggest runs score purely from
+  # the DB cache (no network wait).  YAML edits apply within ~5 minutes.
+  background_scrape_enabled: true
+  background_scrape_hour: 3       # 0-23, server local time
+  background_max_scraped: 60      # scrape budget per nightly run
+
   # ── Non-dinner pre-filter ─────────────────────────────────────────────────
   # Applied to candidate URL slugs (hyphens → spaces) BEFORE scraping.
   # Word-boundary matched, case-insensitive.  Add terms freely.

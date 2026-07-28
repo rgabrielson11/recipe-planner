@@ -37,6 +37,7 @@ def run_migrations():
         ("recipes", "scraped_time_minutes",     "INTEGER"),
         ("recipes", "scraped_description",      "TEXT"),
         ("recipes", "last_scraped_at",          "DATETIME"),
+        ("recipes", "scraped_tokens_json",      "TEXT"),      # Patch 12
     ]
     with engine.connect() as conn:
         for table, column, col_type in migrations:
@@ -46,3 +47,24 @@ def run_migrations():
                 log.info("Migration: added %s.%s", table, column)
             except Exception:
                 pass  # column already exists — safe to ignore
+
+
+def tune_sqlite():
+    """
+    Patch 12: WAL journal mode so the nightly background scraper (writer)
+    never blocks daytime suggest runs (readers), plus indexes on the columns
+    the discovery cache filters on.  All statements are idempotent.
+    """
+    statements = [
+        "PRAGMA journal_mode=WAL",
+        "CREATE INDEX IF NOT EXISTS ix_recipes_last_scraped_at ON recipes(last_scraped_at)",
+        "CREATE INDEX IF NOT EXISTS ix_recipe_rejections_recipe_id ON recipe_rejections(recipe_id)",
+    ]
+    with engine.connect() as conn:
+        for stmt in statements:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception as e:
+                log.warning("tune_sqlite: %s failed: %s", stmt, e)
+    log.info("SQLite tuned: WAL mode + discovery indexes")

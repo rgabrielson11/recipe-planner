@@ -1,5 +1,49 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 12: nightly background scraping + fast cached scoring
+
+### Added
+
+**Nightly background scrape job (`scrape_job.py`)**
+
+- Daemon scheduler thread runs `collect_and_scrape()` once per day at
+  `background_scrape_hour` (default 03:00 server time). Config in
+  `recipe_sources.yaml` (`background_scrape_enabled`, `background_scrape_hour`,
+  `background_max_scraped`) is re-read every 5 minutes — edits apply without
+  restart. Shared lock guarantees no concurrent scrapes.
+- Last-run stats persisted to `scrape_status.json` next to the DB; exposed
+  via `GET /api/config/scrape-status`. Manual trigger via
+  `POST /api/config/scrape-now` and a "Scrape Now" button + status line on
+  the Recipe Sources page.
+
+**Scrape-time ingredient tokenization**
+
+- New `recipes.scraped_tokens_json` column (migration included): canonical
+  ingredient tokens computed once at scrape time. Scoring now does
+  set-intersection against the pantry instead of re-parsing ingredient text
+  every run — 10K stubs score in well under a second, so DB growth doesn't
+  degrade suggest latency.
+
+**SQLite tuning (`tune_sqlite()`)**
+
+- `PRAGMA journal_mode=WAL` so the nightly writer never blocks daytime
+  suggest reads; indexes on `recipes.last_scraped_at` and
+  `recipe_rejections.recipe_id`.
+
+### Changed
+
+**Discovery split: scraping and scoring are now decoupled**
+
+- `discover_and_score()` is now cache-first: warm cache (any stub scraped
+  within `stub_rescrape_days`) → `score_cached()` only, pure CPU, no network
+  I/O, returns in ~1s. Cold cache → synchronous `collect_and_scrape()` with
+  the usual progress bar, then scoring.
+- `collect_and_scrape()`: crawl directory pages → refresh stale/token-less
+  stubs (½ budget) → scrape new URLs (½ budget) → commit. No household
+  context, no scoring.
+- Timing instrumentation: `score_cached: scored N of M stubs in X ms` logged
+  every suggest run so growth-vs-latency stays visible.
+
 ## Phase 10 — Patch 11: HelloFresh source; RSS discovery removed
 
 ### Changed

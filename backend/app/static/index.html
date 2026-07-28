@@ -842,17 +842,28 @@ const SourcesPage=()=>{
   const [showForm,setShowForm]=useState(false);
   const [editName,setEditName]=useState(null);
   const [form,setForm]=useState({name:'',enabled:true,category_urls:'',notes:''});
+  const [scrapeStatus,setScrapeStatus]=useState(null);
+  const [scraping,setScraping]=useState(false);
   const toast=useToast();
 
   const load=async()=>{
     setLoading(true);setError(null);
     try{
-      const [s,d]=await Promise.all([get('/config/sources'),get('/config/discovery')]);
-      setSources(Array.isArray(s)?s:[]); setDisc(d);
+      const [s,d,st]=await Promise.all([get('/config/sources'),get('/config/discovery'),get('/config/scrape-status').catch(()=>null)]);
+      setSources(Array.isArray(s)?s:[]); setDisc(d); setScrapeStatus(st);
     }catch(e){setError(e.message);}
     finally{setLoading(false);}
   };
   useEffect(()=>{load();},[]);
+
+  const scrapeNow=async()=>{
+    setScraping(true);
+    try{
+      await post('/config/scrape-now',{});
+      toast('Background scrape started — status updates when finished');
+      setTimeout(async()=>{try{setScrapeStatus(await get('/config/scrape-status'));}catch(e){} setScraping(false);},30000);
+    }catch(e){toast(e.message,'error');setScraping(false);}
+  };
 
   const toggleEnabled=async src=>{
     try{
@@ -903,14 +914,30 @@ const SourcesPage=()=>{
       {error&&<div className="alert alert-error">❌ {error} — check that /api/config/sources is reachable.</div>}
       {loading&&<div className="spinner"/>}
 
+      {!loading&&!error&&(
+        <div className="card" style={{marginBottom:16}}>
+          <h3 className="section-title">Background Scrape</h3>
+          <p style={{fontSize:13,color:'var(--gray)',marginBottom:8}}>
+            {scrapeStatus&&scrapeStatus.last_run
+              ?<>Last run: <strong>{scrapeStatus.last_run.replace('T',' ')}</strong> ({scrapeStatus.trigger}){scrapeStatus.new_recipes!=null&&<> · {scrapeStatus.new_recipes} new · {scrapeStatus.stubs_refreshed??0} refreshed · {scrapeStatus.duration_seconds??'?'}s</>}{scrapeStatus.skipped&&<> · skipped: {scrapeStatus.skipped}</>}{scrapeStatus.error&&<span style={{color:'var(--red,#c0392b)'}}> · error: {scrapeStatus.error}</span>}</>
+              :'Never run — recipes will be scraped on the next nightly run, or trigger one now.'}
+          </p>
+          <button className="btn-secondary btn-sm" onClick={scrapeNow} disabled={scraping}>{scraping?'Scraping…':'▶ Scrape Now'}</button>
+        </div>
+      )}
+
       {!loading&&!error&&disc&&(
         <div className="card" style={{marginBottom:16}}>
           <h3 className="section-title">Discovery Settings</h3>
           <div className="form-row">
-            {[['max_scraped_per_run','Max scrapes/run','number'],['request_delay_seconds','Delay (sec)','number'],['stub_rescrape_days','Stub cache TTL (days)','number'],['min_scraped_rating','Min rating (0=off)','number'],['min_scraped_reviews','Min reviews (0=off)','number'],['mealie_favorites_count','Mealie fav slots','number']].map(([k,l,t])=>(
+            {[['max_scraped_per_run','Max scrapes/run','number'],['request_delay_seconds','Delay (sec)','number'],['stub_rescrape_days','Stub cache TTL (days)','number'],['min_scraped_rating','Min rating (0=off)','number'],['min_scraped_reviews','Min reviews (0=off)','number'],['mealie_favorites_count','Mealie fav slots','number'],['background_scrape_hour','Nightly scrape hour (0-23)','number'],['background_max_scraped','Nightly scrape budget','number']].map(([k,l,t])=>(
               <div key={k}><label>{l}</label><input type={t} value={disc[k]??''} step={k==='request_delay_seconds'?.5:1} onChange={e=>setDisc(d=>({...d,[k]:+e.target.value}))}/></div>
             ))}
           </div>
+          <label style={{display:'flex',gap:8,alignItems:'center',cursor:'pointer',marginTop:12}}>
+            <input type="checkbox" checked={disc.background_scrape_enabled!==false} onChange={e=>setDisc(d=>({...d,background_scrape_enabled:e.target.checked}))} style={{width:'auto'}}/>
+            Nightly background scrape enabled
+          </label>
           <button className="btn-primary btn-sm" style={{marginTop:12}} onClick={saveDisc}>Save Discovery Settings</button>
         </div>
       )}

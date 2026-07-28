@@ -75,6 +75,7 @@ class Recipe(Base):
     scraped_ingredients_json  = Column(Text, nullable=True)   # JSON list[str] — fallback for shopping list
     scraped_time_minutes      = Column(Integer, nullable=True)
     scraped_description       = Column(Text, nullable=True)
+    scraped_tokens_json       = Column(Text, nullable=True)   # JSON list[str] — canonical ingredient tokens, set at scrape time (Patch 12)
     last_scraped_at           = Column(DateTime, nullable=True)  # set on every successful scrape
     created_at                = Column(DateTime, default=datetime.utcnow)
 
