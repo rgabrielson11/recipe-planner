@@ -1,5 +1,34 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 14: fix blank Preferences tab
+
+### Fixed
+
+**Settings → Preferences/Equipment tabs rendered completely blank for any household with no `Preference` row**
+
+- There was never a UI flow that called `POST /preferences` for a newly
+  created household — only the deployment-interview docstring implied one
+  existed. Any household without a row (including one recreated after a
+  clean DB reset) got a silent 404 from `GET /preferences/{household_id}`,
+  and the frontend swallowed it with `.catch(()=>{})`, leaving `prefs` as
+  `null` forever.
+- `{tab==='prefs'&&prefs&&<div>...}` (and the same pattern on the Equipment
+  tab) had no fallback branch for a null `prefs` — so the tab area rendered
+  nothing at all: no spinner, no error, no call to action.
+
+### Changed
+
+- `POST /households` now also creates a default `Preference` row for the
+  new household in the same request.
+- `GET /preferences/{household_id}` now auto-creates a default row on first
+  read instead of 404ing, so any household that predates this patch (e.g.
+  yours, recreated after the Patch 11 DB reset) self-heals the moment the
+  Settings page loads — no manual DB fix needed.
+- `SettingsPage` now shows a spinner while preferences are loading and a
+  "Couldn't load preferences: ... [Retry]" message on genuine failure,
+  instead of rendering nothing, as defense-in-depth if `GET /preferences`
+  ever fails for an unrelated reason (e.g. backend down).
+
 ## Phase 10 — Patch 13: fix rating/review filter for HelloFresh; filter at score time
 
 ### Fixed

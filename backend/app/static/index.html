@@ -756,12 +756,17 @@ const PantryPage=({hid})=>{
 const SettingsPage=({hid})=>{
   const [tab,setTab]=useState('prefs');
   const [prefs,setPrefs]=useState(null);
+  const [prefsError,setPrefsError]=useState(null);
   const [staples,setStaples]=useState([]);
   const [newStaple,setNewStaple]=useState('');
   const [vocab,setVocab]=useState({methods:[],cookware:[],skill_levels:[]});
   const toast=useToast();
+  const loadPrefs=()=>{
+    setPrefsError(null);
+    get(`/preferences/${hid}`).then(setPrefs).catch(e=>setPrefsError(e.message||'Failed to load preferences'));
+  };
   useEffect(()=>{
-    get(`/preferences/${hid}`).then(setPrefs).catch(()=>{});
+    loadPrefs();
     get('/pantry/staples').then(d=>setStaples(d.staples||[])).catch(()=>{});
     get('/config/cooking-methods').then(d=>setVocab({methods:d.methods||[],cookware:d.cookware||[],skill_levels:d.skill_levels||[]})).catch(()=>{});
   },[hid]);
@@ -789,6 +794,14 @@ const SettingsPage=({hid})=>{
     <div>
       <div className="page-header"><h1 className="page-title">⚙️ Settings</h1></div>
       <div className="tabs">{[['prefs','Preferences'],['equipment','Equipment'],['staples','Pantry Staples']].map(([k,l])=><div key={k} className={`tab${tab===k?' active':''}`} onClick={()=>setTab(k)}>{l}</div>)}</div>
+      {(tab==='prefs'||tab==='equipment')&&!prefs&&<div className="card">
+        {prefsError
+          ? <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+              <span style={{color:'var(--gray)'}}>Couldn't load preferences: {prefsError}</span>
+              <button className="btn-secondary btn-sm" onClick={loadPrefs}>Retry</button>
+            </div>
+          : <div className="spinner"/>}
+      </div>}
       {tab==='prefs'&&prefs&&<div className="card"><div style={{display:'grid',gap:16}}>
         <ArrayEditor label="Liked items" fk="liked_items"/>
         <ArrayEditor label="Disliked items" fk="disliked_items"/>

@@ -13,6 +13,14 @@ def create_household(payload: schemas.HouseholdCreate, db: Session = Depends(get
     db.add(household)
     db.commit()
     db.refresh(household)
+
+    # Patch 14: create a default Preference row up front so the Settings
+    # page's Preferences/Equipment tabs never hit a 404 for a brand-new
+    # household. GET /preferences/{id} also auto-creates on first read as
+    # a fallback for households that predate this change.
+    db.add(models.Preference(household_id=household.id))
+    db.commit()
+
     return household
 
 

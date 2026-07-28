@@ -50,11 +50,26 @@ def create_preferences(payload: schemas.PreferenceCreate, db: Session = Depends(
 
 @router.get("/{household_id}", response_model=schemas.PreferenceOut)
 def get_preferences(household_id: str, db: Session = Depends(get_db)):
+    """
+    Returns this household's preferences, auto-creating a row with sane
+    defaults on first read if one doesn't exist yet (Patch 14). There was
+    never a UI flow that called POST /preferences for a new household, so
+    without this every fresh household 404'd here forever and the Settings
+    page's Preferences/Equipment tabs silently rendered blank.
+    """
     prefs = db.query(models.Preference).filter(
         models.Preference.household_id == household_id
     ).first()
     if not prefs:
-        raise HTTPException(status_code=404, detail="No preferences set for this household yet")
+        household = db.query(models.Household).filter(
+            models.Household.id == household_id
+        ).first()
+        if not household:
+            raise HTTPException(status_code=404, detail="Household not found")
+        prefs = models.Preference(household_id=household_id)
+        db.add(prefs)
+        db.commit()
+        db.refresh(prefs)
     return prefs
 
 
