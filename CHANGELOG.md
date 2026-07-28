@@ -1,5 +1,60 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 15: combine same ingredients in the shopping list
+
+### Added
+
+**New `backend/app/ingredient_utils.py`**
+
+- `normalize_name()` — reduces a raw ingredient name or free-text line to
+  a canonical grouping key: strips a leading quantity/unit, leading
+  prep-instruction words ("finely chopped", "large"), a parenthetical
+  aside ("(15 oz can)"), a trailing comma-appended prep note (", diced"),
+  and lightly singularises. So `"Yellow Onion"`, `"yellow onions"`, and
+  `"2 large yellow onions, diced"` all collapse to `"yellow onion"`
+  instead of producing three separate shopping-list lines.
+- `to_base()` / `from_base()` / `unit_family()` — light unit conversion
+  within the volume family (tsp/tbsp/fl oz/cup/pt/qt/gal) and the mass
+  family (g/kg/oz/lb) only. `"2 tbsp olive oil"` in one recipe and
+  `"1 tsp olive oil"` in another now combine into one `"2.33 tbsp olive
+  oil"` line instead of two. Units outside those families, or a
+  name/unit combination that doesn't share a family with another entry,
+  are never force-combined.
+- `parse_scraped_ingredient()` — best-effort quantity/unit/name split for
+  a raw scraped ingredient line, e.g. `"2 1/2 cups chopped yellow
+  onion"`. Recipes not yet imported into Mealie previously stored each
+  ingredient as an opaque string with no parsed quantity, so they could
+  never combine with anything, in the shopping list or with each other.
+  They now feed into the same aggregation as Mealie-sourced ingredients.
+- `names_match()` — shared "is this the same shopping-list item?" check
+  used for staple detection, tracked-pantry matching, and package-size
+  rounding.
+
+### Fixed
+
+**Ingredients weren't combining across recipes**
+
+- `_aggregate()` in `shopping_list.py` now groups by normalized name
+  first, then merges quantities within a compatible unit family, instead
+  of keying strictly on the raw (name, unit) pair straight from Mealie —
+  which meant `"Onion"` and `"onions"`, or `2 tbsp` + `1 tsp` of the same
+  ingredient, always produced separate buy-list lines.
+
+**Found while testing this patch — staple/pantry matching could silently
+drop a real ingredient from the buy list**
+
+- The old staple check (`"garlic powder" in "garlic" or "garlic" in
+  "garlic powder"`) is a plain substring test, so a raw ingredient like
+  `"garlic"` was incorrectly classified as covered by the `"garlic
+  powder"` staple entry and silently removed from the buy list, even
+  though they're different products. `names_match()` now recognises the
+  adjective-before-noun cases the substring check was originally meant to
+  catch (`"kosher salt"` ~ `"salt"`, `"extra virgin olive oil"` ~ `"olive
+  oil"`) while excluding cases where a name is followed by a
+  product-changing suffix (`powder`, `extract`, `paste`, `sauce`,
+  `broth`, `stock`, `seasoning`, `flakes`, `juice`, `spray`). Applied to
+  staple detection, tracked-pantry matching, and package-size rounding.
+
 ## Phase 10 — Patch 14: fix blank Preferences tab
 
 ### Fixed

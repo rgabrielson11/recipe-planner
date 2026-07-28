@@ -32,20 +32,14 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app import models, mealie_client, config_files
+from app import models, mealie_client, config_files, ingredient_utils
 
 log = logging.getLogger(__name__)
 
 # ── Store section keywords ────────────────────────────────────────────────────
-def _guess_section(text: str) -> str:
-    """Quick section guess for scraped ingredient strings without Mealie categorisation."""
-    t = text.lower()
-    for section, keywords in SECTION_KEYWORDS.items():
-        if any(k in t for k in keywords):
-            return section
-    return "other"
-
-
+# (Patch 15: dropped the unused _guess_section() duplicate of _section_for() —
+# scraped ingredients are now sectioned the same way as everything else, via
+# _section_for() on the final aggregated/normalized name.)
 SECTION_KEYWORDS: dict[str, list[str]] = {
     "produce": [
         "lettuce", "spinach", "kale", "arugula", "cabbage", "bok choy",
@@ -114,34 +108,10 @@ def _section_for(name: str) -> str:
 
 
 # ── Unit normalisation ────────────────────────────────────────────────────────
-_UNIT_ALIASES: dict[str, str] = {
-    "tablespoon": "tbsp", "tablespoons": "tbsp", "tbsps": "tbsp",
-    "teaspoon": "tsp", "teaspoons": "tsp", "tsps": "tsp",
-    "cup": "cup", "cups": "cup",
-    "fluid ounce": "fl oz", "fluid ounces": "fl oz", "fl. oz": "fl oz",
-    "pint": "pt", "pints": "pt",
-    "quart": "qt", "quarts": "qt",
-    "gallon": "gal", "gallons": "gal",
-    "milliliter": "ml", "milliliters": "ml", "ml": "ml",
-    "liter": "l", "liters": "l", "litre": "l", "litres": "l",
-    "ounce": "oz", "ounces": "oz",
-    "pound": "lb", "pounds": "lb", "lbs": "lb",
-    "gram": "g", "grams": "g",
-    "kilogram": "kg", "kilograms": "kg",
-    "each": "each", "whole": "each", "piece": "each", "pieces": "each",
-    "slice": "slice", "slices": "slice",
-    "clove": "clove", "cloves": "clove",
-    "sprig": "sprig", "sprigs": "sprig",
-    "bunch": "bunch", "bunches": "bunch",
-    "can": "can", "cans": "can",
-    "package": "pkg", "packages": "pkg",
-}
-
-
-def _canonical_unit(unit: Optional[str]) -> Optional[str]:
-    if not unit:
-        return None
-    return _UNIT_ALIASES.get(unit.lower().strip(), unit.lower().strip())
+# Moved to ingredient_utils.py (Patch 15) so the shopping-list unit-conversion
+# helpers (to_base/from_base/unit_family) share one canonicalisation table
+# instead of drifting out of sync. Kept as a local alias for minimal diff.
+_canonical_unit = ingredient_utils.canonical_unit
 
 
 # ── Mealie ingredient extraction ──────────────────────────────────────────────
@@ -162,14 +132,18 @@ def _extract_ingredients(detail: dict) -> list[dict]:
         if not isinstance(ing, dict):
             continue
         food = ing.get("food")
-        name = (
+        raw_name = (
             food.get("name", "") if isinstance(food, dict)
             else str(food) if food
             else ing.get("note", "")
         )
-        name = name.strip()
-        if not name:
+        raw_name = raw_name.strip()
+        if not raw_name:
             continue
+        # Patch 15: normalize so "Yellow Onion", "yellow onions", and
+        # "yellow onion, diced" all collapse to the same grouping key
+        # instead of producing separate shopping-list lines.
+        name = ingredient_utils.normalize_name(raw_name) or raw_name.lower()
         try:
             qty = float(ing["quantity"]) if ing.get("quantity") is not None else None
         except (TypeError, ValueError):
@@ -193,9 +167,48 @@ def _extract_ingredients(detail: dict) -> list[dict]:
 def _aggregate(
     all_ingredients: list[dict],
 ) -> dict[tuple[str, Optional[str]], float]:
-    totals: dict[tuple[str, Optional[str]], float] = defaultdict(float)
+    """
+    Combine same-named ingredients into one buy-list line (Patch 15).
+
+    Grouping is by normalized name first. Within a name group, quantities
+    in the same unit family (all-volume, e.g. tsp/tbsp/cup, or all-mass,
+    e.g. g/kg/oz/lb) are converted to a common base unit, summed, and
+    converted back to one sensible display unit — so "2 tbsp olive oil" +
+    "1 tsp olive oil" becomes one "2.33 tbsp olive oil" line instead of
+    two separate ones. Units outside those two families (each, clove,
+    can, etc.) or with no unit at all are summed only when they already
+    match exactly, same as before — never guessed at or force-combined
+    across incompatible units (e.g. "2 cloves garlic" stays separate from
+    "1 tsp garlic powder").
+    """
+    by_name: dict[str, list[dict]] = defaultdict(list)
     for ing in all_ingredients:
-        totals[(ing["name"], ing["unit"])] += ing["quantity"] or 0.0
+        by_name[ing["name"]].append(ing)
+
+    totals: dict[tuple[str, Optional[str]], float] = defaultdict(float)
+    for name, entries in by_name.items():
+        vol_base  = 0.0
+        mass_base = 0.0
+        have_vol  = False
+        have_mass = False
+        for e in entries:
+            qty  = e["quantity"] or 0.0
+            unit = e["unit"]
+            fam  = ingredient_utils.unit_family(unit)
+            if fam == "volume":
+                vol_base += ingredient_utils.to_base(qty, unit)
+                have_vol = True
+            elif fam == "mass":
+                mass_base += ingredient_utils.to_base(qty, unit)
+                have_mass = True
+            else:
+                totals[(name, unit)] += qty
+        if have_vol:
+            disp_qty, disp_unit = ingredient_utils.from_base(vol_base, "volume")
+            totals[(name, disp_unit)] += disp_qty
+        if have_mass:
+            disp_qty, disp_unit = ingredient_utils.from_base(mass_base, "mass")
+            totals[(name, disp_unit)] += disp_qty
     return dict(totals)
 
 
@@ -221,7 +234,7 @@ def _apply_pantry_and_staples(
     # what quantity is needed in the pantry_check section.
     for key in list(remaining.keys()):
         name, unit = key
-        is_staple = any(s in name or name in s for s in staples_lower)
+        is_staple = any(ingredient_utils.names_match(name, s) for s in staples_lower)
         if is_staple:
             qty = remaining.pop(key)
             pantry_check.append({
@@ -238,7 +251,7 @@ def _apply_pantry_and_staples(
         pqty  = float(pitem.quantity) if pitem.quantity is not None else None
 
         matched_key = next(
-            (k for k in list(remaining.keys()) if pname in k[0] or k[0] in pname),
+            (k for k in list(remaining.keys()) if ingredient_utils.names_match(pname, k[0])),
             None,
         )
         if matched_key is None:
@@ -286,7 +299,7 @@ def _round_to_package(
     pkg_sizes: dict,
 ) -> tuple[Optional[float], Optional[str], Optional[str], Optional[int]]:
     for key, spec in pkg_sizes.items():
-        if key.lower() in name or name in key.lower():
+        if ingredient_utils.names_match(key.lower(), name):
             pkg_unit  = spec.get("unit")
             pkg_size  = float(spec.get("package_size", 1))
             pkg_label = spec.get("package_label")
@@ -347,23 +360,23 @@ def build_shopping_list(
         log.info("Processing recipe: '%s' | mealie_slug=%s", recipe.title, recipe.mealie_slug or "NONE")
 
         if not recipe.mealie_slug:
-            # Fallback: use scraped ingredient strings stored at discovery time
+            # Fallback: use scraped ingredient strings stored at discovery time.
+            # Patch 15: parse a best-effort quantity/unit/name out of each raw
+            # line (instead of treating the whole string as an opaque name) so
+            # these can combine with each other and with Mealie-sourced
+            # ingredients in the same aggregation pass, rather than each
+            # scraped recipe producing its own disconnected line items.
             if recipe.scraped_ingredients_json:
                 import json as _json
                 try:
                     ing_strings = _json.loads(recipe.scraped_ingredients_json)
                     for ing_str in ing_strings:
                         if ing_str.strip():
-                            all_ingredients.append({
-                                "name": ing_str.strip(),
-                                "quantity": None,
-                                "unit": None,
-                                "note": ing_str.strip(),
-                                "section": _guess_section(ing_str),
-                                "_scraped_text": True,
-                            })
+                            all_ingredients.append(
+                                ingredient_utils.parse_scraped_ingredient(ing_str)
+                            )
                     warnings.append(
-                        f"'{recipe.title}': using scraped ingredient list (not yet in Mealie — "                        f"quantities not scaled; confirm and check Mealie import).")
+                        f"'{recipe.title}': using scraped ingredient list (not yet in Mealie — "                        f"quantities are best-effort parsed, not household-scaled; confirm and check Mealie import).")
                 except Exception:
                     missing_mealie.append(recipe.title)
             else:
