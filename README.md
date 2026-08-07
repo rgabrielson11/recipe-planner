@@ -158,19 +158,50 @@ No login/auth — designed for trusted LAN access only.
 
 ## Running on Unraid
 
+Two ways to run this, pick whichever fits how you want to maintain it.
+
+### Option A — git + docker-compose (source checkout, live code)
+
+This is the original setup and what `deploy.sh` automates: the repo is
+checked out directly on the box and `backend/app` is bind-mounted into
+the container, so it's straightforward to patch code in place.
+
 ```bash
-# Place repo at /mnt/user/appdata/recipe-planner
-# Copy .env.example → .env and fill in credentials
+git clone git@github.com:rgabrielson11/recipe-planner.git /mnt/user/appdata/recipe-planner
+cd /mnt/user/appdata/recipe-planner
+cp .env.example .env   # fill in MEALIE_BASE_URL, MEALIE_API_TOKEN, etc.
 docker compose up -d --build
 ```
 
-API: `http://<unraid-ip>:8111`  
-Docs: `http://<unraid-ip>:8111/docs`
+To update: `git pull` (or run `deploy.sh`, which also backs up the DB and
+YAML config first), then `docker compose up -d --build`.
 
 If you hit file-permission errors writing to YAML configs:
 ```bash
 chmod -R a+rwX backend/app/data
 ```
+
+### Option B — Unraid template (published image, GUI-managed)
+
+`.github/workflows/docker-build.yml` builds and pushes an image to
+`ghcr.io/rgabrielson11/recipe-planner:latest` on every push to `master`.
+`unraid-template/my-Recipe-Planner.xml` is a ready-made Unraid Community
+Applications-style template for it — copy it to
+`/boot/config/plugins/dockerMan/templates-user/` on your Unraid box (or
+it's already there if you set this up with Claude), then Docker -> Add
+Container -> pick "recipe-planner" from the Template dropdown.
+
+Unlike Option A, this does **not** bind-mount live source code — it runs
+whatever's baked into the image, so code updates happen by pulling a new
+image (Docker tab -> Check for Updates) rather than editing files on the
+box. Only the database and the YAML config directory are persisted.
+First time only: the GHCR package defaults to **private** — go to
+github.com/rgabrielson11?tab=packages -> recipe-planner -> Package
+settings -> change visibility to Public, or `docker login ghcr.io` on the
+Unraid host with a PAT that has `read:packages` scope.
+
+API: `http://<unraid-ip>:8111`  
+Docs: `http://<unraid-ip>:8111/docs`
 
 ---
 
