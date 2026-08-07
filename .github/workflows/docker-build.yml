@@ -1,0 +1,72 @@
+name: Build and publish Docker image
+
+# Builds backend/Dockerfile and pushes it to GitHub Container Registry
+# (ghcr.io) on every push to master, so the Unraid template always has
+# an up-to-date image to pull without anyone needing to build locally.
+#
+# Tags pushed:
+#   latest        - always the most recent master build (what the Unraid
+#                   template tracks by default)
+#   sha-<short>   - pinned to the exact commit, for rollback: point the
+#                   template's repository field at this tag instead of
+#                   :latest if a release needs to be rolled back
+#
+# First-time setup: after this workflow runs once, the package will be
+# created under github.com/rgabrielson11?tab=packages. GHCR packages
+# default to PRIVATE. For the Unraid template to pull it with no extra
+# login step, go to the package's Settings -> Danger Zone -> Change
+# visibility -> Public. (Or leave it private and `docker login ghcr.io`
+# on the Unraid host with a PAT that has read:packages scope instead.)
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "backend/**"
+      - ".github/workflows/docker-build.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compute image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
