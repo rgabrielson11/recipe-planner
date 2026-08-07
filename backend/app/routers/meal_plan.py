@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 import logging
-from app import models, schemas, mealie_client, matching_engine, recipe_discovery, shopping_list as sl
+from app import models, schemas, mealie_client, matching_engine, recipe_discovery, shopping_list as sl, bring_client
 
 log = logging.getLogger(__name__)
 from app.database import get_db
@@ -420,6 +420,64 @@ def get_shopping_list(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return result
+
+
+# ── 6b. Push shopping list to Bring! (Patch 16) ────────────────────────────────
+
+@router.get("/bring/lists")
+async def get_bring_lists():
+    """
+    Lists the Bring! account's shopping lists (name + uuid) — used by the
+    Settings UI so you can pick which one to push to by exact name. Requires
+    BRING_EMAIL / BRING_PASSWORD to be set in .env.
+    """
+    try:
+        return {"lists": await bring_client.list_bring_lists()}
+    except bring_client.BringError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/shopping-list/push-to-bring")
+async def push_shopping_list_to_bring(
+    household_id: str,
+    week_start_date: date,
+    db: Session = Depends(get_db),
+):
+    """
+    Generates the shopping list the same way GET /shopping-list does, then
+    pushes every BUY item (not pantry_check, not using_from_pantry — those
+    are already on hand) to the household's configured Bring! list
+    (Preference.bring_list_name), so it shows up natively in the Bring!
+    app instead of only in this UI.
+
+    Pushing the same week twice is safe — Bring!'s add-item call updates
+    the existing item's quantity in place rather than duplicating it.
+    """
+    try:
+        result = sl.build_shopping_list(
+            household_id=household_id,
+            week_start=week_start_date,
+            db=db,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    prefs = db.query(models.Preference).filter(
+        models.Preference.household_id == household_id
+    ).first()
+    list_name = prefs.bring_list_name if prefs else None
+
+    try:
+        push_result = await bring_client.push_shopping_list(result, list_name=list_name)
+    except bring_client.BringError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    log.info(
+        "Pushed shopping list to Bring!: household=%s week=%s list=%r pushed=%d errors=%d",
+        household_id, week_start_date, push_result.get("list_name"),
+        len(push_result.get("pushed", [])), len(push_result.get("errors", [])),
+    )
+    return push_result
 
 
 # ── 7. End-of-week review ─────────────────────────────────────────────────────

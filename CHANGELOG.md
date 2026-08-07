@@ -1,5 +1,46 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 16: push shopping list to Bring!
+
+### Added
+
+**"📤 Push to Bring!" on the shopping list**
+
+Pushes every BUY item (not pantry_check, not using_from_pantry — those
+are already on hand) to a [Bring!](https://www.getbring.com) shopping
+list, so the list shows up natively on your phone in a purpose-built,
+multi-user, checkable grocery app instead of only in this UI. Considered
+and ruled out: a direct push to Apple Reminders (no public API exists —
+would require either a self-hosted CalDAV server or an on-device
+Shortcut, both heavier than this) and AnyList (its only Python client is
+Rust-based bindings around a reverse-engineered API — more fragile to
+containerize than Bring!'s pure-Python library).
+
+- New `backend/app/bring_client.py` — thin wrapper around the `bring-api`
+  PyPI package (unofficial; also what Home Assistant's own Bring!
+  integration is built on). Verified against the actual installed
+  package (0.5.7) rather than assumed from its README, since the
+  published release lags the docs — notably its top-level `bring_api`
+  package doesn't re-export `Bring`/exceptions like the README implies;
+  they're imported from submodules instead.
+- `BRING_EMAIL` / `BRING_PASSWORD` env vars (`.env`, `docker-compose.yml`)
+  — same pattern as `MEALIE_BASE_URL` / `MEALIE_API_TOKEN`. Leave blank to
+  disable; the push button then returns a clear "not configured" error
+  instead of failing silently.
+- New `Preference.bring_list_name` column + migration — only needed if
+  your Bring! account has more than one list; a single-list account is
+  auto-selected with no configuration. Settings → Preferences has a
+  "Show my Bring! lists" button (`GET /meal-plan/bring/lists`) to check
+  exact spelling.
+- `POST /meal-plan/shopping-list/push-to-bring` — builds the shopping
+  list the same way `GET /shopping-list` does, then pushes it. Safe to
+  run twice for the same week: Bring!'s add-item call updates an
+  existing item's quantity in place rather than duplicating it.
+- Item "specification" (the subtitle Bring! shows under each item name)
+  prefers the rounded package quantity ("2 x 12 oz can") over the raw
+  combined quantity ("2.33 tbsp") when a package size is configured —
+  literally what to pick up off the shelf.
+
 ## Phase 10 — Patch 15: combine same ingredients in the shopping list
 
 ### Added

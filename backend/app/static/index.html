@@ -420,7 +420,19 @@ const PlannerPage=({hid})=>{
   const [cookingMethods,setCookingMethods]=useState([]);
   const [progress,setProgress]=useState(0);
   const [progressLabel,setProgressLabel]=useState('');
+  const [pushingBring,setPushingBring]=useState(false);
   const toast=useToast();
+
+  const pushToBring=async()=>{
+    setPushingBring(true);
+    try{
+      const r=await post(`/meal-plan/shopping-list/push-to-bring?household_id=${hid}&week_start_date=${week}`,{});
+      if(r.message){toast(r.message,'warning');}
+      else if((r.errors||[]).length){toast(`Pushed ${r.pushed.length} to "${r.list_name}", ${r.errors.length} failed — see logs`,'warning');}
+      else{toast(`Pushed ${r.pushed.length} item${r.pushed.length!==1?'s':''} to Bring! list "${r.list_name}"`,'success');}
+    }catch(e){toast(e.message,'error');}
+    finally{setPushingBring(false);}
+  };
 
   useEffect(()=>{
     get(`/pantry?household_id=${hid}`).then(setPantry).catch(()=>{});
@@ -679,6 +691,9 @@ const PlannerPage=({hid})=>{
                 </body></html>`);
               w.document.close();
             }}>&#x1F5A8;&#xFE0F; Print / Save PDF</button>
+            <button className="btn-secondary" onClick={pushToBring} disabled={pushingBring}>
+              {pushingBring?'Pushing...':'📤 Push to Bring!'}
+            </button>
           </div>
         </>}
       </div>}
@@ -815,6 +830,16 @@ const SettingsPage=({hid})=>{
             {vocab.skill_levels.map(sl=><option key={sl} value={sl}>{sl.charAt(0).toUpperCase()+sl.slice(1)}</option>)}
           </select></div>
           <div><label>Mealie dinner tag</label><input value={prefs.mealie_dinner_tag||''} onChange={e=>setPrefs(p=>({...p,mealie_dinner_tag:e.target.value}))} placeholder="dinner-planner"/></div>
+        </div>
+        <div>
+          <label>Bring! list name <span style={{fontWeight:400,color:'var(--gray)'}}>(only needed if your Bring! account has more than one list)</span></label>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <input style={{maxWidth:280}} value={prefs.bring_list_name||''} onChange={e=>setPrefs(p=>({...p,bring_list_name:e.target.value||null}))} placeholder="e.g. Groceries"/>
+            <button className="btn-secondary btn-sm" onClick={async()=>{
+              try{const r=await get('/meal-plan/bring/lists');toast((r.lists||[]).map(l=>l.name).join(', ')||'No Bring! lists found',(r.lists||[]).length?'success':'warning');}
+              catch(e){toast(e.message,'error');}
+            }}>Show my Bring! lists</button>
+          </div>
         </div>
         <button className="btn-primary" style={{alignSelf:'start'}} onClick={savePrefs}>Save Preferences</button>
       </div></div>}

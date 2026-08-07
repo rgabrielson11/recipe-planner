@@ -44,6 +44,7 @@ class Preference(Base):
     default_num_suggestions   = Column(Integer, nullable=False, default=10)
     favorite_rating_threshold = Column(Integer, nullable=False, default=4)
     mealie_dinner_tag         = Column(String, nullable=False, default="dinner-planner")
+    bring_list_name           = Column(String, nullable=True)  # Patch 16: exact Bring! list name to push to
     notes                     = Column(String, nullable=True)
     created_at                = Column(DateTime, default=datetime.utcnow)
     updated_at                = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -22,6 +22,8 @@ services:
       DATABASE_PATH: /app/data/recipe_planner.db
       MEALIE_BASE_URL: ${MEALIE_BASE_URL:-}
       MEALIE_API_TOKEN: ${MEALIE_API_TOKEN:-}
+      BRING_EMAIL: ${BRING_EMAIL:-}
+      BRING_PASSWORD: ${BRING_PASSWORD:-}
     ports:
       - "8111:8111"
     volumes:
