@@ -133,6 +133,12 @@ def workflow():
 
 STATIC_DIR = Path(__file__).parent / "static"
 if STATIC_DIR.exists():
+    # assets/ is normally empty (no icons/fonts checked in yet) and git
+    # doesn't track empty directories, so a fresh clone/deploy can be
+    # missing it entirely — StaticFiles() raises at import time if the
+    # directory doesn't exist, crash-looping the whole app over a mount
+    # nothing is currently using. Create it rather than crash.
+    (STATIC_DIR / "assets").mkdir(exist_ok=True)
     app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
 
     @app.get("/{full_path:path}", include_in_schema=False)
