@@ -36,6 +36,18 @@ class MealieError(Exception):
     """Raised on any Mealie API failure."""
 
 
+def _escape_filter_value(value: str) -> str:
+    """
+    Escape a value for safe interpolation into a Mealie queryFilter string
+    (e.g. `orgURL = "{value}"`). Mealie's filter language treats `"` as the
+    string delimiter, so an unescaped `"` in a URL or tag name lets the
+    value break out of its quotes and inject additional filter clauses.
+    Backslash-escaping the delimiter mirrors how the underlying filter
+    grammar expects quotes to be escaped.
+    """
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def _headers() -> dict:
     return {
         "Authorization": f"Bearer {MEALIE_API_TOKEN}",
@@ -165,7 +177,7 @@ def find_recipe_by_url(url: str) -> Optional[str]:
         r = requests.get(
             f"{MEALIE_BASE_URL}/api/recipes",
             headers=_headers(),
-            params={"queryFilter": f'orgURL = "{url}"', "perPage": 5},
+            params={"queryFilter": f'orgURL = "{_escape_filter_value(url)}"', "perPage": 5},
             timeout=_TIMEOUT,
         )
         r.raise_for_status()
@@ -247,7 +259,7 @@ def list_recipes(
     params: dict = {"page": page, "perPage": per_page}
     filter_parts: list[str] = []
     if tag_name:
-        filter_parts.append(f'tags.name = "{tag_name}"')
+        filter_parts.append(f'tags.name = "{_escape_filter_value(tag_name)}"')
     if query_filter:
         filter_parts.append(query_filter)
     if filter_parts:

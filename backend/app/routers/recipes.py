@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas, config_files, mealie_client
 from app.database import get_db
+from app.url_safety import UnsafeUrlError, assert_safe_url
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
 
@@ -36,6 +37,14 @@ def import_recipe(payload: schemas.RecipeImport, db: Session = Depends(get_db)):
     ).first()
     if existing:
         return existing
+
+    try:
+        assert_safe_url(payload.source_url)
+    except UnsafeUrlError as e:
+        # Mealie fetches this URL server-side on our behalf — Mealie lives on
+        # the same trusted LAN, so an unvalidated URL here is an SSRF vector
+        # against internal services. Reject before it ever reaches Mealie.
+        raise HTTPException(status_code=422, detail=f"Invalid recipe URL: {e}")
 
     try:
         slug         = mealie_client.import_recipe_from_url(payload.source_url)

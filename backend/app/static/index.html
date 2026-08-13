@@ -104,6 +104,16 @@ const put=(p,b)=>API('PUT',p,b);
 const del=p=>API('DELETE',p);
 const patch=(p,b)=>API('PATCH',p,b);
 
+// Escapes text for safe interpolation into document.write()'d HTML.
+// Recipe titles/ingredients/instructions/URLs can originate from scraped
+// third-party sites or a manually-imported URL, so they're untrusted —
+// never interpolate them into an HTML string without this.
+const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Escapes + validates a URL for use in an href="" attribute — only
+// http/https URLs are allowed through; anything else (javascript:, data:,
+// etc.) is dropped rather than rendered as a link.
+const safeHref=u=>{try{const p=new URL(u,window.location.origin);if(p.protocol!=='http:'&&p.protocol!=='https:')return '';return escapeHtml(u);}catch{return '';}};
+
 const weekMonday=(d=new Date())=>{const dd=new Date(d);const day=dd.getDay();dd.setDate(dd.getDate()-(day===0?6:day-1));return dd.toISOString().split('T')[0];};
 const fmt=s=>s?new Date(s+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'—';
 
@@ -338,15 +348,18 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,confirmed,rejected,hid,prefs
       {open&&(
         <div className="recipe-card-body">
           <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap',alignItems:'center'}}>
-            {r.source_url&&<a href={r.source_url} target="_blank" rel="noopener" style={{fontSize:13}}>🔗 View original →</a>}
+            {r.source_url&&safeHref(r.source_url)&&<a href={r.source_url} target="_blank" rel="noopener" style={{fontSize:13}}>🔗 View original →</a>}
             <button className="btn-secondary btn-sm" style={{marginLeft:'auto'}} onClick={async()=>{
               try{
                 const d=await get(`/recipes/${r.recipe_id}/print-data`);
-                const ings=(d.ingredients||[]).map(i=>`<li style="margin:3px 0">${i}</li>`).join('');
-                const steps=(d.instructions||[]).map((s,i)=>`<li style="margin:6px 0"><b>${i+1}.</b> ${s}</li>`).join('');
-                const meta=[d.total_time_minutes?`⏱ ${d.total_time_minutes} min`:'',d.source_url?`<a href="${d.source_url}" style="color:#666">${d.source_url}</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+                const title=escapeHtml(d.title);
+                const ings=(d.ingredients||[]).map(i=>`<li style="margin:3px 0">${escapeHtml(i)}</li>`).join('');
+                const steps=(d.instructions||[]).map((s,i)=>`<li style="margin:6px 0"><b>${i+1}.</b> ${escapeHtml(s)}</li>`).join('');
+                const sourceHref=d.source_url?safeHref(d.source_url):'';
+                const meta=[d.total_time_minutes?`⏱ ${escapeHtml(d.total_time_minutes)} min`:'',sourceHref?`<a href="${sourceHref}" style="color:#666">${escapeHtml(d.source_url)}</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+                const mealieHref=d.mealie_url?safeHref(d.mealie_url):'';
                 const w=window.open('','_blank');
-                w.document.write(`<!DOCTYPE html><html><head><title>${d.title}</title>
+                w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
                   <style>
                     body{font-family:Georgia,serif;max-width:680px;margin:40px auto;color:#111;line-height:1.6}
                     h1{font-size:26px;margin-bottom:6px}
@@ -357,13 +370,13 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,confirmed,rejected,hid,prefs
                     .no-ings{color:#888;font-style:italic}
                     @media print{a{color:#111!important;text-decoration:none}}
                   </style></head><body>
-                  <h1>${d.title}</h1>
+                  <h1>${title}</h1>
                   <p>${meta}</p>
-                  ${d.description?`<p style="margin-top:8px;font-style:italic;color:#555">${d.description}</p>`:''}
+                  ${d.description?`<p style="margin-top:8px;font-style:italic;color:#555">${escapeHtml(d.description)}</p>`:''}
                   <h2>Ingredients</h2>
                   ${ings?`<ul>${ings}</ul>`:'<p class="no-ings">Full ingredient list not available — see original recipe link above.</p>'}
                   ${steps?`<h2>Instructions</h2><ol>${steps}</ol>`:''}
-                  ${d.mealie_url?`<p style="margin-top:24px;font-size:13px;color:#888">Also saved in Mealie: <a href="${d.mealie_url}">${d.mealie_url}</a></p>`:''}
+                  ${mealieHref?`<p style="margin-top:24px;font-size:13px;color:#888">Also saved in Mealie: <a href="${mealieHref}">${escapeHtml(d.mealie_url)}</a></p>`:''}
                   <script>window.print();<\/script>
                   </body></html>`);
                 w.document.close();
@@ -659,19 +672,19 @@ const PlannerPage=({hid})=>{
               const pantryCheck=shoppingList.pantry_check||[];
               const titles=shoppingList.selected_recipe_titles||[];
               const rows=Object.entries(sections).map(([sec,items])=>`
-                <h3 style="text-transform:capitalize;margin:16px 0 6px;font-size:15px">${sec}</h3>
+                <h3 style="text-transform:capitalize;margin:16px 0 6px;font-size:15px">${escapeHtml(sec)}</h3>
                 <table style="width:100%;border-collapse:collapse">
                   ${items.map(it=>`<tr style="border-bottom:1px solid #eee">
-                    <td style="padding:5px 0">${it.item}</td>
-                    <td style="padding:5px 8px;text-align:right;white-space:nowrap">${it.quantity!=null?`${it.quantity} ${it.unit||''}`.trim():'as needed'}</td>
-                    <td style="padding:5px 0 5px 8px;color:#666;font-size:13px">${it.package_label||''}</td>
+                    <td style="padding:5px 0">${escapeHtml(it.item)}</td>
+                    <td style="padding:5px 8px;text-align:right;white-space:nowrap">${it.quantity!=null?escapeHtml(`${it.quantity} ${it.unit||''}`.trim()):'as needed'}</td>
+                    <td style="padding:5px 0 5px 8px;color:#666;font-size:13px">${escapeHtml(it.package_label||'')}</td>
                   </tr>`).join('')}
                 </table>`).join('');
               const pantryRows=pantryCheck.length?`<h3 style="margin:16px 0 6px;font-size:15px">&#x1F9EB; Pantry Check</h3>
                 <table style="width:100%;border-collapse:collapse">
                   ${pantryCheck.map(it=>`<tr style="border-bottom:1px solid #eee;color:#555">
-                    <td style="padding:4px 0">${it.item}</td>
-                    <td style="padding:4px 8px;text-align:right">${it.quantity!=null?`${it.quantity} ${it.unit||''}`.trim():'some'}</td>
+                    <td style="padding:4px 0">${escapeHtml(it.item)}</td>
+                    <td style="padding:4px 8px;text-align:right">${it.quantity!=null?escapeHtml(`${it.quantity} ${it.unit||''}`.trim()):'some'}</td>
                     <td style="padding:4px 0 4px 8px;color:green;font-size:13px">&#x2713; on hand</td>
                   </tr>`).join('')}
                 </table>`:'';
@@ -683,7 +696,7 @@ const PlannerPage=({hid})=>{
                 @media print{button{display:none}}</style></head>
                 <body>
                 <h1>&#x1F6D2; Shopping List</h1>
-                ${titles.length?`<p>Meals: ${titles.join(', ')}</p>`:''}
+                ${titles.length?`<p>Meals: ${escapeHtml(titles.join(', '))}</p>`:''}
                 <p>Generated ${new Date().toLocaleDateString()}</p>
                 ${rows}${pantryRows}
                 <p style="margin-top:24px;font-size:11px;color:#aaa">Recipe Planner</p>
