@@ -1,5 +1,45 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 39: print UX, print pantry move, past meals page, version link
+
+### Bug fixes
+
+**Print windows now have a "← Close print window" link**
+All four print functions (single recipe card, print-all recipes, print
+shopping list, print pantry) now include a "← Close print window" link
+inside the printed page. After the print dialog closes the link is visible
+and navigates back. The main app tab is always preserved since all print
+windows open with `window.open('','_blank')`.
+
+**Print Pantry moved to Shopping List page (Step 4)**
+The 🖨️ Print Pantry List button has been moved from the Confirm step
+(Step 3) to the Shopping List step (Step 4), alongside the existing print
+shopping list button. This is a more natural placement — you'd want to
+print your pantry reference while reviewing the shopping list.
+
+### New feature
+
+**📆 Past Meals page**
+A new "Past Meals" page (under Planning in the nav) shows every recipe
+selected in previous weeks, grouped by week date. Each recipe shows title,
+cook time, Mealie status, and a source link. Clicking **+ Add to this
+week** imports the recipe directly into the current week's plan (same
+import flow as confirm-selections) without needing to go through the
+suggestion engine.
+
+Backend: `GET /meal-plan/history` returns past selections grouped by week,
+deduped. `POST /meal-plan/history/add` reuses the confirm-selections flow
+to import and tag the recipe.
+
+### Improvement
+
+**Version indicator — brighter color + GitHub hyperlink**
+The version string in the sidebar footer and mobile topbar now renders in
+`#60a5fa` / `#93c5fd` (blue, readable against the dark nav) and links to
+`https://github.com/rgabrielson11/recipe-planner` in a new tab.
+
+---
+
 ## Phase 10 — Patch 38: remove Marley Spoon source
 
 ### Change

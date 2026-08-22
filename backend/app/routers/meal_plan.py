@@ -567,3 +567,55 @@ def weekly_review(
         models.MealPlanEntry.household_id == household_id,
         models.MealPlanEntry.week_start_date == week_start_date,
     ).all()
+
+
+# ── Meal history ──────────────────────────────────────────────────────────────
+
+@router.get("/history")
+def get_meal_history(household_id: str, db: Session = Depends(get_db)):
+    """
+    Return past weekly selections grouped by week, most recent first.
+    Each entry includes recipe title, source URL, and mealie slug so the
+    frontend can display a link and offer re-selection.
+    """
+    rows = (
+        db.query(models.WeeklySelection)
+        .join(models.Recipe)
+        .filter(models.WeeklySelection.household_id == household_id)
+        .order_by(models.WeeklySelection.week_start_date.desc())
+        .all()
+    )
+
+    # Group by week
+    from collections import defaultdict
+    weeks: dict[str, list[dict]] = defaultdict(list)
+    seen: set[tuple] = set()   # (week, recipe_id) dedup
+
+    for sel in rows:
+        key = (str(sel.week_start_date), sel.recipe_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        recipe = sel.recipe
+        weeks[str(sel.week_start_date)].append({
+            "recipe_id":   recipe.id,
+            "title":       recipe.title,
+            "source_url":  recipe.source_url,
+            "mealie_slug": recipe.mealie_slug,
+            "total_time_minutes": recipe.scraped_time_minutes,
+        })
+
+    return [
+        {"week_start_date": week, "recipes": recipes}
+        for week, recipes in weeks.items()
+    ]
+
+
+@router.post("/history/add")
+def add_from_history(payload: schemas.ConfirmSelectionsPayload, db: Session = Depends(get_db)):
+    """
+    Add previously-selected recipes directly to the current week's plan,
+    importing them to Mealie if not already imported.
+    Returns import results in the same shape as confirm-selections.
+    """
+    return confirm_selections(payload, db)

@@ -156,6 +156,7 @@ const NAV=[
   {key:'pantry',icon:'🥫',label:'Pantry'},
   {section:'Configuration'},{key:'settings',icon:'⚙️',label:'Preferences'},
   {key:'sources',icon:'🌐',label:'Recipe Sources'},{key:'keywords',icon:'🔍',label:'Dinner Filter'},
+  {section:'Planning'},{key:'history',icon:'📆',label:'Past Meals'},
   {section:'Tools'},{key:'rejections',icon:'🚫',label:'Rejections'},{key:'logs',icon:'📋',label:'Logs'},{key:'database',icon:'🗄️',label:'Database'},
 ];
 const Nav=({page,setPage,navOpen,onClose,version})=>(
@@ -168,7 +169,13 @@ const Nav=({page,setPage,navOpen,onClose,version})=>(
         :<div key={item.key} className={`nav-item${page===item.key?' active':''}`} onClick={()=>{setPage(item.key);onClose();}}>
           <span className="icon">{item.icon}</span>{item.label}
         </div>)}
-      {version&&<div style={{padding:'16px 20px 0',fontSize:11,color:'#475569'}}>{version}</div>}
+      {version&&<div style={{padding:'16px 20px 8px',fontSize:11}}>
+        <a href="https://github.com/rgabrielson11/recipe-planner" target="_blank" rel="noopener"
+           style={{color:'#60a5fa',textDecoration:'none',opacity:.8}}
+           onMouseEnter={e=>e.target.style.opacity=1} onMouseLeave={e=>e.target.style.opacity=.8}>
+          {version}
+        </a>
+      </div>}
     </nav>
   </>
 );
@@ -747,19 +754,7 @@ const PlannerPage=({hid})=>{
         </div>}
 
         {loading?<div className="spinner"/>:<>
-          {!importResults&&<div style={{marginBottom:12}}>
-            <button className="btn-secondary btn-sm" onClick={()=>{
-              const rows=(pantry||[]).map(p=>`<tr style="border-bottom:1px solid #eee">
-                <td style="padding:5px 0">${p.name||''}</td>
-                <td style="padding:5px 8px;text-align:right">${p.quantity!=null?String(p.quantity)+' '+(p.unit||''):'—'}</td>
-                <td style="padding:5px 0 5px 8px;color:#666;font-size:12px">${p.category||''}</td>
-                <td style="padding:5px 0 5px 8px;font-size:12px">${p.expiry_date||''}</td>
-              </tr>`).join('');
-              const w=window.open('','_blank');
-              w.document.write('<!DOCTYPE html><html><head><title>Pantry</title><style>body{font-family:sans-serif;max-width:640px;margin:32px auto}h1{font-size:20px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:6px 0;border-bottom:2px solid #333;font-size:13px}td{vertical-align:top}@media print{button{display:none}}</style></head><body><h1>&#x1F9EB; Pantry &mdash; '+new Date().toLocaleDateString()+'</h1><table><thead><tr><th>Item</th><th>Qty</th><th>Category</th><th>Expiry</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>');
-              w.document.close();setTimeout(()=>w.print(),300);
-            }}>&#x1F5A8;&#xFE0F; Print Pantry List</button>
-          </div>}
+
           {!importResults
             ?<button className="btn-success" onClick={confirmSelections} disabled={!confirmed.length}>✓ Lock In & Import to Mealie</button>
             :<button className="btn-primary" onClick={loadShoppingList}>🛒 Generate Shopping List →</button>
@@ -825,7 +820,18 @@ const PlannerPage=({hid})=>{
             </p>
           )}
 
-          <div style={{marginTop:16,display:'flex',gap:8}}>
+          <div style={{marginTop:16,display:'flex',gap:8,flexWrap:'wrap'}}>
+            <button className="btn-secondary btn-sm" onClick={()=>{
+              const rows=(pantry||[]).map(p=>`<tr style="border-bottom:1px solid #eee">
+                <td style="padding:5px 0">${p.name||''}</td>
+                <td style="padding:5px 8px;text-align:right">${p.quantity!=null?String(p.quantity)+' '+(p.unit||''):'—'}</td>
+                <td style="padding:5px 0 5px 8px;color:#666;font-size:12px">${p.category||''}</td>
+                <td style="padding:5px 0 5px 8px;font-size:12px">${p.expiry_date||''}</td>
+              </tr>`).join('');
+              const w=window.open('','_blank');
+              w.document.write('<!DOCTYPE html><html><head><title>Pantry</title><style>body{font-family:sans-serif;max-width:640px;margin:32px auto}h1{font-size:20px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:6px 0;border-bottom:2px solid #333;font-size:13px}td{vertical-align:top}@media print{button,a{display:none}}</style></head><body><h1>&#x1F9EB; Pantry &mdash; '+new Date().toLocaleDateString()+'</h1><table><thead><tr><th>Item</th><th>Qty</th><th>Category</th><th>Expiry</th></tr></thead><tbody>'+rows+'</tbody></table><a onclick="window.close()" style="display:block;margin:32px auto 0;text-align:center;font-size:14px;color:#2563eb;cursor:pointer;text-decoration:underline">← Close print window</a></body></html>');
+              w.document.close();setTimeout(()=>w.print(),300);
+            }}>&#x1F5A8;&#xFE0F; Print Pantry List</button>
             <button className="btn-secondary" onClick={()=>{
               const sections=shoppingList.shopping_by_section||{};
               const pantryCheck=shoppingList.pantry_check||[];
@@ -1490,6 +1496,80 @@ const DatabasePage=()=>{
   );
 };
 
+const HistoryPage=({hid})=>{
+  const [weeks,setWeeks]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [adding,setAdding]=useState({});
+  const [added,setAdded]=useState({});
+  const toast=useToast();
+  const week=weekMonday();
+
+  useEffect(()=>{
+    setLoading(true);
+    get(`/meal-plan/history?household_id=${hid}`)
+      .then(d=>{setWeeks(d||[]);})
+      .catch(()=>toast('Could not load history','error'))
+      .finally(()=>setLoading(false));
+  },[hid]);
+
+  const addToWeek=async(recipe)=>{
+    setAdding(a=>({...a,[recipe.recipe_id]:true}));
+    try{
+      await post(`/meal-plan/history/add`,{
+        household_id:hid,
+        week_start_date:week,
+        recipe_ids:[recipe.recipe_id],
+      });
+      setAdded(a=>({...a,[recipe.recipe_id]:true}));
+      toast(`"${recipe.title}" added to this week`,'success');
+    }catch(e){toast(e.message,'error');}
+    finally{setAdding(a=>({...a,[recipe.recipe_id]:false}));}
+  };
+
+  return(
+    <div>
+      <div className="page-header">
+        <h1 className="page-title">📆 Past Meals</h1>
+        <p className="page-sub">Previously selected recipes — add any back to this week's plan</p>
+      </div>
+      {loading&&<div className="spinner"/>}
+      {!loading&&weeks.length===0&&(
+        <div className="card" style={{textAlign:'center',padding:48,color:'var(--gray)'}}>
+          <div style={{fontSize:48}}>📅</div>
+          <p style={{marginTop:12}}>No meal history yet — complete your first weekly plan to see past recipes here.</p>
+        </div>
+      )}
+      {weeks.map(w=>(
+        <div key={w.week_start_date} className="card" style={{marginBottom:16}}>
+          <h3 className="section-title" style={{marginBottom:12}}>
+            Week of {fmt(w.week_start_date)}
+          </h3>
+          {w.recipes.map(r=>(
+            <div key={r.recipe_id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:14}}>{r.title}</div>
+                <div style={{fontSize:12,color:'var(--gray)',marginTop:2}}>
+                  {r.total_time_minutes?`⏱ ${r.total_time_minutes} min · `:''}
+                  {r.mealie_slug&&<span className="badge badge-blue" style={{marginRight:4}}>In Mealie</span>}
+                  {r.source_url&&<a href={r.source_url} target="_blank" rel="noopener" style={{fontSize:11,color:'var(--gray)'}}>🔗 Source</a>}
+                </div>
+              </div>
+              {added[r.recipe_id]
+                ?<span className="badge badge-green">✓ Added to this week</span>
+                :<button className="btn-secondary btn-sm"
+                    disabled={adding[r.recipe_id]}
+                    onClick={()=>addToWeek(r)}>
+                    {adding[r.recipe_id]?'Adding…':'+ Add to this week'}
+                  </button>
+              }
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const App=()=>{
   const [page,setPage]=useState('planner');
   const [hid,setHid]=useState(()=>localStorage.getItem('householdId')||'');
@@ -1504,13 +1584,14 @@ const App=()=>{
   },[hid]);
   if(!hid||!valid)return<ToastProvider><HouseholdGate onSave={saveHid}/></ToastProvider>;
   const pageLabel=NAV.find(n=>n.key===page)?.label||'';
-  const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage/>};
+  const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,history:<HistoryPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage/>};
   return(
     <ToastProvider>
       <div className="topbar">
         <button className="hamburger" onClick={()=>setNavOpen(o=>!o)}>☰</button>
         <div className="topbar-title">🍽️ <span style={{color:'#60a5fa'}}>Recipe</span> Planner</div>
-        <span style={{fontSize:12,color:'#64748b'}}>{appVersion&&`${appVersion}`}</span>
+        {appVersion&&<a href="https://github.com/rgabrielson11/recipe-planner" target="_blank" rel="noopener"
+            style={{fontSize:12,color:'#93c5fd',textDecoration:'none'}}>{appVersion}</a>}
       </div>
       <Nav page={page} setPage={setPage} navOpen={navOpen} onClose={()=>setNavOpen(false)} version={appVersion}/>
       <main className="main" style={{flex:1,minWidth:0}}>
