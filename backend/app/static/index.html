@@ -781,6 +781,7 @@ const PantryPage=({hid})=>{
   const [form,setForm]=useState({name:'',quantity:'',unit:'',category:'',expiry_date:''});
   const [editId,setEditId]=useState(null);
   const [filter,setFilter]=useState('');
+  const [confirmDeleteId,setConfirmDeleteId]=useState(null);
   const toast=useToast();
   const load=()=>get(`/pantry?household_id=${hid}`).then(setItems).catch(()=>{});
   useEffect(()=>{load();},[hid]);
@@ -793,7 +794,7 @@ const PantryPage=({hid})=>{
     }catch(e){toast(e.message,'error');}
   };
   const startEdit=item=>{setEditId(item.id);setForm({name:item.name,quantity:item.quantity||'',unit:item.unit||'',category:item.category||'',expiry_date:item.expiry_date||''});};
-  const remove=async id=>{if(!confirm('Remove?'))return;try{await del(`/pantry/${id}`);load();toast('Removed');}catch(e){toast(e.message,'error');}};
+  const remove=async id=>{try{await del(`/pantry/${id}`);setConfirmDeleteId(null);load();toast('Removed');}catch(e){toast(e.message,'error');}};
   const today=new Date().toISOString().split('T')[0];
   const filtered=items.filter(i=>i.name.toLowerCase().includes(filter.toLowerCase()));
   return(
@@ -830,7 +831,16 @@ const PantryPage=({hid})=>{
             return(<tr key={item.id} style={{background:exp?'#fef2f2':soon?'#fffbeb':''}}>
               <td style={{fontWeight:500}}>{item.name}</td><td>{item.quantity||'—'}</td><td>{item.unit||'—'}</td><td>{item.category||'—'}</td>
               <td>{item.expiry_date?<span className={`badge badge-${exp?'red':soon?'amber':'green'}`}>{exp?'⚠️ ':soon?'⏰ ':''}{fmt(item.expiry_date)}</span>:'—'}</td>
-              <td><button className="btn-icon" onClick={()=>startEdit(item)}>✏️</button><button className="btn-icon" onClick={()=>remove(item.id)}>🗑️</button></td>
+              <td>
+                <button className="btn-icon" onClick={()=>{setConfirmDeleteId(null);startEdit(item);}}>✏️</button>
+                {confirmDeleteId===item.id
+                  ?<span style={{display:'inline-flex',alignItems:'center',gap:4}}>
+                      <button className="btn-danger btn-sm" onClick={()=>remove(item.id)}>Yes, delete</button>
+                      <button className="btn-secondary btn-sm" onClick={()=>setConfirmDeleteId(null)}>Cancel</button>
+                    </span>
+                  :<button className="btn-icon" onClick={()=>setConfirmDeleteId(item.id)}>🗑️</button>
+                }
+              </td>
             </tr>);
           })}
           {filtered.length===0&&<tr><td colSpan={6} style={{textAlign:'center',color:'var(--gray)',padding:32}}>No items</td></tr>}

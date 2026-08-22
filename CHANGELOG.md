@@ -1,5 +1,19 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 27: pantry delete inline confirmation
+
+### Bug fix
+
+**Pantry delete button now works reliably**
+
+The delete button used `window.confirm()` which is silently blocked or
+returns `undefined` in many browser/iframe contexts — causing the delete
+to never execute. Replaced with an inline two-step confirmation in the
+table row: clicking 🗑️ reveals **Yes, delete** and **Cancel** buttons
+in-place. No dialog dependency, no blocking.
+
+---
+
 ## Phase 10 — Patch 26: strip parenthetical units from ingredients
 
 ### Bug fix
