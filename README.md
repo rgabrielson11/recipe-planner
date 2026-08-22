@@ -3,7 +3,8 @@
 Self-hosted household dinner meal planner for a family of 4. Plans weekly dinners using on-hand pantry ingredients, minimises food waste, and builds a personalised recipe catalog that improves every week through a favourites and rejection feedback loop.
 
 **Runs on:** `http://<unraid-ip>:8111`  
-**API docs:** `http://<unraid-ip>:8111/docs`
+**API docs:** `http://<unraid-ip>:8111/docs`  
+**Mobile:** fully responsive — hamburger drawer nav on screens ≤ 639 px
 
 ---
 
@@ -14,7 +15,7 @@ Self-hosted household dinner meal planner for a family of 4. Plans weekly dinner
 | Backend | Python / FastAPI |
 | Database | SQLite (WAL mode) |
 | Recipe storage | Self-hosted [Mealie](https://mealie.io) |
-| Recipe discovery | HelloFresh A–Z directory + Home Chef category pages + Marley Spoon weekly menus |
+| Recipe discovery | HelloFresh A–Z directory + Home Chef category pages + Marley Spoon weekly menus (dynamic) |
 | Shopping list push | [Bring!](https://www.getbring.com) (optional) |
 | Frontend | React SPA (single HTML file, served by FastAPI) |
 | Deployment | Docker on Unraid, port `8111` |

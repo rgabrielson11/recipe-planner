@@ -1,5 +1,24 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 34: fix mobile layout — missing state declarations
+
+### Bug fix
+
+The mobile layout patch (Patch 33) was applied from an incomplete patch
+file. The deployed commit was missing three pieces:
+
+- `const [navOpen,setNavOpen]=useState(false)` — App state for tracking
+  whether the drawer is open
+- `const pageLabel=NAV.find(n=>n.key===page)?.label||''` — current page
+  label shown in the mobile top bar
+- `Nav` component signature updated from `({page,setPage})` to
+  `({page,setPage,navOpen,onClose})` with the overlay `<div>` and
+  `nav-open` class toggling
+
+Without these the app crashed on load on both desktop and mobile.
+
+---
+
 ## Phase 10 — Patch 33: mobile-responsive layout
 
 ### New feature
