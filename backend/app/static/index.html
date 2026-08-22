@@ -312,6 +312,7 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,confirmed,rejected,hid,prefs
   const [open,setOpen]=useState(false);
   const [rejReason,setRejReason]=useState('');
   const [showFeedback,setShowFeedback]=useState(false);
+  const [activeIngPop,setActiveIngPop]=useState(null);  // ingredient string with popup open
   const isConf=confirmed.includes(r.recipe_id);
   const isRej=rejected.includes(r.recipe_id);
   const effectiveReason=rejReason||(rejectionReasons[0]?.key||'');
@@ -326,7 +327,7 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,confirmed,rejected,hid,prefs
 
   return(
     <>
-    <div className="recipe-card" style={{opacity:isRej?.5:1}}>
+    <div className="recipe-card" style={{opacity:isRej?.5:1}} onClick={()=>setActiveIngPop(null)}>
       <div className="recipe-card-hdr" onClick={()=>setOpen(o=>!o)}
         style={{background:isConf?'#f0fdf4':isRej?'#fef2f2':''}}>
         <div style={{flex:1}}>
@@ -385,18 +386,66 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,confirmed,rejected,hid,prefs
           </div>
           {(r.missing_ingredients||[]).length>0&&<>
             <p style={{fontSize:13,fontWeight:600,marginBottom:4}}>🛒 Need to buy ({r.missing_ingredients.length})</p>
-            <p style={{fontSize:11,color:'var(--gray)',marginBottom:6}}>Tap an ingredient to add it to pantry staples</p>
-            <div style={{marginBottom:10}}>{r.missing_ingredients.map((ing,i)=>(
-              <span key={i} className="ing-pill ing-need" title="Add to pantry staples"
-                style={{cursor:'pointer',transition:'opacity .15s'}}
-                onClick={async()=>{
-                  try{
-                    await post('/pantry/staples',{name:ing});
-                    toast(`✓ '${ing}' added to pantry staples`);
-                  }catch(e){toast(e.message,'error');}
-                }}
-              >{ing} +</span>
-            ))}</div>
+            <p style={{fontSize:11,color:'var(--gray)',marginBottom:6}}>Tap an ingredient to add it to your lists</p>
+            <div style={{marginBottom:10}}>
+              {r.missing_ingredients.map((ing,i)=>(
+                <span key={i} style={{position:'relative',display:'inline-block',margin:'2px'}}>
+                  <span className="ing-pill ing-need"
+                    style={{cursor:'pointer'}}
+                    title="Click to add to a list"
+                    onClick={e=>{e.stopPropagation();setActiveIngPop(activeIngPop===ing?null:ing);}}
+                  >{ing} ▾</span>
+                  {activeIngPop===ing&&(
+                    <div style={{position:'absolute',top:'100%',left:0,zIndex:100,background:'var(--bg-card)',
+                      border:'1px solid var(--border)',borderRadius:8,boxShadow:'0 4px 16px rgba(0,0,0,.12)',
+                      minWidth:210,padding:'4px 0',marginTop:4}}
+                      onClick={e=>e.stopPropagation()}>
+                      <div style={{padding:'6px 14px 4px',fontSize:11,color:'var(--gray)',fontWeight:600,borderBottom:'1px solid var(--border)',marginBottom:4}}>
+                        Add "{ing}" to…
+                      </div>
+                      <button style={{display:'block',width:'100%',textAlign:'left',padding:'8px 14px',background:'none',border:'none',cursor:'pointer',fontSize:13}}
+                        onClick={async()=>{
+                          try{await post('/pantry/staples',{name:ing});toast(`📌 '${ing}' added to pantry staples`);}
+                          catch(e){toast(e.message,'error');}
+                          setActiveIngPop(null);
+                        }}>
+                        📌 Pantry staple <span style={{fontSize:11,color:'var(--gray)'}}>— assume always on hand</span>
+                      </button>
+                      <button style={{display:'block',width:'100%',textAlign:'left',padding:'8px 14px',background:'none',border:'none',cursor:'pointer',fontSize:13}}
+                        onClick={async()=>{
+                          if(!prefs||!hid){toast('Preferences not loaded','error');return;}
+                          const cur=prefs.excluded_items||[];
+                          if(!cur.includes(ing)){
+                            const next={...prefs,excluded_items:[...cur,ing]};
+                            try{await put(`/preferences/${hid}`,next);toast(`🚫 '${ing}' added to excluded list — will never be suggested`);}
+                            catch(e){toast(e.message,'error');}
+                          }else{toast(`'${ing}' is already excluded`,'warning');}
+                          setActiveIngPop(null);
+                        }}>
+                        🚫 Never suggest <span style={{fontSize:11,color:'var(--gray)'}}>— hard exclude from all recipes</span>
+                      </button>
+                      <button style={{display:'block',width:'100%',textAlign:'left',padding:'8px 14px',background:'none',border:'none',cursor:'pointer',fontSize:13}}
+                        onClick={async()=>{
+                          if(!prefs||!hid){toast('Preferences not loaded','error');return;}
+                          const cur=prefs.disliked_items||[];
+                          if(!cur.includes(ing)){
+                            const next={...prefs,disliked_items:[...cur,ing]};
+                            try{await put(`/preferences/${hid}`,next);toast(`👎 '${ing}' added to disliked list — recipes penalised`);}
+                            catch(e){toast(e.message,'error');}
+                          }else{toast(`'${ing}' is already disliked`,'warning');}
+                          setActiveIngPop(null);
+                        }}>
+                        👎 Soft dislike <span style={{fontSize:11,color:'var(--gray)'}}>— deprioritise, don't hard filter</span>
+                      </button>
+                      <button style={{display:'block',width:'100%',textAlign:'left',padding:'8px 14px',background:'none',border:'none',cursor:'pointer',fontSize:13,color:'var(--gray)'}}
+                        onClick={()=>setActiveIngPop(null)}>
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </span>
+              ))}
+            </div>
           </>}
           {r.pantry_overlap_pct>0&&<p style={{fontSize:12,color:'var(--green)',marginBottom:10}}>✓ {r.pantry_overlap_pct}% of ingredients already on hand</p>}
           {!isConf&&!isRej&&<div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:6}}>
