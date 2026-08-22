@@ -158,15 +158,18 @@ const NAV=[
   {key:'sources',icon:'🌐',label:'Recipe Sources'},{key:'keywords',icon:'🔍',label:'Dinner Filter'},
   {section:'Tools'},{key:'rejections',icon:'🚫',label:'Rejections'},{key:'logs',icon:'📋',label:'Logs'},{key:'database',icon:'🗄️',label:'Database'},
 ];
-const Nav=({page,setPage})=>(
-  <nav className="nav">
-    <div className="nav-logo">🍽️ <span>Recipe</span> Planner</div>
-    {NAV.map((item,i)=>item.section
-      ?<div key={i} className="nav-section">{item.section}</div>
-      :<div key={item.key} className={`nav-item${page===item.key?' active':''}`} onClick={()=>setPage(item.key)}>
-        <span className="icon">{item.icon}</span>{item.label}
-      </div>)}
-  </nav>
+const Nav=({page,setPage,navOpen,onClose})=>(
+  <>
+    <div className={`nav-overlay${navOpen?' nav-open':''}`} onClick={onClose}/>
+    <nav className={`nav${navOpen?' nav-open':''}`}>
+      <div className="nav-logo">🍽️ <span>Recipe</span> Planner</div>
+      {NAV.map((item,i)=>item.section
+        ?<div key={i} className="nav-section">{item.section}</div>
+        :<div key={item.key} className={`nav-item${page===item.key?' active':''}`} onClick={()=>{setPage(item.key);onClose();}}>
+          <span className="icon">{item.icon}</span>{item.label}
+        </div>)}
+    </nav>
+  </>
 );
 
 // ── Household gate ────────────────────────────────────────────────────────────
@@ -1489,12 +1492,14 @@ const App=()=>{
   const [page,setPage]=useState('planner');
   const [hid,setHid]=useState(()=>localStorage.getItem('householdId')||'');
   const [valid,setValid]=useState(false);
+  const [navOpen,setNavOpen]=useState(false);
   const saveHid=id=>{localStorage.setItem('householdId',id);setHid(id);};
   useEffect(()=>{
     if(!hid){setValid(false);return;}
     get(`/households/${hid}`).then(()=>setValid(true)).catch(()=>{setValid(false);saveHid('');});
   },[hid]);
   if(!hid||!valid)return<ToastProvider><HouseholdGate onSave={saveHid}/></ToastProvider>;
+  const pageLabel=NAV.find(n=>n.key===page)?.label||'';
   const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage/>};
   return(
     <ToastProvider>
