@@ -558,6 +558,7 @@ def collect_and_scrape(
     budget: Optional[int] = None,
     progress_household: Optional[str] = None,
     wait_for_lock: bool = True,
+    source_name: Optional[str] = None,
 ) -> dict:
     """
     The crawl + scrape half of discovery — no scoring, no household context.
@@ -566,6 +567,10 @@ def collect_and_scrape(
     stubs, scrapes new URLs, and stores everything in the DB cache.  Called
     nightly by scrape_job.py and synchronously by discover_and_score() when
     the cache is cold.
+
+    Pass source_name to restrict the HTML crawl phase to a single named
+    source (used by the per-source manual scrape button).  Stub refresh and
+    new-URL scraping still run normally within the budget.
 
     Returns a stats dict for the /config/scrape-status endpoint.
     """
@@ -581,7 +586,17 @@ def collect_and_scrape(
     t0 = time.perf_counter()
     try:
         cfg           = config_files.get_discovery_config()
-        sources       = config_files.get_enabled_sources()
+        all_sources = config_files.get_enabled_sources()
+        # Per-source scrape: restrict HTML crawl to the named source only.
+        # Stub refresh and new-URL scraping still run within the budget.
+        if source_name:
+            sources = [s for s in all_sources if s.get("name") == source_name]
+            if not sources:
+                log.warning("collect_and_scrape: source '%s' not found or disabled", source_name)
+                return {"error": f"Source '{source_name}' not found or disabled"}
+            log.info("Per-source scrape: restricting HTML crawl to '%s'", source_name)
+        else:
+            sources = all_sources
         delay         = float(cfg.get("request_delay_seconds", 2.0))
         user_agent    = str(cfg.get("user_agent", "RecipePlanner/1.0"))
         max_scrape    = int(budget if budget is not None else cfg.get("max_scraped_per_run", 40))

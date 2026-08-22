@@ -7,7 +7,9 @@ All writes use ruamel.yaml round-trip mode so comments are preserved.
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.database import get_db
 from pydantic import BaseModel
 
 from app import config_files
@@ -207,9 +209,8 @@ def scrape_status():
 @router.post("/scrape-now", status_code=202)
 def scrape_now():
     """
-    Manually trigger a background scrape (fire-and-forget).  Skips with a
-    logged message if a scrape is already running.  Poll /config/scrape-status
-    for the result.
+    Manually trigger a full background scrape (fire-and-forget).
+    Poll /config/scrape-status for the result.
     """
     import threading
     from app import scrape_job
@@ -219,3 +220,37 @@ def scrape_now():
         daemon=True,
     ).start()
     return {"started": True}
+
+
+@router.post("/sources/{name}/scrape", status_code=202)
+def scrape_source(name: str, db: Session = Depends(get_db)):
+    """
+    Manually trigger a scrape restricted to a single named source.
+    Runs in a background thread; poll /config/scrape-status for the result.
+    """
+    import threading
+    from app import recipe_discovery
+
+    # Verify source exists before firing the thread
+    sources = config_files.get_recipe_sources().get("sources", [])
+    match = next((s for s in sources if s.get("name") == name), None)
+    if not match:
+        raise HTTPException(status_code=404, detail=f"Source '{name}' not found")
+    if not match.get("enabled", True):
+        raise HTTPException(status_code=400, detail=f"Source '{name}' is disabled")
+
+    def _run():
+        from app.database import SessionLocal
+        with SessionLocal() as _db:
+            cfg = config_files.get_discovery_config()
+            budget = int(cfg.get("background_max_scraped", 60))
+            recipe_discovery.collect_and_scrape(
+                _db,
+                budget=budget,
+                source_name=name,
+                wait_for_lock=False,
+            )
+
+    threading.Thread(target=_run, daemon=True).start()
+    log.info("Per-source manual scrape triggered for '%s'", name)
+    return {"started": True, "source": name}
