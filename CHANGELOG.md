@@ -1,5 +1,32 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 33: mobile-responsive layout
+
+### New feature
+
+**Full mobile support — hamburger drawer navigation**
+
+On screens ≤ 639 px wide:
+- The sidebar hides off-screen (`transform: translateX(-100%)`)
+- A dark top bar appears with a ☰ hamburger button, the app name, and
+  the current page label
+- Tapping ☰ slides the nav in as a drawer overlay; tapping the overlay
+  or any nav item closes it
+- `.main` expands to full width (`margin-left: 0`, reduced padding)
+
+Responsive grid fixes applied via `@media(max-width:639px)`:
+- `.form-row` and `.grid2` collapse to single column
+- `.table` uses smaller padding and font size
+- `.card` padding reduced; `.step` bar text shrinks
+- `.modal` caps at 95 vw
+
+`Nav` component updated to accept `navOpen` and `onClose` props and
+render the overlay `<div>` alongside the `<nav>`.
+`App` gains `navOpen` state, `pageLabel` for the top bar, and passes
+both to `Nav`.
+
+---
+
 ## Phase 10 — Patch 32: household delete on Database page
 
 ### New feature
