@@ -1317,7 +1317,30 @@ const DatabasePage=()=>{
   const [showConfirm,setShowConfirm]=useState(false);
   const [stats,setStats]=useState(null);
   const [statsLoading,setStatsLoading]=useState(true);
+  const [households,setHouseholds]=useState([]);
+  const [confirmDeleteHid,setConfirmDeleteHid]=useState(null);
   const toast=useToast();
+
+  const loadHouseholds=async()=>{
+    try{const h=await get('/households');setHouseholds(h||[]);}
+    catch(e){}
+  };
+  useEffect(()=>{loadHouseholds();},[]);
+
+  const deleteHousehold=async id=>{
+    try{
+      await del(`/households/${id}`);
+      setConfirmDeleteHid(null);
+      toast('Household deleted');
+      loadHouseholds();
+      // If the deleted household is the active one, clear localStorage so the
+      // gate re-appears and the user can pick or create another.
+      if(localStorage.getItem('householdId')===id){
+        localStorage.removeItem('householdId');
+        window.location.reload();
+      }
+    }catch(e){toast(e.message,'error');}
+  };
 
   const loadStats=async()=>{
     setStatsLoading(true);
@@ -1412,6 +1435,33 @@ const DatabasePage=()=>{
           ✅ {result.message}
         </div>}
       </div>
+
+      {/* Household Management */}
+      <div className="card" style={{marginTop:16,borderLeft:'4px solid #6366f1'}}>
+        <h3 className="section-title">🏠 Households</h3>
+        {households.length===0&&<p style={{fontSize:13,color:'var(--gray)'}}>No households found.</p>}
+        {households.map(hh=>(
+          <div key={hh.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:600,fontSize:14}}>{hh.name}</div>
+              <div style={{fontSize:12,color:'var(--gray)'}}>{hh.num_people} people · ID: {hh.id.slice(0,8)}…</div>
+            </div>
+            {confirmDeleteHid===hh.id
+              ?<span style={{display:'inline-flex',gap:6,alignItems:'center'}}>
+                  <span style={{fontSize:13,color:'#b91c1c',fontWeight:500}}>Delete all data?</span>
+                  <button className="btn-danger btn-sm" onClick={()=>deleteHousehold(hh.id)}>Yes, delete</button>
+                  <button className="btn-secondary btn-sm" onClick={()=>setConfirmDeleteHid(null)}>Cancel</button>
+                </span>
+              :<button className="btn-icon" onClick={()=>setConfirmDeleteHid(hh.id)} title="Delete household and all its data">🗑️</button>
+            }
+          </div>
+        ))}
+        <p style={{fontSize:12,color:'var(--gray)',marginTop:10}}>
+          ⚠️ Deleting a household permanently removes its pantry, preferences, selections, and meal plan history.
+          Recipe stubs in the shared cache are unaffected.
+        </p>
+      </div>
+
     </div>
   );
 };

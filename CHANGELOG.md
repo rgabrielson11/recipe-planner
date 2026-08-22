@@ -1,5 +1,28 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 32: household delete on Database page
+
+### New feature
+
+**🏠 Households section on the Database page**
+
+Lists all households with name, people count, and ID. Each row has a 🗑️
+button that expands inline to a "Delete all data?" / Cancel confirmation
+before calling `DELETE /households/{id}`.
+
+Deleting a household removes its pantry items, preferences, weekly
+selections, intents, and meal plan history (all cascade via FK). The
+shared recipe stub cache is unaffected.
+
+If the deleted household is the currently active one (matches
+`localStorage.householdId`), the entry is cleared and the page reloads
+so the household gate re-appears for a fresh selection or creation.
+
+The `DELETE /households/{household_id}` endpoint already existed in the
+backend — this patch adds the UI only.
+
+---
+
 ## Phase 10 — Patch 31: Marley Spoon source + dynamic week URLs
 
 ### New features
