@@ -1,5 +1,121 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 24: ingredient pill click fix
+
+### Bug fix
+
+**Ingredient pills now open and close correctly on a single click**
+
+`onMouseDown` was firing on initial press, making it feel like the popup
+only appeared while holding. Switched back to `onClick` on all pill buttons.
+The expanded pill container now has its own `onClick={e=>e.stopPropagation()}`
+so clicks on any action button never bubble up to the card's close handler.
+
+---
+
+## Phase 10 — Patch 23: ingredient pill popup — close + recipe removal
+
+### Bug fix
+
+After selecting an action from the ingredient pill popup, the popup was
+staying visible. Fixed by calling `setActiveIngPop(null)` before awaiting
+the API call in every action handler.
+
+**Exclude / Dislike now removes the recipe from the suggestion list
+immediately** via a new `onRemove` prop passed from `PlannerPage`:
+`onRemove={id=>setSug(s=>s.filter(x=>x.recipe_id!==id))}`. No page
+refresh required — the card disappears as soon as the preference is saved.
+
+---
+
+## Phase 10 — Patch 22: ingredient pill inline horizontal options
+
+### Changed
+
+Replaced the dropdown popup (hidden by card overflow) with an inline
+horizontal expansion. Clicking a pill now replaces it in-place with a
+yellow bar showing three colour-coded action buttons on the same line:
+📌 Staple (green) · 🚫 Exclude (red) · 👎 Dislike (amber) · ✕ dismiss.
+
+---
+
+## Phase 10 — Patch 21: ingredient pill — add to staples / exclude / dislike
+
+### New feature
+
+Clicking any red "Need to buy" ingredient pill now opens an inline option
+bar. Three actions available:
+
+- **📌 Pantry staple** — `POST /pantry/staples`; ingredient assumed always
+  on hand, excluded from future shopping lists
+- **🚫 Never suggest** — appends to `prefs.excluded_items`; hard filter,
+  recipe never shown again
+- **👎 Soft dislike** — appends to `prefs.disliked_items`; −15 pts
+  scoring penalty, recipe deprioritised but not hidden
+
+---
+
+## Phase 10 — Patch 20: ruamel YAML separator fix
+
+### Bug fix
+
+`recipe_sources.yaml` was triggering two ruamel warnings on every load:
+- "expected a single document in the stream" — ruamel was writing a `---`
+  document separator on round-trip saves then failing to re-read it
+- "string index out of range" — a separate ruamel round-trip bug
+
+Fixed in `config_files.py`:
+- `_yaml.explicit_start = False` — prevents ruamel from ever writing `---`
+- `_yaml.load_all(f)` takes only the first document, silently tolerating
+  existing files that already have the stray separator
+
+---
+
+## Phase 10 — Patch 19: Database page — recipe cache stats + wipe
+
+### New features
+
+**🗄️ Database page** added to the Tools nav section.
+
+**📊 Recipe Cache stats panel** — loads on page open; shows three summary
+tiles (Total stubs / Mealie-linked / Rejections) and a breakdown table of
+stub counts grouped by source domain with percentage share. Refreshes
+automatically after a wipe.
+
+**🧹 Wipe Recipe Cache** — two-step confirmation (click → red confirm box
+→ confirm) calls `DELETE /config/recipe-cache`. Deletes all unconfirmed
+stubs (`mealie_slug IS NULL`) and all rejection records; leaves preferences,
+pantry, meal plan history, and Mealie-linked recipes untouched. Reports
+counts in a green success banner and auto-refreshes the stats.
+
+New endpoints: `GET /config/recipe-stats`, `DELETE /config/recipe-cache`.
+
+---
+
+## Phase 10 — Patch 18: print recipe shows full instructions
+
+### Bug fix
+
+The print view was showing ingredients only — instructions were always
+empty for unconfirmed recipe stubs because:
+1. `_scrape_recipe()` never called `scraper.instructions_list()`
+2. No `scraped_instructions_json` column existed on the `Recipe` model
+3. `get_print_data` only fetched instructions from Mealie (unavailable
+   for unconfirmed stubs)
+
+Fixed:
+- `recipe_discovery.py` — `_scrape_recipe()` now calls
+  `scraper.instructions_list()` with a newline-split fallback;
+  `_update_row_from_detail()` stores steps to `scraped_instructions_json`
+- `models.py` — new `scraped_instructions_json TEXT` column
+- `database.py` — migration for the new column (auto-applied on startup)
+- `routers/recipes.py` — `get_print_data` loads `scraped_instructions_json`
+  as the baseline; Mealie instructions still override when available
+
+Existing stubs will gain instructions after the next nightly re-scrape.
+
+---
+
 ## Phase 10 — Patch 17: UNIQUE constraint hardening + Home Chef source
 
 ### Bug fixes
