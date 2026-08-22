@@ -48,10 +48,14 @@ def load_yaml(filename: str) -> Any:
     Falls back to PyYAML safe_load if ruamel raises a non-YAML exception —
     this guards against ruamel round-trip bugs ('string index out of range', etc.)
     while still allowing ruamel to write comments on save.
+
+    Always returns a dict (never None) so callers can safely call .get() on
+    the result.  An empty or null YAML file returns {}.
     """
+    result = None
     try:
         with open(_path(filename)) as f:
-            return _yaml.load(f)
+            result = _yaml.load(f)
     except Exception as ruamel_err:
         # ruamel.yaml can raise bare Python exceptions (IndexError, etc.) on
         # certain YAML constructs it wrote itself. Fall back to PyYAML which
@@ -62,7 +66,11 @@ def load_yaml(filename: str) -> Any:
             filename, ruamel_err,
         )
         with open(_path(filename)) as f:
-            return _pyyaml.safe_load(f)
+            result = _pyyaml.safe_load(f)
+    if result is None:
+        log.warning("load_yaml: %s parsed as None (empty file?) — returning {}", filename)
+        return {}
+    return result
 
 
 def save_yaml(filename: str, data: Any) -> None:
