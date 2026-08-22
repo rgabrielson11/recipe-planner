@@ -303,3 +303,43 @@ def wipe_recipe_cache(db: Session = Depends(get_db)):
             f"rejection record(s). Mealie-linked recipes are untouched."
         ),
     }
+
+
+@router.get("/recipe-stats")
+def get_recipe_stats(db: Session = Depends(get_db)):
+    """
+    Returns recipe stub counts grouped by source domain, plus totals for
+    Mealie-linked recipes and rejection records.  Used by the Database page.
+    """
+    from urllib.parse import urlparse
+    from collections import defaultdict
+
+    stubs = db.query(models.Recipe).filter(
+        models.Recipe.mealie_slug.is_(None),
+        models.Recipe.source_url.isnot(None),
+    ).all()
+
+    by_source: dict[str, int] = defaultdict(int)
+    for stub in stubs:
+        url = stub.source_url or ""
+        if url.startswith("mealie:"):
+            host = "mealie (local)"
+        else:
+            try:
+                host = urlparse(url).netloc.lstrip("www.") or "unknown"
+            except Exception:
+                host = "unknown"
+        by_source[host] += 1
+
+    mealie_linked = db.query(models.Recipe).filter(
+        models.Recipe.mealie_slug.isnot(None)
+    ).count()
+
+    rejection_count = db.query(models.RecipeRejection).count()
+
+    return {
+        "stubs_by_source":  dict(sorted(by_source.items(), key=lambda x: -x[1])),
+        "total_stubs":      len(stubs),
+        "mealie_linked":    mealie_linked,
+        "total_rejections": rejection_count,
+    }
