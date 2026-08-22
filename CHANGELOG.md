@@ -1,5 +1,26 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 42: fix shopping list "as needed" quantities
+
+### Bug fix
+
+Shopping list items showing "as needed" instead of quantities.
+
+Root cause: when Mealie imports a recipe from URL and the scraper cannot
+parse the structured ingredient format, it stores `quantity: null` on the
+ingredient row. The shopping list extractor treated null as 0, which
+`_round_to_package` converted to `None`, producing "as needed" in the UI.
+
+Fix: `_extract_ingredients` now falls back to parsing the `note` field
+(the raw ingredient string Mealie always stores) when `quantity` is null.
+The fallback regex extracts a leading number (including fractions like
+½, 1/2) and a unit keyword (cups, tbsp, tsp, oz, g, cloves, etc.) from
+strings like `"2 cups flour"`, `"1/2 tsp salt"`, `"3 cloves garlic"`.
+Ingredients with genuinely no quantity (e.g. `"salt and pepper"`) still
+correctly show "as needed".
+
+---
+
 ## Phase 10 — Patch 41: fix missing close button on print windows
 
 ### Bug fix

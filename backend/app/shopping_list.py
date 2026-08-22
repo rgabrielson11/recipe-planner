@@ -154,6 +154,34 @@ def _extract_ingredients(detail: dict) -> list[dict]:
             else str(unit_raw) if unit_raw
             else None
         )
+        # Fallback: when Mealie stores qty=null (URL scraper didn't parse structure),
+        # try to extract quantity and unit from the raw note field.
+        # e.g. note="2 cups flour" → qty=2.0, unit="cups"
+        if qty is None:
+            note = str(ing.get("note", "") or "").strip()
+            if note:
+                m_qty = re.match(r"^\s*([\d½¼¾⅓⅔⅛]+(?:[\./][\d]+)?)", note)
+                if m_qty:
+                    try:
+                        raw_q = m_qty.group(1)
+                        if "/" in raw_q:
+                            num, den = raw_q.split("/", 1)
+                            qty = float(num) / float(den)
+                        else:
+                            qty = float(raw_q)
+                    except (ValueError, ZeroDivisionError):
+                        qty = None
+                    # Try to also extract unit from note when structured unit is missing
+                    if unit is None and qty is not None:
+                        after_qty = note[m_qty.end():].strip()
+                        m_unit = re.match(
+                            r"^(cups?|tbsp|tablespoons?|tsp|teaspoons?|lbs?|oz|g|kg|ml|l|"
+                            r"ounces?|pounds?|grams?|cloves?|heads?|bunches?|slices?|"
+                            r"pieces?|cans?|packages?|pinch(?:es)?|dash(?:es)?)",
+                            after_qty, re.IGNORECASE,
+                        )
+                        if m_unit:
+                            unit = m_unit.group(1)
         ingredients.append({
             "name":     name.lower(),
             "quantity": qty,
