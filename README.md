@@ -1,215 +1,209 @@
 # Recipe Planner
 
-Professional household dinner meal planner for a family of 4.
-
-**Mission:** plan dinner meals using a combination of on-hand ingredients and
-weekly shopping trips — minimising food waste, sourcing recipes from credible
-sites via Mealie, and building a personalised dinner catalog that improves
-every week through a favorites and rejection feedback loop.
+Self-hosted household dinner meal planner for a family of 4. Plans weekly dinners using on-hand pantry ingredients, minimises food waste, and builds a personalised recipe catalog that improves every week through a favourites and rejection feedback loop.
 
 **Runs on:** `http://<unraid-ip>:8111`  
-**Interactive docs:** `http://<unraid-ip>:8111/docs`  
-**Weekly workflow reference:** `GET /workflow`
+**API docs:** `http://<unraid-ip>:8111/docs`
 
 ---
 
-## Status
+## Architecture
 
-| Phase | Description | Status |
-|---|---|---|
-| 1 | Data models + pantry CRUD | ✅ |
-| 2 | Mealie recipe import + local reference rows | ✅ |
-| 3 | Matching engine — flat ranked suggestions | ✅ |
-| 4 | Weekly intent, selections, two-tier rejection | ✅ |
-| 5 | Shopping list generation (pantry-first, package rounding) | ✅ |
-| — | Apple Reminders export | ⬜ |
-| — | PDF shopping list / recipe export | ⬜ |
-| — | Curated-site allowlist for bulk recipe discovery | ⬜ |
+| Layer | Technology |
+|---|---|
+| Backend | Python / FastAPI |
+| Database | SQLite (WAL mode) |
+| Recipe storage | Self-hosted [Mealie](https://mealie.io) |
+| Recipe discovery | HelloFresh A–Z directory + Home Chef category pages |
+| Shopping list push | [Bring!](https://www.getbring.com) (optional) |
+| Frontend | React SPA (single HTML file, served by FastAPI) |
+| Deployment | Docker on Unraid, port `8111` |
 
 ---
 
-## Weekly planning workflow
+## How it works
+
+### Recipe discovery
+
+Recipes come from two sources:
+
+**HelloFresh** — A–Z recipe directory pages (`/pages/sitemap/recipes-a` … `z`). Individual recipe URLs end in a 24-char hex ID which the engine uses to distinguish real recipes from hub/category pages.
+
+**Home Chef** — Dinner-focused category pages (`/recipes/chicken`, `/recipes/beef`, `/recipes/pork`, `/recipes/seafood`, etc. — 32 pages across 13 categories). Individual meals live at `/meals/{slug}`.
+
+A **nightly background scraper** (`scrape_job.py`) runs at 3 AM (configurable) to keep the recipe cache warm. When you hit "Generate Suggestions" the engine scores from the cache — no network wait. The first run after deploy triggers a one-time synchronous scrape.
+
+A **non-dinner keyword filter** screens candidate URLs by slug before scraping — pancakes, cheesecakes, smoothies, and similar non-dinner content never waste scrape budget. Edit `non_dinner_title_keywords` in `recipe_sources.yaml` to tune.
+
+### Suggestion engine
+
+Two recipe pools are combined every week:
+
+**Pool A — Mealie proven favourites** (default 2 slots)  
+Recipes in your Mealie library rated ≥ `mealie_min_rating` (default 4★). Tagged with `dinner-planner` get a +10 soft boost; all high-rated recipes are still eligible regardless of tag.
+
+**Pool B — Discovered recipes** (fills remaining slots)  
+Scraped from HelloFresh and Home Chef, scored against your current pantry, and ranked. These are imported to Mealie automatically when you confirm selections.
+
+### Weekly workflow
 
 ```
-STEP 1 — Review pantry
-  GET /meal-plan/pantry-review/{household_id}
-  → Categorised on-hand snapshot with expiry flags.
-    Update via PATCH /pantry/{item_id} and POST /pantry.
-
-STEP 2 — Set this week's intent
-  POST /meal-plan/week-intent/{household_id}/{week_start_date}
-  {
-    "ingredient_hints":  ["chicken thighs", "salmon", "bbq"],
-    "num_suggestions":   10,
-    "pantry_snapshot_notes": "salmon in freezer, half bag of rice"
-  }
-  → num_suggestions varies week to week.
-    Hints boost matched recipe scores (+15 pts each, max +45).
-
-STEP 3 — Get suggestions
-  GET /meal-plan/suggest?household_id=...&week_start_date=...
-  → Flat ranked list of N recipes. Each shows: score, pantry_overlap_pct,
-    missing_ingredients, total_time_minutes, is_favorite.
-
-STEP 4 — Handle the ones you're skipping (optional but valuable)
-  POST /recipes/{recipe_id}/reject
-  { "household_id": "...", "reason_category": "not_this_week" }
-
-  Two tiers of rejection:
-  ┌──────────────────────────────┬───────────────────────────────────────────┐
-  │ PERMANENT (never resurface)  │ dislike, disliked_ingredient, allergy,    │
-  │                              │ cook_method_unavailable, cookware_unavail  │
-  ├──────────────────────────────┼───────────────────────────────────────────┤
-  │ TEMPORARY (suppress N weeks) │ not_this_week (2 wks)                     │
-  │                              │ already_made_recently (3 wks)             │
-  │                              │ too_time_consuming (2 wks)                │
-  │                              │ too_expensive (2 wks)                     │
-  │                              │ too_complex (2 wks)                       │
-  │                              │ missing_key_ingredient (2 wks)            │
-  │                              │ other (1 wk)                              │
-  └──────────────────────────────┴───────────────────────────────────────────┘
-  Temporary rejections resurface automatically — the catalog keeps growing.
-  GET /recipes/rejection-reasons for the full list with suppress_weeks.
-
-STEP 5 — Lock in your selections
-  POST /meal-plan/selections
-  {
-    "household_id":    "...",
-    "week_start_date": "2026-06-23",
-    "recipe_ids":      ["id-a", "id-b", "id-c"]
-  }
-  → Creates MealPlanEntry rows so end-of-week rating works.
-    You suggested 10, you pick 3 — only the 3 go to the shopping list.
-
-STEP 6 — Get the shopping list
-  GET /meal-plan/shopping-list?household_id=...&week_start_date=...
-  → Built ONLY from your confirmed selections.
-    Pipeline: scale → aggregate → subtract pantry → subtract staples
-              → round to package sizes → group by store section.
-
-STEP 7 — Rate meals at end of week
-  POST /meal-plan/entries/{entry_id}/review  { "rating": 4 }
-  → ≥ favorite_rating_threshold (default 4★) → marked favorite,
-    synced to Mealie. Favorites get a +25 pt boost in future suggestions.
+1. Review pantry          — update what's on hand
+2. Set weekly intent      — ingredient hints boost matching scores
+3. Generate suggestions   — ranked list of N recipes
+4. Accept / reject        — permanent or time-based suppression
+5. Confirm selections     — locks in your picks for the week
+6. Get shopping list      — pantry-first, package-rounded, section-grouped
+7. Push to Bring!         — optional one-tap push to the Bring! grocery app
+8. Rate meals (end of week) — 4★+ → favourite, boosted in future suggestions
 ```
 
 ---
 
-## Matching engine scoring
+## Scoring
 
 | Signal | Points |
 |---|---|
 | Pantry overlap (% of ingredients on hand + staples) | 0 – 50 |
-| **Weekly intent hints** (this-week keywords) | **+15 each, max +45** |
-| Long-term liked items / cuisines | +5 each, max +20 |
+| Weekly intent hints | +15 each, max +45 |
+| Long-term liked items | +5 each, max +20 |
 | Soft disliked items | −15 each, max −45 |
-| Cook time over household max | −20 (soft) |
-| Favorite bonus (previously rated ≥ threshold) | +25 |
+| Cook time over household max | −20 |
+| Favourite bonus (Pool A, previously rated ≥ threshold) | +25 |
+| Dinner-tag bonus (Mealie `dinner-planner` tag) | +10 |
 
-**Hard filters (recipe never shown):**
-- Excluded item (allergy / never-make) in recipe text
-- Required cooking method not in available_methods
+**Hard filters** — recipe never shown if:
+- Excluded ingredient in recipe text
+- Required cooking method not in `available_methods`
 - Permanently rejected by this household
-- Temporarily rejected AND suppression window not yet expired
+- Temporarily rejected and suppression window not expired
 
 ---
 
-## Mealie tag filtering
+## Rejection reasons
 
-Only Mealie recipes carrying the `dinner-planner` tag (configurable via
-`mealie_dinner_tag` in preferences) appear in suggestions. This keeps
-baking, breakfast, and other non-dinner recipes out of the weekly pool.
+| Category | Type | Suppressed for |
+|---|---|---|
+| `not_this_week` | Temporary | 2 weeks |
+| `already_made_recently` | Temporary | 3 weeks |
+| `too_time_consuming` | Temporary | 2 weeks |
+| `too_expensive` | Temporary | 2 weeks |
+| `too_complex` | Temporary | 2 weeks |
+| `missing_key_ingredient` | Temporary | 2 weeks |
+| `other` | Temporary | 1 week |
+| `dislike` | Permanent | never resurface |
+| `allergy` | Permanent | never resurface |
+| `disliked_ingredient` | Permanent | never resurface |
+| `cook_method_unavailable` | Permanent | never resurface |
+| `cookware_unavailable` | Permanent | never resurface |
+| `not_applicable` | Permanent | never resurface |
+| `side_dish` | Permanent | never resurface |
 
-**Setup:** in Mealie, add the tag `dinner-planner` to every recipe you want
-included in dinner planning. The engine passes it as a server-side
-`queryFilter` and double-checks client-side as a fallback.
-
-Change the tag: `PUT /preferences/{household_id}` → `{"mealie_dinner_tag": "my-tag"}`  
-Disable filtering: set `mealie_dinner_tag` to `""`
-
----
-
-## Shopping list design
-
-- **Pantry-first** — on-hand stock is depleted across all selected recipes
-  before anything hits the list
-- **Aggregate before rounding** — total need is summed across all recipes,
-  then rounded up once to a real package size — not per-recipe
-- **Real package sizes** — defined in `backend/app/data/package_sizes.yaml`;
-  hand-editable, no code change needed to add new items
-- **Staples never bought** — salt, pepper, oil, etc. are assumed always on
-  hand; edit `backend/app/data/pantry_staples.yaml`
-- **Unit-mismatch warnings** — if pantry has "1 lb chicken" and recipe needs
-  "2 pieces chicken" the engine flags it rather than silently skipping
+Full list with labels: `GET /recipes/rejection-reasons`  
+Edit vocabulary: `backend/app/data/rejection_reasons.yaml`
 
 ---
 
-## Security
+## Shopping list
 
-No login/auth — designed for trusted LAN access only.
-
-- **Isolated network** (`recipe-planner-net`) — `db` and `api` containers
-  only reach each other; invisible to all other Unraid containers
-- **No database port exposure** — Postgres has no host port mapping
-- **Single exposed port** — `8111` only. Do not forward through your router
-- **Non-root containers**, dropped Linux capabilities, `no-new-privileges`
+- **Pantry-first** — on-hand stock depleted across all selected recipes before anything hits the list
+- **Aggregate then round** — total need summed across all recipes, rounded up once to a real package size
+- **Staples never bought** — salt, pepper, oil, etc. assumed always on hand
+- **Bring! push** — `POST /meal-plan/shopping-list/push-to-bring` sends every BUY item to your Bring! grocery list
 
 ---
 
 ## Running on Unraid
 
-Two ways to run this, pick whichever fits how you want to maintain it.
-
-### Option A — git + docker-compose (source checkout, live code)
-
-This is the original setup and what `deploy.sh` automates: the repo is
-checked out directly on the box and `backend/app` is bind-mounted into
-the container, so it's straightforward to patch code in place.
+### Option A — git + docker-compose (recommended for development)
 
 ```bash
-git clone git@github.com:rgabrielson11/recipe-planner.git /mnt/user/appdata/recipe-planner
+git clone https://github.com/rgabrielson11/recipe-planner.git /mnt/user/appdata/recipe-planner
 cd /mnt/user/appdata/recipe-planner
-cp .env.example .env   # fill in MEALIE_BASE_URL, MEALIE_API_TOKEN, etc.
-docker compose up -d --build
+cp .env.example .env          # fill in MEALIE_BASE_URL, MEALIE_API_TOKEN, etc.
+bash deploy.sh                 # backs up DB + YAML, pulls, rebuilds, restarts
 ```
 
-To update: `git pull` (or run `deploy.sh`, which also backs up the DB and
-YAML config first), then `docker compose up -d --build`.
+To update: `bash deploy.sh` (or `git pull && docker compose up -d --build`).
 
-If you hit file-permission errors writing to YAML configs:
+If you hit file-permission errors on YAML configs:
 ```bash
 chmod -R a+rwX backend/app/data
 ```
 
-### Option B — Unraid template (published image, GUI-managed)
+### Option B — Unraid Community Applications template
 
-`.github/workflows/docker-build.yml` builds and pushes an image to
-`ghcr.io/rgabrielson11/recipe-planner:latest` on every push to `master`.
-`unraid-template/my-Recipe-Planner.xml` is a ready-made Unraid Community
-Applications-style template for it — copy it to
-`/boot/config/plugins/dockerMan/templates-user/` on your Unraid box (or
-it's already there if you set this up with Claude), then Docker -> Add
-Container -> pick "recipe-planner" from the Template dropdown.
+A published Docker image is built and pushed to `ghcr.io/rgabrielson11/recipe-planner:latest` on every push to `master`. The template is at `unraid-template/my-Recipe-Planner.xml` — copy it to `/boot/config/plugins/dockerMan/templates-user/` on your Unraid box, then **Docker → Add Container → pick "recipe-planner"**.
 
-Unlike Option A, this does **not** bind-mount live source code — it runs
-whatever's baked into the image, so code updates happen by pulling a new
-image (Docker tab -> Check for Updates) rather than editing files on the
-box. Only the database and the YAML config directory are persisted.
-First time only: the GHCR package defaults to **private** — go to
-github.com/rgabrielson11?tab=packages -> recipe-planner -> Package
-settings -> change visibility to Public, or `docker login ghcr.io` on the
-Unraid host with a PAT that has `read:packages` scope.
+Code updates happen by pulling a new image (**Docker tab → Check for Updates**) rather than editing files. Only the database and YAML config directory are persisted.
 
-API: `http://<unraid-ip>:8111`  
-Docs: `http://<unraid-ip>:8111/docs`
+> First time only: the GHCR package defaults to **private**. Go to GitHub → Packages → recipe-planner → Package settings → change visibility to Public, or `docker login ghcr.io` with a PAT that has `read:packages` scope.
 
 ---
 
-## Configuration files (hand-editable, no restart needed)
+## Environment variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `MEALIE_BASE_URL` | Yes | Your Mealie instance URL, e.g. `http://192.168.1.x:9100` |
+| `MEALIE_API_TOKEN` | Yes | Mealie service account API token |
+| `DATABASE_PATH` | No | SQLite file path (default `/app/data/recipe_planner.db`) |
+| `BRING_EMAIL` | No | Bring! account email — leave blank to disable |
+| `BRING_PASSWORD` | No | Bring! account password |
+| `RECIPE_PLANNER_URL` | No | LAN URL for Homepage dashboard label, e.g. `http://192.168.1.x:8111` |
+
+---
+
+## Configuration files
+
+All files are bind-mounted and read fresh on every request — no restart needed after edits.
 
 | File | Purpose |
 |---|---|
-| `backend/app/data/pantry_staples.yaml` | Ingredients always assumed on hand |
-| `backend/app/data/package_sizes.yaml` | Real retail package sizes for rounding |
-| `backend/app/data/rejection_reasons.yaml` | Rejection vocabulary + permanence flags |
-| `backend/app/data/cooking_vocabulary.yaml` | Cooking methods, cookware, skill levels |
+| `backend/app/data/pantry_staples.yaml` | Ingredients always assumed on hand (never on shopping list) |
+| `backend/app/data/package_sizes.yaml` | Real retail package sizes for shopping list rounding |
+| `backend/app/data/rejection_reasons.yaml` | Rejection vocabulary, labels, and permanence flags |
+| `backend/app/data/cooking_vocabulary.yaml` | Cooking methods, cookware, and skill levels for preferences UI |
+| `backend/app/data/recipe_sources.yaml` | Discovery sources (HelloFresh + Home Chef), scrape budget, non-dinner keyword filter, nightly job schedule |
+
+### Key `recipe_sources.yaml` settings
+
+```yaml
+discovery:
+  max_scraped_per_run: 60        # scrape budget per run
+  request_delay_seconds: 1.5    # polite pause between requests
+  stub_rescrape_days: 7         # re-scrape stubs older than this
+  background_scrape_enabled: true
+  background_scrape_hour: 3     # 0-23, server local time
+  non_dinner_title_keywords:    # URL slug pre-filter
+    - cheesecake
+    - pancake
+    - waffle
+    # … add more to tune
+```
+
+---
+
+## Homepage dashboard integration
+
+The container exposes [Homepage](https://gethomepage.dev) auto-discovery labels:
+
+```yaml
+# In your Homepage services.yaml — or rely on Docker auto-discovery:
+- Kitchen:
+    - Recipe Planner:
+        container: recipe-planner
+```
+
+The label uses `mdi-silverware-fork-knife` (built into Homepage's MDI icon pack).
+
+---
+
+## Security
+
+No login/auth — designed for trusted LAN access only. Do **not** forward port 8111 through your router.
+
+- Non-root container, dropped Linux capabilities, `no-new-privileges`
+- SSRF protection on recipe import (`url_safety.py` — rejects private/loopback IPs)
+- XSS-safe print views (HTML escaped before `document.write`)
+- Mealie query-filter injection protection (`_escape_filter_value()`)

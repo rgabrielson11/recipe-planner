@@ -1,5 +1,41 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 17: UNIQUE constraint hardening + Home Chef source
+
+### Bug fixes
+
+**UNIQUE constraint crash hardened in two places**
+
+`matching_engine.py` — Pool A (Mealie favourites) now does a pre-check
+query by `mealie_slug` before creating a local stub row. If a concurrent
+suggest request already created the stub, the existing row is reused
+instead of hitting the UNIQUE constraint on `recipes.source_url`. If the
+flush still fails for any reason, the exception is caught, the pending
+row is expunged, and the race winner is fetched instead.
+
+`recipe_discovery.py` — the `db.flush()` for newly scraped recipes is
+now wrapped in try/except with the same recovery pattern. Also added
+URL trailing-slash normalization in `_extract_recipe_urls` so
+`/meals/foo-bar` and `/meals/foo-bar/` are treated as the same canonical
+URL and never both enter the scrape pipeline.
+
+### New features
+
+**Home Chef added as a second discovery source**
+
+`recipe_discovery.py` — new `_is_homechef_host()` and `_HOMECHEF_MEAL_RE`
+recognise Home Chef's `/meals/{slug}` URL pattern. Category index pages
+(`/recipes/chicken`, `/recipes/beef` etc.) are correctly rejected; only
+individual meal pages pass through to the scrape budget.
+
+`recipe_sources.yaml` — 32 dinner-focused category page URLs added across
+13 categories: Chicken (3 pages), Beef (3), Pork (3), Steak (2),
+Poultry (2), Seafood (2), Fish (2), Shrimp, Salmon, Cod, Pasta (2),
+Vegetarian (2), Customer Favorites (2), Staff Picks (2),
+Calorie-Conscious (2), Carb-Conscious, Lamb. Breakfast, Dessert,
+Smoothie, Salad, and Protein Packs are deliberately excluded.
+Estimated ~300–400 unique dinner recipe candidates after dedup.
+
 ## Phase 10 — Patch 16: push shopping list to Bring!
 
 ### Added
