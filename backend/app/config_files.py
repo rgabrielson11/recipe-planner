@@ -18,7 +18,8 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 _lock    = Lock()
 
 _yaml = YAML()
-_yaml.preserve_quotes = True
+_yaml.preserve_quotes  = True
+_yaml.explicit_start   = False   # never write '---' document separator
 _yaml.indent(mapping=2, sequence=2, offset=0)
 
 
@@ -55,7 +56,10 @@ def load_yaml(filename: str) -> Any:
     result = None
     try:
         with open(_path(filename)) as f:
-            result = _yaml.load(f)
+            # load_all handles files that ruamel wrote with an accidental '---'
+            # separator; we take only the first document.
+            docs = list(_yaml.load_all(f))
+            result = docs[0] if docs else None
     except Exception as ruamel_err:
         # ruamel.yaml can raise bare Python exceptions (IndexError, etc.) on
         # certain YAML constructs it wrote itself. Fall back to PyYAML which
