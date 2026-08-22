@@ -1,5 +1,26 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 28: print all selected recipes
+
+### New feature
+
+**🖨️ Print All Recipes button on the confirm step**
+
+After confirming selections and importing to Mealie, a **🖨️ Print All
+Recipes (N)** button appears above the Mealie Import Status card.
+
+- Fetches full print data for all selected recipes in parallel
+- Opens a single print-optimised page with a cover page ("This Week's
+  Recipes") followed by each recipe on its own separate page
+- Each recipe shows: title, cook time, source URL, description,
+  full ingredient list, and numbered instructions
+- Fires `window.print()` automatically
+- Recipes missing scraped instructions fall back to title + source link
+- Page breaks use both `page-break-before` (legacy) and `break-before`
+  (modern) so separation works across all browsers
+
+---
+
 ## Phase 10 — Patch 27: pantry delete inline confirmation
 
 ### Bug fix
