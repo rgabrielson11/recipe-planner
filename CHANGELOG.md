@@ -1,5 +1,29 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 31: Marley Spoon source + dynamic week URLs
+
+### New features
+
+**Marley Spoon added as a third discovery source**
+
+`recipe_discovery.py` — new `_MARLEYSPOON_MEAL_RE` regex recognises
+`/menu/{numeric-id}-{slug}` recipe URLs. `_is_marleyspoon_host()` and a
+new branch in `_looks_like_recipe_url` route Marley Spoon URLs through
+the meal pattern, rejecting the bare `/menu` hub page and marketing pages.
+
+`recipe_sources.yaml` — single base URL `https://marleyspoon.com/menu`.
+The weekly menu page is server-rendered and returns 100+ recipe links per
+week with no login required. Individual recipe pages are tried with
+`recipe-scrapers` JSON-LD fallback; failures are silent.
+
+**Dynamic week URL expansion — no stale dates**
+
+At scrape time `_ms_week_urls()` computes the most recent Monday and
+expands the base URL into 4 weekly URLs (current week + 3 upcoming
+Mondays). The YAML never needs manual date updates.
+
+---
+
 ## Phase 10 — Patch 30: servings shown on recipe prints
 
 ### New feature
