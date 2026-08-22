@@ -444,19 +444,31 @@ def _recipe_text(detail: dict) -> str:
 
 def _ingredient_names_from_text(detail: dict) -> set[str]:
     names: set[str] = set()
+    # Strips leading quantity + optional unit from ingredient strings.
+    # 'unit'/'units'/'each' added for Home Chef which uses these for
+    # countable items (e.g. "1.0 unit Eggs" → "eggs").
+    # Word boundary after the unit group prevents short units like 'g' (grams)
+    # from greedily matching the first letter of the ingredient name (e.g.
+    # the 'g' in 'garlic'). 'units?/each' added for Home Chef countable items.
     _qty_re = re.compile(
         r"^\s*[\d¼½¾⅓⅔⅛⅜⅝⅞\/\.\-]+\s*"
-        r"(cups?|tbsp|tsp|tablespoons?|teaspoons?|lbs?|oz|g|kg|ml|l|"
+        r"(units?|each|cups?|tbsp|tsp|tablespoons?|teaspoons?|lbs?|oz|g|kg|ml|l|"
         r"cloves?|heads?|bunches?|slices?|pieces?|cans?|packages?|"
         r"pounds?|ounces?|grams?|large|medium|small|whole|fresh|dried|"
-        r"pinch(es)?|dash(es)?|handful)?\s*",
+        r"pinch(es)?|dash(es)?|handful)?\b\s*",
         re.IGNORECASE,
     )
+    # Strip leading punctuation left over after quantity removal (e.g. ", egg", ". salt")
+    _leading_punct_re = re.compile(r"^[,\.;:\-\s]+")
     for ing in detail.get("recipeIngredient", []):
         raw = (ing.get("note", "") or "").strip() if isinstance(ing, dict) else ""
         if not raw:
             continue
-        cleaned = _qty_re.sub("", raw).strip().lower().split(",")[0].strip()
+        # Remove quantity + unit prefix, then strip leading punctuation
+        cleaned = _qty_re.sub("", raw)
+        cleaned = _leading_punct_re.sub("", cleaned).strip().lower()
+        # Take only the first component if comma-separated (e.g. "chicken, cut into pieces")
+        cleaned = cleaned.split(",")[0].strip()
         if cleaned:
             names.add(cleaned)
     return names

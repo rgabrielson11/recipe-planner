@@ -1,5 +1,31 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 25: ingredient token cleanup
+
+### Bug fix
+
+**Ingredient pills no longer show "unit" or leading punctuation**
+
+`_ingredient_names_from_text()` in `recipe_discovery.py` had two issues:
+
+- **"unit" not stripped** — Home Chef uses `unit`/`units`/`each` as the
+  unit-of-measure for countable items (e.g. `"1.0 unit Eggs"`). These were
+  not in the stripping regex so the pill displayed `"unit eggs"`. Fixed by
+  adding `units?|each` to the unit alternation.
+
+- **Word boundary missing** — short units like `g` (grams) were greedily
+  matching the first letter of ingredient names (e.g. the `g` in `garlic`).
+  Added `\b` after the unit group so it only matches standalone units.
+
+- **Leading punctuation not stripped** — after quantity removal some strings
+  started with `, `, `. `, `- ` etc. Added a secondary regex
+  `^[,\.;:\-\s]+` to strip those before lowercasing.
+
+Existing stubs will show corrected ingredient names after the next nightly
+re-scrape (or manual ⚡ Scrape on the Sources page).
+
+---
+
 ## Phase 10 — Patch 24: ingredient pill click fix
 
 ### Bug fix
