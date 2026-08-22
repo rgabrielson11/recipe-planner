@@ -410,7 +410,7 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,onRemove,confirmed,rejected,
                     li{font-size:15px}
                     .no-ings{color:#888;font-style:italic}
                     @media print{a{color:#111!important;text-decoration:none}}
-                  </style></head><body>
+                  </style></head><body><a onclick="window.close()" style="display:block;margin:0 auto 24px;text-align:center;font-family:sans-serif;font-size:14px;color:#2563eb;cursor:pointer;text-decoration:underline;border-bottom:1px solid #e2e8f0;padding-bottom:16px">← Close print window</a>
                   <h1>${title}</h1>
                   <p>${meta}</p>
                   ${d.description?`<p style="margin-top:8px;font-style:italic;color:#555">${escapeHtml(d.description)}</p>`:''}
@@ -418,7 +418,6 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,onRemove,confirmed,rejected,
                   ${ings?`<ul>${ings}</ul>`:'<p class="no-ings">Full ingredient list not available — see original recipe link above.</p>'}
                   ${steps?`<h2>Instructions</h2><ol>${steps}</ol>`:''}
                   ${mealieHref?`<p style="margin-top:24px;font-size:13px;color:#888">Also saved in Mealie: <a href="${mealieHref}">${escapeHtml(d.mealie_url)}</a></p>`:''}
-                  <a onclick="window.close()" style="display:block;margin:32px auto 0;text-align:center;font-family:sans-serif;font-size:14px;color:#2563eb;cursor:pointer;text-decoration:underline">← Close print window</a>
                   <script>window.print();<\/script>
                   </body></html>`);
                 w.document.close();
@@ -738,12 +737,12 @@ const PlannerPage=({hid})=>{
                 .recipe{margin-bottom:48px}
                 @media print{.recipe+.recipe{page-break-before:always;break-before:page}a{color:#111!important;text-decoration:none}}
               </style></head><body>
+              <a onclick="window.close()" style="display:block;margin:0 auto 24px;text-align:center;font-family:sans-serif;font-size:14px;color:#2563eb;cursor:pointer;text-decoration:underline;border-bottom:1px solid #e2e8f0;padding-bottom:16px">← Close print window</a>
               <div style="page-break-after:always;break-after:page;text-align:center;padding:80px 0">
                 <h1 style="border-bottom:2px solid #111;padding-bottom:8px;display:inline-block">&#x1F374; This Week's Recipes</h1>
                 <p style="font-size:18px;color:#555;margin-top:12px">${recipes.length} recipe${recipes.length===1?'':'s'}</p>
               </div>
               ${sections}
-              <a onclick="window.close()" style="display:block;margin:32px auto 0;text-align:center;font-family:sans-serif;font-size:14px;color:#2563eb;cursor:pointer;text-decoration:underline">← Close print window</a>
               <script>window.print();<\/script>
               </body></html>`);
             w.document.close();
@@ -842,7 +841,7 @@ const PlannerPage=({hid})=>{
                 <td style="padding:5px 0 5px 8px;font-size:12px">${p.expiry_date||''}</td>
               </tr>`).join('');
               const w=window.open('','_blank');
-              w.document.write('<!DOCTYPE html><html><head><title>Pantry</title><style>body{font-family:sans-serif;max-width:640px;margin:32px auto}h1{font-size:20px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:6px 0;border-bottom:2px solid #333;font-size:13px}td{vertical-align:top}@media print{button,a{display:none}}</style></head><body><h1>&#x1F9EB; Pantry &mdash; '+new Date().toLocaleDateString()+'</h1><table><thead><tr><th>Item</th><th>Qty</th><th>Category</th><th>Expiry</th></tr></thead><tbody>'+rows+'</tbody></table><a onclick="window.close()" style="display:block;margin:32px auto 0;text-align:center;font-size:14px;color:#2563eb;cursor:pointer;text-decoration:underline">← Close print window</a></body></html>');
+              w.document.write('<!DOCTYPE html><html><head><title>Pantry</title><style>body{font-family:sans-serif;max-width:640px;margin:32px auto}h1{font-size:20px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:6px 0;border-bottom:2px solid #333;font-size:13px}td{vertical-align:top}@media print{button,a{display:none}}</style></head><body><a onclick="window.close()" style="display:block;margin:0 auto 24px;text-align:center;font-size:14px;color:#2563eb;cursor:pointer;text-decoration:underline;border-bottom:1px solid #e2e8f0;padding-bottom:16px">← Close print window</a><h1>&#x1F9EB; Pantry &mdash; '+new Date().toLocaleDateString()+'</h1><table><thead><tr><th>Item</th><th>Qty</th><th>Category</th><th>Expiry</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>');
               w.document.close();setTimeout(()=>w.print(),300);
             }}>&#x1F5A8;&#xFE0F; Print Pantry List</button>
             <button className="btn-secondary" onClick={()=>{
@@ -874,12 +873,12 @@ const PlannerPage=({hid})=>{
                 p{color:#666;font-size:13px;margin:0 0 8px}
                 @media print{button{display:none}}</style></head>
                 <body>
+                <a onclick="window.close()" style="display:block;margin:0 auto 24px;text-align:center;font-family:sans-serif;font-size:14px;color:#2563eb;cursor:pointer;text-decoration:underline;border-bottom:1px solid #e2e8f0;padding-bottom:16px">← Close print window</a>
                 <h1>&#x1F6D2; Shopping List</h1>
                 ${titles.length?`<p>Meals: ${escapeHtml(titles.join(', '))}</p>`:''}
                 <p>Generated ${new Date().toLocaleDateString()}</p>
                 ${rows}${extraRows}${pantryRows}
                 <p style="margin-top:24px;font-size:11px;color:#aaa">Recipe Planner</p>
-                <a onclick="window.close()" style="display:block;margin:32px auto 0;text-align:center;font-family:sans-serif;font-size:14px;color:#2563eb;cursor:pointer;text-decoration:underline">← Close print window</a>
                 <script>window.print();<\/script>
                 </body></html>`);
               w.document.close();
