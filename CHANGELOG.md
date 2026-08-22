@@ -1,5 +1,21 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 41: fix missing close button on print windows
+
+### Bug fix
+
+The Patch 39 regex substitution used to add "← Close print window" links
+used a pattern that didn't match the escaped `<\/script>` sequence inside
+JavaScript template literals. As a result, only the pantry print window
+had the close button; the single recipe, print-all, and shopping list
+print windows did not.
+
+All four print windows now have a "← Close print window" link inserted
+directly before the `window.print()` call. The link is hidden by
+`@media print` so it doesn't appear on the printed page itself.
+
+---
+
 ## Phase 10 — Patch 40: fix extraBuyItems + client error logging
 
 ### Bug fixes
