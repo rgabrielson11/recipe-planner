@@ -49,13 +49,14 @@ Scraped from HelloFresh and Home Chef, scored against your current pantry, and r
 ### Weekly workflow
 
 ```
-1. Review pantry          — update what's on hand; 🖨️ print pantry list
+1. Review pantry          — update what's on hand
 2. Set weekly intent      — ingredient hints boost matching scores
 3. Generate suggestions   — ranked list of N recipes; click ingredients to add to staples / exclude / dislike
+                            or pull from 📆 Past Meals to repeat a favourite
 4. Accept / reject        — permanent or time-based suppression
-5. Confirm selections     — locks in your picks; 🖨️ print all recipes or pantry list
+5. Confirm selections     — locks in your picks; 🖨️ print all selected recipes
 6. Get shopping list      — pantry-first, package-rounded, section-grouped
-                            click pantry-check items to add to buy list
+                            click pantry-check items to add to buy list; 🖨️ print pantry or shopping list
 7. Push to Bring!         — optional one-tap push to the Bring! grocery app
 8. Rate meals (end of week) — 4★+ → favourite, boosted in future suggestions
 ```
@@ -113,6 +114,8 @@ Edit vocabulary: `backend/app/data/rejection_reasons.yaml`
 - **Staples never bought** — salt, pepper, oil, etc. assumed always on hand
 - **Bring! push** — `POST /meal-plan/shopping-list/push-to-bring` sends every BUY item to your Bring! grocery list
 - **Add from pantry** — pantry-check items can be promoted to the buy list with one click
+- **Print** — 🖨️ Print Pantry List and 🖨️ Print Shopping List buttons on the shopping list page
+- **Past Meals page** — Planning → Past Meals shows every previously selected recipe grouped by week; one click adds any back to the current week's plan, reimporting to Mealie automatically
 - **Database page** — Tools → Database shows per-source recipe stub counts and a wipe-with-confirmation to reset the cache
 
 ---
