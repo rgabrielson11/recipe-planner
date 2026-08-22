@@ -169,13 +169,18 @@ def get_print_data(recipe_id: str, db: Session = Depends(get_db)):
     except Exception:
         ingredients = []
 
+    try:
+        instructions = _json.loads(recipe.scraped_instructions_json or "[]")
+    except Exception:
+        instructions = []
+
     data = {
         "title":               recipe.title,
         "source_url":          recipe.source_url,
         "total_time_minutes":  recipe.scraped_time_minutes,
         "description":         recipe.scraped_description or "",
         "ingredients":         ingredients,
-        "instructions":        [],          # filled below if Mealie has it
+        "instructions":        instructions,  # from scrape; overridden by Mealie if richer
         "mealie_url":          None,
     }
 

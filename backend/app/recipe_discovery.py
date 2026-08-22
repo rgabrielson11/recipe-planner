@@ -369,6 +369,20 @@ def _scrape_recipe(
         except Exception:
             pass
 
+        instructions: list[str] = []
+        try:
+            steps = scraper.instructions_list()
+            if steps:
+                instructions = [s.strip() for s in steps if s and s.strip()]
+        except Exception:
+            # Fall back to single instructions() string and split on newlines
+            try:
+                raw_inst = scraper.instructions() or ""
+                if raw_inst:
+                    instructions = [s.strip() for s in raw_inst.split("\n") if s.strip()]
+            except Exception:
+                pass
+
         tags_list: list[dict] = []
         try:
             keywords = scraper.keywords()
@@ -390,16 +404,17 @@ def _scrape_recipe(
             url,
         )
         return {
-            "name":             title,
-            "description":      description,
-            "tags":             tags_list,
-            "recipeCategory":   [],
-            "recipeIngredient": ingredients,
-            "totalTime":        total_time_raw,
-            "recipeServings":   yields_raw,
-            "_source_url":      url,
-            "_rating":          rating,
-            "_reviews":         reviews,
+            "name":                title,
+            "description":         description,
+            "tags":                tags_list,
+            "recipeCategory":      [],
+            "recipeIngredient":    ingredients,
+            "recipeInstructions":  [{"text": s} for s in instructions],
+            "totalTime":           total_time_raw,
+            "recipeServings":      yields_raw,
+            "_source_url":         url,
+            "_rating":             rating,
+            "_reviews":            reviews,
         }
 
     except Exception as e:
@@ -543,8 +558,13 @@ def _update_row_from_detail(row: models.Recipe, detail: dict) -> None:
         i.get("note", "") for i in detail.get("recipeIngredient", [])
         if isinstance(i, dict) and i.get("note")
     ]
+    instruction_steps = [
+        s.get("text", "") for s in (detail.get("recipeInstructions") or [])
+        if isinstance(s, dict) and s.get("text", "").strip()
+    ]
     row.title                    = detail.get("name") or row.title
     row.scraped_ingredients_json = _json.dumps(ing_strings)
+    row.scraped_instructions_json = _json.dumps(instruction_steps)
     row.scraped_time_minutes     = _parse_minutes(detail.get("totalTime"))
     row.scraped_description      = (detail.get("description") or "")[:500]
     row.scraped_tokens_json      = _json.dumps(sorted(_ingredient_names_from_text(detail)))

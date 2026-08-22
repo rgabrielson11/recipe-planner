@@ -37,6 +37,7 @@ def run_migrations():
         ("recipes", "scraped_time_minutes",     "INTEGER"),
         ("recipes", "scraped_description",      "TEXT"),
         ("recipes", "last_scraped_at",          "DATETIME"),
+        ("recipes", "scraped_instructions_json", "TEXT"),      # print support
         ("recipes", "scraped_tokens_json",      "TEXT"),      # Patch 12
         ("recipes", "scraped_rating",           "FLOAT"),     # Patch 13
         ("recipes", "scraped_reviews",          "INTEGER"),   # Patch 13
