@@ -460,14 +460,27 @@ def _ingredient_names_from_text(detail: dict) -> set[str]:
     )
     # Strip leading punctuation left over after quantity removal (e.g. ", egg", ". salt")
     _leading_punct_re = re.compile(r"^[,\.;:\-\s]+")
+    # Strip parenthetical unit annotations anywhere in the string.
+    # Matches (tsp), (g), (unit), (each), (oz), (cloves), etc.
+    # Also strips bare numbers inside parens like (2) or (1/2).
+    _paren_unit_re = re.compile(
+        r"\(\s*([\d\/\.]+|units?|each|cups?|tbsp|tsp|tablespoons?|teaspoons?|"
+        r"lbs?|oz|g|kg|ml|l|cloves?|heads?|bunches?|slices?|pieces?|cans?|"
+        r"packages?|pounds?|ounces?|grams?|large|medium|small|pinch(es)?|"
+        r"dash(es)?|handful|optional|to taste)\s*\)",
+        re.IGNORECASE,
+    )
     for ing in detail.get("recipeIngredient", []):
         raw = (ing.get("note", "") or "").strip() if isinstance(ing, dict) else ""
         if not raw:
             continue
-        # Remove quantity + unit prefix, then strip leading punctuation
+        # Remove quantity + unit prefix
         cleaned = _qty_re.sub("", raw)
+        # Remove parenthetical unit annotations (e.g. "garlic (tsp)", "salt (to taste)")
+        cleaned = _paren_unit_re.sub("", cleaned)
+        # Strip leading punctuation
         cleaned = _leading_punct_re.sub("", cleaned).strip().lower()
-        # Take only the first component if comma-separated (e.g. "chicken, cut into pieces")
+        # Take only the first component if comma-separated
         cleaned = cleaned.split(",")[0].strip()
         if cleaned:
             names.add(cleaned)

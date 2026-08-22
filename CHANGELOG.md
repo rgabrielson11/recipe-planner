@@ -1,5 +1,25 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 26: strip parenthetical units from ingredients
+
+### Bug fix
+
+`_ingredient_names_from_text()` now strips parenthetical unit annotations
+that appear anywhere in the ingredient string, e.g.:
+
+- `"garlic (tsp)"` → `"garlic"`
+- `"salt (to taste)"` → `"salt"`
+- `"egg (each)"` → `"egg"`
+- `"butter (optional)"` → `"butter"`
+- `"1 (tsp) garlic powder"` → `"garlic powder"`
+
+The new `_paren_unit_re` pattern matches `(unit)`, `(tsp)`, `(oz)`, `(g)`,
+`(optional)`, `(to taste)`, bare numbers like `(2)`, and all other common
+unit/modifier annotations in parentheses. Non-unit parentheticals (e.g.
+`"chicken (diced)"`) are left in place since `diced` is not in the match list.
+
+---
+
 ## Phase 10 — Patch 25: ingredient token cleanup
 
 ### Bug fix
