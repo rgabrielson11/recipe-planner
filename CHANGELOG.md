@@ -1,5 +1,21 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 35: fix Load More suggestion count
+
+### Bug fix
+
+The **➕ Load N suggestions** button was always loading 5 fewer recipes
+than its label promised. Root cause: `setNumSug(next)` schedules a React
+state update asynchronously, but `loadSuggestions()` fired immediately
+after in the same closure, still reading the stale `numSug` value.
+
+Fixed by giving `loadSuggestions` an optional `countOverride` parameter.
+The Load More button now passes the new count directly:
+`loadSuggestions(numSug + 5)` — so the API calls always use the intended
+number regardless of when React flushes the state update.
+
+---
+
 ## Phase 10 — Patch 34: fix mobile layout — missing state declarations
 
 ### Bug fix

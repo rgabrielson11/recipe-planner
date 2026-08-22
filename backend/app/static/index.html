@@ -537,7 +537,8 @@ const PlannerPage=({hid})=>{
     get('/config/cooking-methods').then(d=>setCookingMethods(d.methods||[])).catch(()=>{});
   },[hid]);
 
-  const loadSuggestions=async()=>{
+  const loadSuggestions=async(countOverride)=>{
+    const n=countOverride??numSug;
     setLoading(true);setSug([]);setProgress(0);setProgressLabel('Starting...');
     // Poll the backend progress endpoint every 800ms while the scoring
     // engine runs — shows real feed names, pool stages, and scrape counts.
@@ -551,9 +552,9 @@ const PlannerPage=({hid})=>{
     try{
       await post(`/meal-plan/week-intent/${hid}/${week}`,{
         ingredient_hints:hints.split(',').map(s=>s.trim()).filter(Boolean),
-        num_suggestions:numSug,
+        num_suggestions:n,
       });
-      const r=await get(`/meal-plan/suggest?household_id=${hid}&week_start_date=${week}&num=${numSug}`);
+      const r=await get(`/meal-plan/suggest?household_id=${hid}&week_start_date=${week}&num=${n}`);
       clearInterval(poll);setProgress(100);setProgressLabel('Done!');
       setTimeout(()=>{setProgress(0);setProgressLabel('');},800);
       setSug(r.suggestions||[]);toast(`${r.suggestions?.length||0} suggestions loaded`);setStep(2);
@@ -641,7 +642,7 @@ const PlannerPage=({hid})=>{
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
           <h3 className="section-title" style={{margin:0,flex:1}}>{suggestions.length} Suggestions — {confirmed.length} selected</h3>
           <button className="btn-secondary btn-sm" onClick={loadSuggestions} disabled={loading}>&#x21BA; Refresh</button>
-          <button className="btn-secondary btn-sm" onClick={()=>{const n=numSug+5;setNumSug(n);loadSuggestions();}} disabled={loading}>&#x2795; Load {numSug+5}</button>
+          <button className="btn-secondary btn-sm" onClick={()=>{const next=numSug+5;setNumSug(next);loadSuggestions(next);}} disabled={loading}>&#x2795; Load {numSug+5} suggestions</button>
         </div>
         {suggestions.length===0&&!loading&&<div style={{textAlign:'center',padding:48,color:'var(--gray)'}}>
           <div style={{fontSize:48}}>🍽️</div>
