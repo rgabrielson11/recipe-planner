@@ -77,6 +77,7 @@ class Recipe(Base):
     scraped_time_minutes      = Column(Integer, nullable=True)
     scraped_description       = Column(Text, nullable=True)
     scraped_instructions_json = Column(Text, nullable=True)   # JSON list[str] — step text, set at scrape time
+    scraped_servings          = Column(String, nullable=True)  # e.g. "4 servings", set at scrape time
     scraped_tokens_json       = Column(Text, nullable=True)   # JSON list[str] — canonical ingredient tokens, set at scrape time (Patch 12)
     scraped_rating            = Column(Float, nullable=True)     # star rating at scrape time, e.g. 4.19 (Patch 13)
     scraped_reviews           = Column(Integer, nullable=True)   # review count at scrape time (Patch 13)

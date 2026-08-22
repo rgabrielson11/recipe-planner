@@ -611,6 +611,7 @@ def _update_row_from_detail(row: models.Recipe, detail: dict) -> None:
     row.title                    = detail.get("name") or row.title
     row.scraped_ingredients_json = _json.dumps(ing_strings)
     row.scraped_instructions_json = _json.dumps(instruction_steps)
+    row.scraped_servings          = str(detail.get("recipeServings") or "").strip() or None
     row.scraped_time_minutes     = _parse_minutes(detail.get("totalTime"))
     row.scraped_description      = (detail.get("description") or "")[:500]
     row.scraped_tokens_json      = _json.dumps(sorted(_ingredient_names_from_text(detail)))

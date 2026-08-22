@@ -357,7 +357,7 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,onRemove,confirmed,rejected,
                 const ings=(d.ingredients||[]).map(i=>`<li style="margin:3px 0">${escapeHtml(i)}</li>`).join('');
                 const steps=(d.instructions||[]).map(s=>`<li style="margin:6px 0">${escapeHtml(s)}</li>`).join('');
                 const sourceHref=d.source_url?safeHref(d.source_url):'';
-                const meta=[d.total_time_minutes?`⏱ ${escapeHtml(d.total_time_minutes)} min`:'',sourceHref?`<a href="${sourceHref}" style="color:#666">${escapeHtml(d.source_url)}</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+                const meta=[d.total_time_minutes?`⏱ ${escapeHtml(d.total_time_minutes)} min`:'',d.servings?`🍽 ${escapeHtml(d.servings)}`:'',sourceHref?`<a href="${sourceHref}" style="color:#666">${escapeHtml(d.source_url)}</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
                 const mealieHref=d.mealie_url?safeHref(d.mealie_url):'';
                 const w=window.open('','_blank');
                 w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
@@ -672,7 +672,7 @@ const PlannerPage=({hid})=>{
               .filter(Boolean);
             const escHtml=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             const sections=recipes.map((d,idx)=>{
-              const meta=[d.total_time_minutes?`⏱ ${escHtml(d.total_time_minutes)} min`:'',d.source_url?`<a href="${escHtml(d.source_url)}">${escHtml(d.source_url)}</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+              const meta=[d.total_time_minutes?`⏱ ${escHtml(d.total_time_minutes)} min`:'',d.servings?`🍽 ${escHtml(d.servings)}`:'',d.source_url?`<a href="${escHtml(d.source_url)}">${escHtml(d.source_url)}</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
               const ings=(d.ingredients||[]).map(i=>`<li>${escHtml(i)}</li>`).join('');
               const steps=(d.instructions||[]).map(s=>`<li>${escHtml(s)}</li>`).join('');
               const breakStyle=idx===0?'':'page-break-before:always;break-before:page;';

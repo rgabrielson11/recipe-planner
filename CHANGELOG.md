@@ -1,5 +1,21 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 30: servings shown on recipe prints
+
+### New feature
+
+Recipe print views (single card and print-all) now show serving size in
+the header line alongside cook time and source URL — e.g. `⏱ 35 min · 🍽 4 servings`.
+
+Added `scraped_servings TEXT` column to the `Recipe` model (auto-migrated).
+`_update_row_from_detail` stores the value from `scraper.yields()`.
+`get_print_data` returns it from the DB and overrides with Mealie's
+`recipeServings` / `recipeYield` when the recipe has been imported there.
+
+Existing stubs will show servings after the next nightly re-scrape.
+
+---
+
 ## Phase 10 — Patch 29: ingredient token fix + pantry buy list + pantry print
 
 ### Bug fixes

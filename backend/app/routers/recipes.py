@@ -178,6 +178,7 @@ def get_print_data(recipe_id: str, db: Session = Depends(get_db)):
         "title":               recipe.title,
         "source_url":          recipe.source_url,
         "total_time_minutes":  recipe.scraped_time_minutes,
+        "servings":            recipe.scraped_servings or "",
         "description":         recipe.scraped_description or "",
         "ingredients":         ingredients,
         "instructions":        instructions,  # from scrape; overridden by Mealie if richer
@@ -203,6 +204,9 @@ def get_print_data(recipe_id: str, db: Session = Depends(get_db)):
             ]
             if mealie_ings:
                 data["ingredients"] = [i for i in mealie_ings if i]
+            mealie_servings = str(detail.get("recipeServings") or detail.get("recipeYield") or "").strip()
+            if mealie_servings:
+                data["servings"] = mealie_servings
 
             # Instructions
             data["instructions"] = [
