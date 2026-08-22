@@ -355,7 +355,7 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,onRemove,confirmed,rejected,
                 const d=await get(`/recipes/${r.recipe_id}/print-data`);
                 const title=escapeHtml(d.title);
                 const ings=(d.ingredients||[]).map(i=>`<li style="margin:3px 0">${escapeHtml(i)}</li>`).join('');
-                const steps=(d.instructions||[]).map((s,i)=>`<li style="margin:6px 0"><b>${i+1}.</b> ${escapeHtml(s)}</li>`).join('');
+                const steps=(d.instructions||[]).map(s=>`<li style="margin:6px 0">${escapeHtml(s)}</li>`).join('');
                 const sourceHref=d.source_url?safeHref(d.source_url):'';
                 const meta=[d.total_time_minutes?`⏱ ${escapeHtml(d.total_time_minutes)} min`:'',sourceHref?`<a href="${sourceHref}" style="color:#666">${escapeHtml(d.source_url)}</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
                 const mealieHref=d.mealie_url?safeHref(d.mealie_url):'';
@@ -674,7 +674,7 @@ const PlannerPage=({hid})=>{
             const sections=recipes.map((d,idx)=>{
               const meta=[d.total_time_minutes?`⏱ ${escHtml(d.total_time_minutes)} min`:'',d.source_url?`<a href="${escHtml(d.source_url)}">${escHtml(d.source_url)}</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
               const ings=(d.ingredients||[]).map(i=>`<li>${escHtml(i)}</li>`).join('');
-              const steps=(d.instructions||[]).map((s,i)=>`<li><b>${i+1}.</b> ${escHtml(s)}</li>`).join('');
+              const steps=(d.instructions||[]).map(s=>`<li>${escHtml(s)}</li>`).join('');
               const breakStyle=idx===0?'':'page-break-before:always;break-before:page;';
               return `<div class="recipe" style="${breakStyle}">
                   <h1>${escHtml(d.title)}</h1>
