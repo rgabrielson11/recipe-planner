@@ -14,7 +14,7 @@ Self-hosted household dinner meal planner for a family of 4. Plans weekly dinner
 | Backend | Python / FastAPI |
 | Database | SQLite (WAL mode) |
 | Recipe storage | Self-hosted [Mealie](https://mealie.io) |
-| Recipe discovery | HelloFresh A–Z directory + Home Chef category pages |
+| Recipe discovery | HelloFresh A–Z directory + Home Chef category pages + Marley Spoon weekly menus |
 | Shopping list push | [Bring!](https://www.getbring.com) (optional) |
 | Frontend | React SPA (single HTML file, served by FastAPI) |
 | Deployment | Docker on Unraid, port `8111` |
@@ -31,6 +31,8 @@ Recipes come from two sources:
 
 **Home Chef** — Dinner-focused category pages (`/recipes/chicken`, `/recipes/beef`, `/recipes/pork`, `/recipes/seafood`, etc. — 32 pages across 13 categories). Individual meals live at `/meals/{slug}`.
 
+**Marley Spoon** — Weekly menu pages (server-rendered, 100+ recipe links each). The current week and 3 upcoming Mondays are generated dynamically at scrape time — no manual date updates needed. Individual recipe pages are tried via JSON-LD fallback; failures are silently skipped.
+
 A **nightly background scraper** (`scrape_job.py`) runs at 3 AM (configurable) to keep the recipe cache warm. When you hit "Generate Suggestions" the engine scores from the cache — no network wait. The first run after deploy triggers a one-time synchronous scrape.
 
 A **non-dinner keyword filter** screens candidate URLs by slug before scraping — pancakes, cheesecakes, smoothies, and similar non-dinner content never waste scrape budget. Edit `non_dinner_title_keywords` in `recipe_sources.yaml` to tune.
@@ -43,17 +45,18 @@ Two recipe pools are combined every week:
 Recipes in your Mealie library rated ≥ `mealie_min_rating` (default 4★). Tagged with `dinner-planner` get a +10 soft boost; all high-rated recipes are still eligible regardless of tag.
 
 **Pool B — Discovered recipes** (fills remaining slots)  
-Scraped from HelloFresh and Home Chef, scored against your current pantry, and ranked. These are imported to Mealie automatically when you confirm selections.
+Scraped from HelloFresh, Home Chef, and Marley Spoon, scored against your current pantry, and ranked. These are imported to Mealie automatically when you confirm selections.
 
 ### Weekly workflow
 
 ```
-1. Review pantry          — update what's on hand
+1. Review pantry          — update what's on hand; 🖨️ print pantry list
 2. Set weekly intent      — ingredient hints boost matching scores
-3. Generate suggestions   — ranked list of N recipes
+3. Generate suggestions   — ranked list of N recipes; click ingredients to add to staples / exclude / dislike
 4. Accept / reject        — permanent or time-based suppression
-5. Confirm selections     — locks in your picks for the week
+5. Confirm selections     — locks in your picks; 🖨️ print all recipes or pantry list
 6. Get shopping list      — pantry-first, package-rounded, section-grouped
+                            click pantry-check items to add to buy list
 7. Push to Bring!         — optional one-tap push to the Bring! grocery app
 8. Rate meals (end of week) — 4★+ → favourite, boosted in future suggestions
 ```
@@ -110,6 +113,8 @@ Edit vocabulary: `backend/app/data/rejection_reasons.yaml`
 - **Aggregate then round** — total need summed across all recipes, rounded up once to a real package size
 - **Staples never bought** — salt, pepper, oil, etc. assumed always on hand
 - **Bring! push** — `POST /meal-plan/shopping-list/push-to-bring` sends every BUY item to your Bring! grocery list
+- **Add from pantry** — pantry-check items can be promoted to the buy list with one click
+- **Database page** — Tools → Database shows per-source recipe stub counts and a wipe-with-confirmation to reset the cache
 
 ---
 
@@ -164,7 +169,7 @@ All files are bind-mounted and read fresh on every request — no restart needed
 | `backend/app/data/package_sizes.yaml` | Real retail package sizes for shopping list rounding |
 | `backend/app/data/rejection_reasons.yaml` | Rejection vocabulary, labels, and permanence flags |
 | `backend/app/data/cooking_vocabulary.yaml` | Cooking methods, cookware, and skill levels for preferences UI |
-| `backend/app/data/recipe_sources.yaml` | Discovery sources (HelloFresh + Home Chef), scrape budget, non-dinner keyword filter, nightly job schedule |
+| `backend/app/data/recipe_sources.yaml` | Discovery sources (HelloFresh, Home Chef, Marley Spoon), scrape budget, non-dinner keyword filter, nightly job schedule |
 
 ### Key `recipe_sources.yaml` settings
 
