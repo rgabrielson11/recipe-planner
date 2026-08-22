@@ -384,8 +384,19 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,confirmed,rejected,hid,prefs
             }}>🖨️ Print recipe</button>
           </div>
           {(r.missing_ingredients||[]).length>0&&<>
-            <p style={{fontSize:13,fontWeight:600,marginBottom:6}}>🛒 Need to buy ({r.missing_ingredients.length})</p>
-            <div style={{marginBottom:10}}>{r.missing_ingredients.map((ing,i)=><span key={i} className="ing-pill ing-need">{ing}</span>)}</div>
+            <p style={{fontSize:13,fontWeight:600,marginBottom:4}}>🛒 Need to buy ({r.missing_ingredients.length})</p>
+            <p style={{fontSize:11,color:'var(--gray)',marginBottom:6}}>Tap an ingredient to add it to pantry staples</p>
+            <div style={{marginBottom:10}}>{r.missing_ingredients.map((ing,i)=>(
+              <span key={i} className="ing-pill ing-need" title="Add to pantry staples"
+                style={{cursor:'pointer',transition:'opacity .15s'}}
+                onClick={async()=>{
+                  try{
+                    await post('/pantry/staples',{name:ing});
+                    toast(`✓ '${ing}' added to pantry staples`);
+                  }catch(e){toast(e.message,'error');}
+                }}
+              >{ing} +</span>
+            ))}</div>
           </>}
           {r.pantry_overlap_pct>0&&<p style={{fontSize:12,color:'var(--green)',marginBottom:10}}>✓ {r.pantry_overlap_pct}% of ingredients already on hand</p>}
           {!isConf&&!isRej&&<div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:6}}>
