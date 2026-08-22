@@ -15,6 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app/ ./app/
 
+# Bake version string into image
+COPY VERSION /app/VERSION
+
 # Bake a copy of the YAML defaults into a non-mounted location so the
 # entrypoint can always reach them regardless of host volume mounts.
 # /app/app/data is the live data dir (mounted from host in production);

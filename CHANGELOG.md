@@ -1,5 +1,25 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 36: version display in nav
+
+### New feature
+
+**Version string shown in the sidebar and mobile topbar**
+
+- `backend/VERSION` file tracks the current version (`10.35`)
+- `GET /api/version` endpoint reads `VERSION` from `/app/VERSION`
+  (baked into the Docker image) and also returns the git short hash
+  when running from a git checkout
+- Desktop: version shown at the bottom of the sidebar nav in small text
+  (e.g. `v10.35 (a4998aa)`)
+- Mobile: version shown in the topbar next to the page label
+- `backend/Dockerfile` now copies `VERSION` to `/app/VERSION` at build
+  time so the correct version is always available inside the container
+
+To update the version with each future patch, bump `backend/VERSION`.
+
+---
+
 ## Phase 10 — Patch 35: fix Load More suggestion count
 
 ### Bug fix

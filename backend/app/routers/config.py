@@ -343,3 +343,34 @@ def get_recipe_stats(db: Session = Depends(get_db)):
         "mealie_linked":    mealie_linked,
         "total_rejections": rejection_count,
     }
+
+
+# ── Version ───────────────────────────────────────────────────────────────────
+
+@router.get("/version")
+def get_version():
+    """Returns the app version string and git short hash."""
+    import subprocess, os
+    from pathlib import Path
+
+    # Read semantic version from VERSION file (repo root or container root)
+    ver = "unknown"
+    for p in ["/app/VERSION", Path(__file__).parents[3] / "VERSION"]:
+        try:
+            ver = Path(p).read_text().strip()
+            break
+        except Exception:
+            pass
+
+    # Git short hash — available in git+compose deployments
+    git_hash = ""
+    try:
+        git_hash = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+        ).decode().strip()
+    except Exception:
+        pass
+
+    return {"version": ver, "git_hash": git_hash}
