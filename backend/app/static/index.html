@@ -635,14 +635,14 @@ const PlannerPage=({hid})=>{
             <div style={{height:'100%',borderRadius:8,background:'var(--primary)',width:`${progress}%`,transition:'width .5s ease'}}/>
           </div>
           <p style={{fontSize:12,color:'var(--gray)',textAlign:'center',marginBottom:0}}>{progressLabel||'Loading...'}</p>
-        </div>):<button className="btn-primary" onClick={loadSuggestions}>🔍 Generate Suggestions →</button>}
+        </div>):<button className="btn-primary" onClick={()=>loadSuggestions()}>🔍 Generate Suggestions →</button>}
       </div>}
 
       {/* Step 2 */}
       {step===2&&<div>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
           <h3 className="section-title" style={{margin:0,flex:1}}>{suggestions.length} Suggestions — {confirmed.length} selected</h3>
-          <button className="btn-secondary btn-sm" onClick={loadSuggestions} disabled={loading}>&#x21BA; Refresh</button>
+          <button className="btn-secondary btn-sm" onClick={()=>loadSuggestions()} disabled={loading}>&#x21BA; Refresh</button>
           <button className="btn-secondary btn-sm" onClick={()=>{const next=numSug+5;setNumSug(next);loadSuggestions(next);}} disabled={loading}>&#x2795; Load {numSug+5} suggestions</button>
         </div>
         {suggestions.length===0&&!loading&&<div style={{textAlign:'center',padding:48,color:'var(--gray)'}}>

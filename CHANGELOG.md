@@ -1,5 +1,30 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 37: fix circular JSON error on Generate Suggestions
+
+### Bug fix
+
+**"Converting circular structure to JSON" crash on Generate Suggestions and Refresh**
+
+Root cause: in Patch 35 `loadSuggestions` was given a `countOverride`
+parameter so the Load More button could pass the new count directly. Two
+buttons still used the bare `onClick={loadSuggestions}` pattern (no arrow
+wrapper), which causes React to pass the SyntheticEvent as the first
+argument. Since `countOverride ?? numSug` evaluates the event as truthy,
+`n` became the SyntheticEvent object instead of a number. That object was
+then included in the POST body — `num_suggestions: event` — and
+`JSON.stringify` hit the circular reference: SyntheticEvent →
+nativeEvent.target → HTMLButtonElement → __reactFiber$ → circular.
+
+Fix: wrapped both bare `onClick={loadSuggestions}` calls in arrow
+functions (`onClick={()=>loadSuggestions()}`) so no argument is passed and
+`countOverride` defaults to `undefined`, falling back to `numSug` as
+intended.
+
+Affected buttons: **Generate Suggestions** and **↺ Refresh**.
+
+---
+
 ## Phase 10 — Patch 36: version display in nav
 
 ### New feature
