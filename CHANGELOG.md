@@ -1,5 +1,35 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 29: ingredient token fix + pantry buy list + pantry print
+
+### Bug fixes
+
+**Ingredient tokens cleaned at display time (no re-scrape needed)**
+
+Old stubs scraped before the regex fix still stored tokens like `"unit egg"`
+or `"garlic (tsp)"`. A new `_clean_stored_token()` helper is now applied
+when loading `scraped_tokens_json` at score time, stripping leading
+`unit`/`each` prefixes and parenthetical unit annotations from every token
+before it hits the missing-ingredients list. No re-scrape required.
+
+### New features
+
+**"+ Add to buy list" on Pantry Check rows (Step 4 — Shopping List)**
+
+Each item in the green "✓ on hand" Pantry Check section now has a clickable
+"+ Add to buy list" action. Clicking it moves the item to a new
+**🛒 Added from Pantry** section at the top of the shopping list — useful
+when stock is low and you want to buy more. Click again to remove it.
+Added-from-pantry items are included in the print output.
+
+**🖨️ Print Pantry List button (Step 3 — Confirm Selections)**
+
+A print button appears above "Lock In & Import to Mealie" that opens a
+clean printable pantry snapshot (item, quantity, category, expiry) for the
+current week's review.
+
+---
+
 ## Phase 10 — Patch 28: print all selected recipes
 
 ### New feature

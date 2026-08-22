@@ -490,6 +490,27 @@ def _ingredient_names_from_text(detail: dict) -> set[str]:
 _PARSE_DURATION_RE = re.compile(r"PT(?:(\d+)H)?(?:(\d+)M)?", re.IGNORECASE)
 
 
+# Applied to tokens loaded from scraped_tokens_json so stubs scraped before
+# the regex fix (which added unit/each stripping and paren cleanup) show
+# correct ingredient names without needing a full re-scrape.
+_CLEAN_TOKEN_UNIT_RE  = re.compile(
+    r"^(units?|each)\s+", re.IGNORECASE
+)
+_CLEAN_TOKEN_PAREN_RE = re.compile(
+    r"\(\s*(units?|each|cups?|tbsp|tsp|tablespoons?|teaspoons?|"
+    r"lbs?|oz|g|kg|ml|l|cloves?|pieces?|cans?|pounds?|ounces?|grams?|"
+    r"large|medium|small|pinch(es)?|dash(es)?|optional|to taste)\s*\)",
+    re.IGNORECASE,
+)
+
+
+def _clean_stored_token(t: str) -> str:
+    """Light cleanup applied to pre-stored tokens to fix legacy bad values."""
+    t = _CLEAN_TOKEN_UNIT_RE.sub("", t)
+    t = _CLEAN_TOKEN_PAREN_RE.sub("", t)
+    return t.strip()
+
+
 def _parse_minutes(raw: Optional[str]) -> Optional[int]:
     if not raw:
         return None
@@ -876,7 +897,10 @@ def score_cached(
         if not ing_strings:
             continue
         try:
-            tokens = _json.loads(stub.scraped_tokens_json or "[]")
+            raw_tokens = _json.loads(stub.scraped_tokens_json or "[]")
+            # Clean legacy tokens that were stored before the unit-stripping
+            # regex fix — removes "unit egg" → "egg", "garlic (tsp)" → "garlic"
+            tokens = [_clean_stored_token(t) for t in raw_tokens if t]
         except Exception:
             tokens = []
         detail = {
