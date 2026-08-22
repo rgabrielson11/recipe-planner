@@ -1,5 +1,32 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 38: remove Marley Spoon source
+
+### Change
+
+Marley Spoon removed as a discovery source.
+
+Investigation showed that individual recipe pages are JavaScript-rendered
+and return an empty shell to the scraper — no ingredients or instructions
+are available without either a headless browser or a `remember_spree_user_token`
+subscriber cookie. A public Contentful API exists (used in Marley Spoon's
+hiring coding challenges) but contains only a small historical catalog
+unrelated to the current weekly menu.
+
+Without ingredients, Marley Spoon recipes cannot be used for pantry
+scoring, shopping list generation, or recipe printing — the core
+functions of the app.
+
+Removed:
+- `_MARLEYSPOON_MEAL_RE` regex and `_is_marleyspoon_host()` function
+- Marley Spoon branch in `_looks_like_recipe_url()`
+- `_ms_week_urls()` dynamic week expansion in `collect_and_scrape()`
+- Marley Spoon entry in `recipe_sources.yaml`
+
+HelloFresh and Home Chef remain as the two discovery sources.
+
+---
+
 ## Phase 10 — Patch 37: fix circular JSON error on Generate Suggestions
 
 ### Bug fix
