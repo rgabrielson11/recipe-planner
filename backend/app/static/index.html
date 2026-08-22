@@ -137,7 +137,7 @@ const NAV=[
   {key:'pantry',icon:'🥫',label:'Pantry'},
   {section:'Configuration'},{key:'settings',icon:'⚙️',label:'Preferences'},
   {key:'sources',icon:'🌐',label:'Recipe Sources'},{key:'keywords',icon:'🔍',label:'Dinner Filter'},
-  {section:'Tools'},{key:'rejections',icon:'🚫',label:'Rejections'},{key:'logs',icon:'📋',label:'Logs'},
+  {section:'Tools'},{key:'rejections',icon:'🚫',label:'Rejections'},{key:'logs',icon:'📋',label:'Logs'},{key:'database',icon:'🗄️',label:'Database'},
 ];
 const Nav=({page,setPage})=>(
   <nav className="nav">
@@ -1165,6 +1165,61 @@ const LogsPage=()=>{
 };
 
 // ── App ───────────────────────────────────────────────────────────────────────
+const DatabasePage=()=>{
+  const [wiping,setWiping]=useState(false);
+  const [result,setResult]=useState(null);
+  const [showConfirm,setShowConfirm]=useState(false);
+  const toast=useToast();
+
+  const wipe=async()=>{
+    setWiping(true);setResult(null);setShowConfirm(false);
+    try{
+      const r=await del('/config/recipe-cache');
+      setResult(r);
+      toast(`Wiped ${r.stubs_deleted} stubs and ${r.rejections_deleted} rejections`);
+    }catch(e){toast(e.message,'error');}
+    finally{setWiping(false);}
+  };
+
+  return(
+    <div>
+      <div className="page-header">
+        <h1 className="page-title">🗄️ Database</h1>
+        <p className="page-sub">Maintenance tools — use with caution</p>
+      </div>
+
+      <div className="card" style={{borderLeft:'4px solid var(--amber, #f59e0b)'}}>
+        <h3 className="section-title">🧹 Wipe Recipe Cache</h3>
+        <p style={{fontSize:14,marginBottom:8}}>Deletes all scraped recipe stubs and rejection history from the local database.</p>
+        <div style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>
+          <div style={{marginBottom:4}}><strong>Deleted:</strong> All unconfirmed recipe stubs · All rejection records</div>
+          <div><strong>Kept:</strong> Recipes already imported to Mealie · Household preferences · Pantry items · Meal plan history</div>
+        </div>
+        <p style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>Use this to start fresh after testing, or to force a full re-scrape from HelloFresh and Home Chef. The nightly scraper (or ⚡ Scrape on the Sources page) will rebuild the cache.</p>
+
+        {!showConfirm&&<button className="btn-danger" onClick={()=>setShowConfirm(true)} disabled={wiping}>
+          🗑️ Wipe Recipe Cache
+        </button>}
+
+        {showConfirm&&<div style={{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:8,padding:16,marginTop:8}}>
+          <p style={{fontWeight:600,marginBottom:8}}>⚠️ Are you sure?</p>
+          <p style={{fontSize:13,color:'var(--gray)',marginBottom:12}}>This cannot be undone. All scraped stubs and rejection history will be permanently deleted.</p>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn-danger" onClick={wipe} disabled={wiping}>
+              {wiping?'Wiping…':'Yes, wipe it'}
+            </button>
+            <button className="btn-secondary" onClick={()=>setShowConfirm(false)} disabled={wiping}>Cancel</button>
+          </div>
+        </div>}
+
+        {result&&<div style={{marginTop:16,padding:12,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,fontSize:13}}>
+          ✅ {result.message}
+        </div>}
+      </div>
+    </div>
+  );
+};
+
 const App=()=>{
   const [page,setPage]=useState('planner');
   const [hid,setHid]=useState(()=>localStorage.getItem('householdId')||'');
@@ -1175,7 +1230,7 @@ const App=()=>{
     get(`/households/${hid}`).then(()=>setValid(true)).catch(()=>{setValid(false);saveHid('');});
   },[hid]);
   if(!hid||!valid)return<ToastProvider><HouseholdGate onSave={saveHid}/></ToastProvider>;
-  const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>};
+  const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage/>};
   return(
     <ToastProvider>
       <Nav page={page} setPage={setPage}/>

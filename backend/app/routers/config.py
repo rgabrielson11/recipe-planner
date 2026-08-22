@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from pydantic import BaseModel
 
-from app import config_files
+from app import config_files, models
 
 log    = logging.getLogger(__name__)
 router = APIRouter(prefix="/config", tags=["config"])
@@ -254,3 +254,52 @@ def scrape_source(name: str, db: Session = Depends(get_db)):
     threading.Thread(target=_run, daemon=True).start()
     log.info("Per-source manual scrape triggered for '%s'", name)
     return {"started": True, "source": name}
+
+
+# ── Database maintenance ───────────────────────────────────────────────────────
+
+@router.delete("/recipe-cache", status_code=200)
+def wipe_recipe_cache(db: Session = Depends(get_db)):
+    """
+    Deletes all scraped recipe stubs and rejection history from the DB,
+    leaving household preferences, pantry items, meal plan entries, and
+    any Mealie-linked rows intact.
+
+    Wipes:
+      • recipes where mealie_slug IS NULL  (unconfirmed scrape stubs)
+      • recipe_rejections                  (rejection history)
+
+    Keeps:
+      • recipes where mealie_slug IS NOT NULL  (confirmed + imported to Mealie)
+      • households, preferences, pantry_items
+      • weekly_intents, weekly_selections, meal_plan_entries
+    """
+    from sqlalchemy import text as _text
+
+    # Count before so we can report what was deleted
+    stub_count = db.query(models.Recipe).filter(
+        models.Recipe.mealie_slug.is_(None)
+    ).count()
+    rejection_count = db.query(models.RecipeRejection).count()
+
+    # Delete rejections first (FK constraint: recipe_rejections → recipes)
+    db.query(models.RecipeRejection).delete()
+
+    # Delete unconfirmed stubs only — keep Mealie-linked rows
+    db.query(models.Recipe).filter(
+        models.Recipe.mealie_slug.is_(None)
+    ).delete()
+
+    db.commit()
+    log.info(
+        "Recipe cache wiped: %d stubs deleted, %d rejections deleted",
+        stub_count, rejection_count,
+    )
+    return {
+        "stubs_deleted":      stub_count,
+        "rejections_deleted": rejection_count,
+        "message": (
+            f"Deleted {stub_count} recipe stub(s) and {rejection_count} "
+            f"rejection record(s). Mealie-linked recipes are untouched."
+        ),
+    }
