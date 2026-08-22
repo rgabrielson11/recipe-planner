@@ -141,6 +141,21 @@ def _is_hellofresh_host(netloc: str) -> bool:
     return host == "hellofresh.com" or host.startswith("hellofresh.")
 
 
+# Marley Spoon: individual recipes live under /menu/{numeric-id}-{slug}.
+# The /menu page itself (and ?week= variants) are server-rendered with all
+# recipe links inline — used as category_urls for discovery.
+# Individual pages may or may not contain JSON-LD; the scraper will try and
+# return None if they don't, so failures are silent and cost-free.
+_MARLEYSPOON_MEAL_RE = re.compile(r"^/menu/\d+-[a-z0-9][a-z0-9\-]{3,}$", re.IGNORECASE)
+
+
+def _is_marleyspoon_host(netloc: str) -> bool:
+    host = netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host == "marleyspoon.com" or host.startswith("marleyspoon.")
+
+
 # Home Chef: individual meals live under /meals/{slug}.
 # Slugs can be plain ("coq-au-vin") or have a UUID or keyword suffix
 # ("chicken-tacos-363cfbea-...").  Category index pages live under
@@ -190,6 +205,12 @@ def _looks_like_recipe_url(url: str) -> bool:
     # /our-menu, /signup, /how-it-works, and any other marketing pages.
     if _is_homechef_host(parsed.netloc):
         return bool(_HOMECHEF_MEAL_RE.match(path))
+
+    # Marley Spoon: accept /menu/{id}-{slug} paths only.
+    # The bare /menu and /menu?week= pages are category_urls (fetched directly);
+    # only numbered recipe paths should enter the scrape budget.
+    if _is_marleyspoon_host(parsed.netloc):
+        return bool(_MARLEYSPOON_MEAL_RE.match(path))
 
     host = parsed.netloc.lstrip("www.")
     if host in SUPPORTED_SCRAPERS:
