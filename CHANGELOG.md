@@ -1,5 +1,35 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 43: use scraped ingredients for shopping list (bypass Mealie re-scrape)
+
+### Architecture change
+
+The shopping list generator now uses the ingredient strings stored in
+`Recipe.scraped_ingredients_json` (captured by recipe-scrapers at
+discovery time) as the primary source for ingredient data, instead of
+re-fetching from Mealie.
+
+**Why:** Mealie's URL importer does its own scraping pass which often
+stores `quantity: null` on ingredients it can't parse structurally.
+recipe-scrapers captures the full raw note string ("2 cups flour",
+"1/2 tsp salt") which is far more reliably parseable.
+
+**New function** `_extract_ingredients_from_raw()` parses raw ingredient
+strings: strips leading quantity (including fractions like 1/2), extracts
+unit keyword, normalizes the ingredient name using the same pipeline as
+the scoring engine.
+
+**Logic:**
+- Pool B / discovered recipes — have `scraped_ingredients_json` →
+  use raw strings directly, no Mealie API call needed
+- Pool A / Mealie-native recipes — no local scrape → fall back to
+  Mealie as before
+
+Also adds `_parse_servings_str()` to parse our stored `scraped_servings`
+value (e.g. "4 servings") for the scale calculation.
+
+---
+
 ## Phase 10 — Patch 42: fix shopping list "as needed" quantities
 
 ### Bug fix

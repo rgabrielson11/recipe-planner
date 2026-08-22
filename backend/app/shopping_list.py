@@ -190,6 +190,93 @@ def _extract_ingredients(detail: dict) -> list[dict]:
     return ingredients
 
 
+def _parse_servings_str(raw: Optional[str]) -> Optional[float]:
+    """Parse a servings string like '4 servings' or '4-6' from our scraped data."""
+    if not raw:
+        return None
+    m = re.search(r"(\d+(?:\.\d+)?)", str(raw))
+    return float(m.group(1)) if m else None
+
+
+# Regex pieces reused from recipe_discovery — strip leading qty+unit from ingredient text
+_QTY_UNIT_RE = re.compile(
+    r"^\s*[\d¼½¾⅓⅔⅛⅜⅝⅞\/\.\-]+\s*"
+    r"(units?|each|cups?|tbsp|tsp|tablespoons?|teaspoons?|lbs?|oz|g|kg|ml|l|"
+    r"cloves?|heads?|bunches?|slices?|pieces?|cans?|packages?|"
+    r"pounds?|ounces?|grams?|large|medium|small|whole|fresh|dried|"
+    r"pinch(?:es)?|dash(?:es)?|handful)?\b\s*",
+    re.IGNORECASE,
+)
+_PAREN_UNIT_RE = re.compile(
+    r"\(\s*(units?|each|cups?|tbsp|tsp|tablespoons?|teaspoons?|lbs?|oz|g|kg|ml|l|"
+    r"cloves?|pieces?|cans?|packages?|pounds?|ounces?|grams?|large|medium|small|"
+    r"pinch(?:es)?|dash(?:es)?|optional|to taste)\s*\)",
+    re.IGNORECASE,
+)
+_LEAD_PUNCT_RE = re.compile(r"^[,\.;:\-\s]+")
+
+
+def _extract_ingredients_from_raw(
+    raw_strings: list[str],
+    servings: Optional[float],
+    scale: float,
+) -> list[dict]:
+    """
+    Parse ingredient quantity/unit/name from raw note strings stored in
+    scraped_ingredients_json — e.g. "2 cups flour", "1/2 tsp salt".
+    More reliable than Mealie re-scraping because recipe-scrapers already
+    captured the structured text at discovery time.
+    """
+    results = []
+    for raw in raw_strings:
+        if not raw or not raw.strip():
+            continue
+        raw = raw.strip()
+
+        # Extract leading quantity
+        m_qty = re.match(r"^\s*([\d¼½¾⅓⅔⅛⅜⅝⅞]+(?:[\./][\d]+)?)", raw)
+        qty: Optional[float] = None
+        unit: Optional[str] = None
+        if m_qty:
+            try:
+                raw_q = m_qty.group(1)
+                if "/" in raw_q:
+                    num, den = raw_q.split("/", 1)
+                    qty = float(num) / float(den)
+                else:
+                    qty = float(raw_q)
+            except (ValueError, ZeroDivisionError):
+                qty = None
+
+        # Strip qty+unit prefix to get name
+        after_qty = _QTY_UNIT_RE.sub("", raw)
+        # Try to grab the unit that was stripped
+        if unit is None and qty is not None:
+            unit_part = raw[len(m_qty.group(0)) if m_qty else 0:].strip()
+            m_u = re.match(
+                r"^(cups?|tbsp|tablespoons?|tsp|teaspoons?|lbs?|oz|g|kg|ml|l|"
+                r"ounces?|pounds?|grams?|cloves?|heads?|bunches?|slices?|"
+                r"pieces?|cans?|packages?|pinch(?:es)?|dash(?:es)?)",
+                unit_part, re.IGNORECASE,
+            )
+            if m_u:
+                unit = m_u.group(1)
+
+        after_qty = _PAREN_UNIT_RE.sub("", after_qty)
+        after_qty = _LEAD_PUNCT_RE.sub("", after_qty).strip().lower()
+        name = after_qty.split(",")[0].strip()
+        if not name:
+            name = raw.lower()
+
+        scaled = round(qty * scale, 3) if qty else None
+        results.append({
+            "name":     ingredient_utils.normalize_name(name) or name,
+            "quantity": scaled,
+            "unit":     _canonical_unit(unit),
+        })
+    return results
+
+
 # ── Aggregation ───────────────────────────────────────────────────────────────
 
 def _aggregate(
@@ -413,20 +500,39 @@ def build_shopping_list(
                 missing_mealie.append(recipe.title)
             continue
 
-        try:
-            detail   = mealie_client.get_recipe(recipe.mealie_slug)
-            servings = _parse_servings(detail)
-            scale    = (household.num_people / servings) if servings and servings > 0 else 1.0
-            ings = _extract_ingredients(detail)
-            log.info("Mealie fetch OK: '%s' — %d ingredients, servings=%s, scale=%.2f",
+        # Prefer our own scraped ingredient strings (recipe-scrapers output) —
+        # they're already on the Recipe row and don't require a Mealie round-trip.
+        # Mealie's re-scrape sometimes drops quantities (stores quantity=null).
+        # Fall back to Mealie only for Pool A recipes (no local scrape data).
+        import json as _sl_json
+        raw_ings_json = recipe.scraped_ingredients_json
+        raw_ings = _sl_json.loads(raw_ings_json) if raw_ings_json else []
+
+        if raw_ings:
+            # Pool B / discovered recipe — use our scraped strings
+            servings_str = recipe.scraped_servings or ""
+            servings = _parse_servings_str(servings_str)
+            scale = (household.num_people / servings) if servings and servings > 0 else 1.0
+            ings = _extract_ingredients_from_raw(raw_ings, servings, scale)
+            log.info("Using scraped ingredients for '%s' — %d items, servings=%s, scale=%.2f",
                      recipe.title, len(ings), servings, scale)
-            for ing in ings:
-                scaled = round(ing["quantity"] * scale, 3) if ing["quantity"] else None
-                all_ingredients.append({**ing, "quantity": scaled})
-        except mealie_client.MealieError as e:
-            log.warning("Mealie fetch FAILED for '%s' (slug=%s): %s", recipe.title, recipe.mealie_slug, e)
-            warnings.append(f"Mealie error for '{recipe.title}': {e} — add manually.")
-            missing_mealie.append(recipe.title)
+            all_ingredients.extend(ings)
+        else:
+            # Pool A / Mealie-native — fall back to Mealie API
+            try:
+                detail   = mealie_client.get_recipe(recipe.mealie_slug)
+                servings = _parse_servings(detail)
+                scale    = (household.num_people / servings) if servings and servings > 0 else 1.0
+                ings = _extract_ingredients(detail)
+                log.info("Mealie fetch OK: '%s' — %d ingredients, servings=%s, scale=%.2f",
+                         recipe.title, len(ings), servings, scale)
+                for ing in ings:
+                    scaled = round(ing["quantity"] * scale, 3) if ing["quantity"] else None
+                    all_ingredients.append({**ing, "quantity": scaled})
+            except mealie_client.MealieError as e:
+                log.warning("Mealie fetch FAILED for '%s' (slug=%s): %s", recipe.title, recipe.mealie_slug, e)
+                warnings.append(f"Mealie error for '{recipe.title}': {e} — add manually.")
+                missing_mealie.append(recipe.title)
 
     # ── Step 3: aggregate ─────────────────────────────────────────────────
     totals = _aggregate(all_ingredients)
