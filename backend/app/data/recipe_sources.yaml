@@ -195,12 +195,8 @@ sources:
 
 - name: Marley Spoon
   enabled: true
-  notes: "Meal-kit recipes — menu page is server-rendered with 100+ recipe links per
-    week. Individual recipe pages may or may not expose JSON-LD; scrape failures are
-    silent. Run a manual scrape to gauge hit rate before the nightly job."
+  notes: "Meal-kit recipes — server-rendered weekly menu with 100+ recipe links. Week
+    URLs (current + 3 upcoming Mondays) are generated dynamically at scrape time so
+    this never needs manual date updates."
   category_urls:
-  # Current week + upcoming weeks (4 weeks of menus = ~400 recipe URLs for dedup)
   - https://marleyspoon.com/menu
-  - https://marleyspoon.com/menu?week=2026-08-31
-  - https://marleyspoon.com/menu?week=2026-09-07
-  - https://marleyspoon.com/menu?week=2026-09-14

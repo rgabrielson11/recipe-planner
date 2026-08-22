@@ -699,6 +699,40 @@ def collect_and_scrape(
                 pass
 
         log.info("=== Scrape start | budget=%d | %d source(s) ===", max_scrape, len(sources))
+
+        # Marley Spoon weekly menu expansion — replace the bare /menu URL with
+        # the current week and next 3 weeks so we always scrape fresh menus
+        # without needing date updates in the YAML.
+        def _ms_week_urls(base: str, weeks: int = 4) -> list[str]:
+            """Return base URL + ?week= for the current Monday and next N-1 Mondays."""
+            today = datetime.utcnow().date()
+            # Find the most recent Monday (weekday 0)
+            days_since_monday = today.weekday()
+            this_monday = today - timedelta(days=days_since_monday)
+            urls = []
+            for i in range(weeks):
+                week = this_monday + timedelta(weeks=i)
+                if i == 0:
+                    urls.append(base)          # current week has no ?week= param
+                else:
+                    urls.append(f"{base}?week={week.isoformat()}")
+            return urls
+
+        expanded_sources = []
+        for src in sources:
+            if _is_marleyspoon_host(urlparse(src.get("category_urls", [""])[0] if src.get("category_urls") else "").netloc):
+                new_cat_urls = []
+                for u in src.get("category_urls", []):
+                    parsed_u = urlparse(u)
+                    if _is_marleyspoon_host(parsed_u.netloc) and not parsed_u.query:
+                        new_cat_urls.extend(_ms_week_urls(u))
+                        log.info("Marley Spoon: expanded to %d week URLs", len(new_cat_urls))
+                    else:
+                        new_cat_urls.append(u)
+                src = dict(src)
+                src["category_urls"] = new_cat_urls
+            expanded_sources.append(src)
+        sources = expanded_sources
         _prog(3, "Building recipe catalog...")
 
         # URLs already in Mealie — skip entirely
