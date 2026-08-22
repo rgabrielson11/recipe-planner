@@ -612,7 +612,7 @@ def get_meal_history(household_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/history/add")
-def add_from_history(payload: schemas.ConfirmSelectionsPayload, db: Session = Depends(get_db)):
+def add_from_history(payload: schemas.WeeklySelectionCreate, db: Session = Depends(get_db)):
     """
     Add previously-selected recipes directly to the current week's plan,
     importing them to Mealie if not already imported.
