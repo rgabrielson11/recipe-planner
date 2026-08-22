@@ -660,6 +660,52 @@ const PlannerPage=({hid})=>{
           ))}
         </div>
 
+        {/* Print All Recipes — appears after import */}
+        {importResults&&<div style={{marginBottom:16}}>
+          <button className="btn-secondary" onClick={async()=>{
+            const selected=suggestions.filter(s=>confirmed.includes(s.recipe_id));
+            const results=await Promise.allSettled(
+              selected.map(r=>get(`/recipes/${r.recipe_id}/print-data`))
+            );
+            const recipes=results
+              .map((res,i)=>res.status==='fulfilled'?res.value:{title:selected[i].title,ingredients:[],instructions:[],source_url:selected[i].source_url,total_time_minutes:selected[i].total_time_minutes})
+              .filter(Boolean);
+            const escHtml=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            const sections=recipes.map((d,idx)=>{
+              const meta=[d.total_time_minutes?`⏱ ${escHtml(d.total_time_minutes)} min`:'',d.source_url?`<a href="${escHtml(d.source_url)}">${escHtml(d.source_url)}</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+              const ings=(d.ingredients||[]).map(i=>`<li>${escHtml(i)}</li>`).join('');
+              const steps=(d.instructions||[]).map((s,i)=>`<li><b>${i+1}.</b> ${escHtml(s)}</li>`).join('');
+              const breakStyle=idx===0?'':'page-break-before:always;break-before:page;';
+              return `<div class="recipe" style="${breakStyle}">
+                  <h1>${escHtml(d.title)}</h1>
+                  ${meta?`<p class="meta">${meta}</p>`:''}
+                  ${d.description?`<p class="desc">${escHtml(d.description)}</p>`:''}
+                  <h2>Ingredients</h2>
+                  ${ings?`<ul>${ings}</ul>`:'<p class="none">See original recipe link above.</p>'}
+                  ${steps?`<h2>Instructions</h2><ol>${steps}</ol>`:''}
+                </div>`;
+            }).join('');
+            const w=window.open('','_blank');
+            w.document.write(`<!DOCTYPE html><html><head><title>This Week's Recipes</title>
+              <style>
+                body{font-family:Georgia,serif;max-width:680px;margin:40px auto;color:#111;line-height:1.6}
+                h1{font-size:24px;margin:0 0 4px}h2{font-size:16px;margin:20px 0 6px;border-bottom:1px solid #ddd;padding-bottom:3px}
+                p{margin:0 0 6px;font-size:14px}.meta{color:#666}.desc{font-style:italic;color:#555}
+                ul,ol{padding-left:20px;margin:0}li{font-size:14px;margin:3px 0}.none{color:#888;font-style:italic}
+                .recipe{margin-bottom:48px}
+                @media print{.recipe+.recipe{page-break-before:always;break-before:page}a{color:#111!important;text-decoration:none}}
+              </style></head><body>
+              <div style="page-break-after:always;break-after:page;text-align:center;padding:80px 0">
+                <h1 style="border-bottom:2px solid #111;padding-bottom:8px;display:inline-block">&#x1F374; This Week's Recipes</h1>
+                <p style="font-size:18px;color:#555;margin-top:12px">${recipes.length} recipe${recipes.length===1?'':'s'}</p>
+              </div>
+              ${sections}
+              <script>window.print();<\/script>
+              </body></html>`);
+            w.document.close();
+          }}>🖨️ Print All Recipes ({confirmed.length})</button>
+        </div>}
+
         {importResults&&<div className="card" style={{marginBottom:16}}>
           <h3 className="section-title">Mealie Import Status</h3>
           {importResults.map((r,i)=>(
