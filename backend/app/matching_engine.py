@@ -255,15 +255,38 @@ def build_suggestions(
                 # for every Pool A recipe that was never confirmed through
                 # the planner, causing all of them to share recipe_id=None
                 # — meaning rejecting one visually "rejects" all of them.
-                local = models.Recipe(
-                    source_url=f"mealie:{slug}",
-                    title=slug,      # updated below once detail is fetched
-                    mealie_slug=slug,
-                )
-                db.add(local)
-                db.flush()
+                # Safety net: check the DB first in case a concurrent
+                # request (or a repeated slug in top_rated) already
+                # created the stub and flushed it in this session.
+                _existing_stub = db.query(models.Recipe).filter(
+                    models.Recipe.mealie_slug == slug
+                ).first()
+                if _existing_stub:
+                    local = _existing_stub
+                    log.debug("Pool A: found existing stub for slug=%s", slug)
+                else:
+                    local = models.Recipe(
+                        source_url=f"mealie:{slug}",
+                        title=slug,      # updated below once detail is fetched
+                        mealie_slug=slug,
+                    )
+                    db.add(local)
+                    try:
+                        db.flush()
+                    except Exception as _flush_err:
+                        # Concurrent request beat us to it — roll back the
+                        # pending add and fetch the row that won the race.
+                        db.expunge(local)
+                        local = db.query(models.Recipe).filter(
+                            models.Recipe.mealie_slug == slug
+                        ).first()
+                        if not local:
+                            log.warning("Pool A: flush failed and stub gone for slug=%s: %s",
+                                        slug, _flush_err)
+                            continue
+                        log.debug("Pool A: recovered existing stub after flush race for slug=%s", slug)
                 local_by_slug[slug] = local
-                log.debug("Pool A: created local stub for slug=%s", slug)
+                log.debug("Pool A: registered stub for slug=%s", slug)
 
             recipe_id = local.id
             if recipe_id in excluded_ids:

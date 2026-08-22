@@ -141,6 +141,20 @@ def _is_hellofresh_host(netloc: str) -> bool:
     return host == "hellofresh.com" or host.startswith("hellofresh.")
 
 
+# Home Chef: individual meals live under /meals/{slug}.
+# Slugs can be plain ("coq-au-vin") or have a UUID or keyword suffix
+# ("chicken-tacos-363cfbea-...").  Category index pages live under
+# /recipes/{category} and must NOT be treated as meal URLs.
+_HOMECHEF_MEAL_RE = re.compile(r"^/meals/[a-z0-9][a-z0-9\-]{3,}$", re.IGNORECASE)
+
+
+def _is_homechef_host(netloc: str) -> bool:
+    host = netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host == "homechef.com" or host.startswith("homechef.")
+
+
 def _looks_like_recipe_url(url: str) -> bool:
     """
     Stricter validator for URLs extracted from HTML category pages.
@@ -171,6 +185,11 @@ def _looks_like_recipe_url(url: str) -> bool:
     # else on the domain is a hub/category/marketing page.
     if _is_hellofresh_host(parsed.netloc):
         return bool(_HELLOFRESH_RECIPE.search(path))
+
+    # Home Chef: accept /meals/{slug} paths; reject /recipes/* (category indexes),
+    # /our-menu, /signup, /how-it-works, and any other marketing pages.
+    if _is_homechef_host(parsed.netloc):
+        return bool(_HOMECHEF_MEAL_RE.match(path))
 
     host = parsed.netloc.lstrip("www.")
     if host in SUPPORTED_SCRAPERS:
@@ -237,6 +256,10 @@ def _extract_recipe_urls(html: str, base_url: str) -> list[str]:
     for tag in soup.find_all("a", href=True):
         href = tag["href"].split("?")[0].split("#")[0]
         full = urljoin(base_url, href)
+        # Normalize: strip trailing slash so the same recipe URL with and
+        # without a trailing slash is treated as a single canonical URL.
+        parsed_full = urlparse(full)
+        full = parsed_full._replace(path=parsed_full.path.rstrip("/") or "/").geturl()
         if _same_host(full, base_url) and _looks_like_recipe_url(full):
             found.add(full)
     return list(found)
@@ -703,8 +726,23 @@ def collect_and_scrape(
                 row = models.Recipe(source_url=url, title=detail["name"], mealie_slug=None)
                 _update_row_from_detail(row, detail)
                 db.add(row)
-                db.flush()
-                new_recipes += 1
+                try:
+                    db.flush()
+                    new_recipes += 1
+                except Exception as _flush_err:
+                    # URL slipped through the dedup check (trailing-slash variant,
+                    # race with background job, etc.) — roll back the pending add
+                    # and treat as an update instead.
+                    db.expunge(row)
+                    _retry = db.query(models.Recipe).filter(
+                        models.Recipe.source_url == url
+                    ).first()
+                    if _retry:
+                        _update_row_from_detail(_retry, detail)
+                        db.add(_retry)
+                        log.debug("Flush race resolved — updated existing row for %s", url)
+                    else:
+                        log.warning("Flush failed and no existing row found for %s: %s", url, _flush_err)
 
         db.commit()
         duration = round(time.perf_counter() - t0, 1)

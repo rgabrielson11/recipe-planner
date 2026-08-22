@@ -145,3 +145,50 @@ sources:
   - https://www.hellofresh.com/pages/sitemap/recipes-w
   - https://www.hellofresh.com/pages/sitemap/recipes-y
   - https://www.hellofresh.com/pages/sitemap/recipes-z
+
+- name: Home Chef
+  enabled: true
+  notes: "Meal-kit recipes — tested, family-scaled. Crawled via dinner-focused recipe
+    category pages. Categories excluded: Breakfast, Dessert, Smoothie, Salad, Protein
+    Packs (not full recipes)."
+  category_urls:
+  # ── Chicken / Poultry ──────────────────────────────────────────────────────
+  - https://www.homechef.com/recipes/chicken
+  - https://www.homechef.com/recipes/chicken?page=2
+  - https://www.homechef.com/recipes/chicken?page=3
+  - https://www.homechef.com/recipes/poultry
+  - https://www.homechef.com/recipes/poultry?page=2
+  # ── Beef / Steak ───────────────────────────────────────────────────────────
+  - https://www.homechef.com/recipes/beef
+  - https://www.homechef.com/recipes/beef?page=2
+  - https://www.homechef.com/recipes/beef?page=3
+  - https://www.homechef.com/recipes/steak
+  - https://www.homechef.com/recipes/steak?page=2
+  # ── Pork ───────────────────────────────────────────────────────────────────
+  - https://www.homechef.com/recipes/pork
+  - https://www.homechef.com/recipes/pork?page=2
+  - https://www.homechef.com/recipes/pork?page=3
+  # ── Seafood / Fish / Shrimp / Salmon / Cod ─────────────────────────────────
+  - https://www.homechef.com/recipes/seafood
+  - https://www.homechef.com/recipes/seafood?page=2
+  - https://www.homechef.com/recipes/fish
+  - https://www.homechef.com/recipes/fish?page=2
+  - https://www.homechef.com/recipes/shrimp
+  - https://www.homechef.com/recipes/salmon
+  - https://www.homechef.com/recipes/cod
+  # ── Pasta ──────────────────────────────────────────────────────────────────
+  - https://www.homechef.com/recipes/pasta
+  - https://www.homechef.com/recipes/pasta?page=2
+  # ── Vegetarian ─────────────────────────────────────────────────────────────
+  - https://www.homechef.com/recipes/vegetarian
+  - https://www.homechef.com/recipes/vegetarian?page=2
+  # ── Curated collections (high-quality, customer-validated) ─────────────────
+  - https://www.homechef.com/recipes/customer-favorites
+  - https://www.homechef.com/recipes/customer-favorites?page=2
+  - https://www.homechef.com/recipes/staff-picks
+  - https://www.homechef.com/recipes/staff-picks?page=2
+  # ── Dietary / wellness ─────────────────────────────────────────────────────
+  - https://www.homechef.com/recipes/calorie-conscious
+  - https://www.homechef.com/recipes/calorie-conscious?page=2
+  - https://www.homechef.com/recipes/carb-conscious
+  - https://www.homechef.com/recipes/lamb
