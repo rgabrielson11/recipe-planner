@@ -118,6 +118,20 @@ def get_logs(
             "logs": filtered[-last_n:]}
 
 
+@app.post("/api/logs/client", tags=["debug"])
+def log_client_error(payload: dict):
+    """Accept error reports from the frontend and write them into the ring buffer
+    so they appear on the Logs page alongside backend errors."""
+    import logging as _logging
+    level   = str(payload.get("level", "ERROR")).upper()
+    message = str(payload.get("message", ""))
+    context = str(payload.get("context", ""))
+    logger  = _logging.getLogger("client")
+    lvl_num = _LEVEL_ORDER.get(level, 40)
+    logger.log(lvl_num, f"[UI] {message}" + (f" | {context}" if context else ""))
+    return {"ok": True}
+
+
 @app.get("/api/workflow")
 def workflow():
     return {"steps": [

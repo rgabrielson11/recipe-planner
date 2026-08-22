@@ -112,9 +112,19 @@ label{font-size:13px;font-weight:500;color:#475569;display:block;margin-bottom:4
 <script type="text/babel">
 const {useState,useEffect,useCallback,useRef} = React;
 
+const logError=async(message,context='')=>{
+  try{await fetch('/api/logs/client',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({level:'ERROR',message,context})});}catch(_){}
+};
+
 const API = async (method,path,body)=>{
   const r=await fetch(`/api${path}`,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
-  if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||r.statusText);}
+  if(!r.ok){
+    const e=await r.json().catch(()=>({detail:r.statusText}));
+    const msg=e.detail||r.statusText;
+    logError(msg,`${method} /api${path}`);
+    throw new Error(msg);
+  }
   if(r.status===204)return null; return r.json();
 };
 const get=p=>API('GET',p);
@@ -516,6 +526,7 @@ const PlannerPage=({hid})=>{
   const [confirmed,setConf]=useState([]);
   const [rejected,setRej]=useState([]);
   const [shoppingList,setSL]=useState(null);
+  const [extraBuyItems,setExtraBuyItems]=useState([]);
   const [loading,setLoading]=useState(false);
   const [importResults,setImportResults]=useState(null);
   const [mealieUrl,setMealieUrl]=useState('');

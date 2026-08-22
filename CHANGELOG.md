@@ -1,5 +1,30 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 40: fix extraBuyItems + client error logging
+
+### Bug fixes
+
+**`setExtraBuyItems` not defined** — Shopping list "Add to buy list" feature
+was broken because the `extraBuyItems` state declaration was lost during a
+sync. Re-added `const [extraBuyItems, setExtraBuyItems] = useState([])` to
+`PlannerPage`.
+
+### New feature
+
+**All UI errors forwarded to the Logs page**
+
+A new `logError(message, context)` helper POSTs every API error to
+`POST /api/logs/client`, which writes it into the backend ring buffer at
+the appropriate log level. This means any failed API call (import, scrape,
+shopping list generation, etc.) now appears on the **Logs** page with label
+`client` alongside backend errors, making it much easier to diagnose issues
+without opening the browser console.
+
+`POST /api/logs/client` added to `main.py` — accepts `{level, message,
+context}` and logs via the Python `client` logger.
+
+---
+
 ## Phase 10 — Patch 39: print UX, print pantry move, past meals page, version link
 
 ### Bug fixes
