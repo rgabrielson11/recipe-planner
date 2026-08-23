@@ -548,6 +548,22 @@ def build_shopping_list(
     # ── Step 3: aggregate ─────────────────────────────────────────────────
     totals = _aggregate(all_ingredients)
 
+    # ── Step 3b: LLM ingredient normalisation (optional) ──────────────────
+    # Collapses aliases like "yellow onion" → "onion" before pantry/package steps.
+    if ollama_client.is_configured():
+        raw_names = [name for (name, _unit) in totals.keys()]
+        if raw_names:
+            mapping = ollama_client.normalize_ingredient_names(raw_names)
+            if mapping:
+                normalised: dict = {}
+                for (name, unit), qty in totals.items():
+                    canon = mapping.get(name, name)
+                    key = (canon, unit)
+                    normalised[key] = normalised.get(key, 0.0) + qty
+                totals = normalised
+                log.info("Ollama normalised %d → %d unique ingredients",
+                         len(raw_names), len(totals))
+
     # ── Step 4–5: pantry + staples ────────────────────────────────────────
     remaining, pantry_check, using_from_pantry = _apply_pantry_and_staples(
         totals, pantry_items, staples, warnings

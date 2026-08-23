@@ -1,5 +1,45 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 45: Ollama integration for ingredient normalisation
+
+### New feature
+
+**Optional local LLM ingredient normalisation via Ollama**
+
+When `OLLAMA_BASE_URL` is set, the shopping list generator calls the local
+Ollama instance after ingredient aggregation (Step 3b) to canonicalise
+ingredient names before pantry matching and package rounding:
+
+- `"boneless skinless chicken breast"` → `"chicken breast"`
+- `"yellow onion"` → `"onion"`
+- `"parmigiano-reggiano"` → `"parmesan"`
+- Meaningful distinctions preserved: `"cherry tomato"` ≠ `"roma tomato"`
+
+The call is a single batch request per shopping list (not per ingredient),
+returning a JSON mapping. If Ollama is unavailable or returns malformed
+output, the code falls back to the existing deterministic behaviour
+silently.
+
+**New module** `backend/app/ollama_client.py`:
+- `is_configured()` — checks if `OLLAMA_BASE_URL` is set
+- `is_available()` — health check against `/api/tags`
+- `generate(prompt, model, expect_json)` — raw completion
+- `normalize_ingredient_names(names)` — ingredient normalisation
+
+**New environment variables** (all optional):
+- `OLLAMA_BASE_URL` — e.g. `http://192.168.111.189:11434`
+- `OLLAMA_MODEL` — default `qwen3:latest`
+- `OLLAMA_TIMEOUT` — default `30` seconds
+
+**Unraid template** — three new advanced fields added for the above.
+Ollama status (URL, model, available) now included in `GET /config/version`
+response so the UI can surface it.
+
+Recommended model: `qwen3:latest` (already installed). `gemma3:4b` is a
+fast fallback. No new model installation required.
+
+---
+
 ## Phase 10 — Patch 44: fix unit words appearing in ingredient names
 
 ### Bug fix

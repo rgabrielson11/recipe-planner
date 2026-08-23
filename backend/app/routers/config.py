@@ -373,4 +373,11 @@ def get_version():
     except Exception:
         pass
 
-    return {"version": ver, "git_hash": git_hash}
+    from app import ollama_client as _oc
+    return {
+        "version":         ver,
+        "git_hash":        git_hash,
+        "ollama_url":      _oc.OLLAMA_BASE_URL or None,
+        "ollama_model":    _oc.OLLAMA_MODEL if _oc.OLLAMA_BASE_URL else None,
+        "ollama_available": _oc.is_available() if _oc.OLLAMA_BASE_URL else False,
+    }

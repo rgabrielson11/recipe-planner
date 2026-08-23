@@ -118,6 +118,7 @@ Edit vocabulary: `backend/app/data/rejection_reasons.yaml`
 - **Past Meals page** — Planning → Past Meals shows every previously selected recipe grouped by week; one click adds any back to the current week's plan, reimporting to Mealie automatically
 - **Database page** — Tools → Database shows per-source recipe stub counts and a wipe-with-confirmation to reset the cache
 - **Logs page** — all frontend API errors are forwarded to the backend log ring and appear on the Logs page with logger `client`
+- **Ollama** — optional local LLM ingredient normalisation; set `OLLAMA_BASE_URL` in the Unraid template to enable
 
 ---
 
