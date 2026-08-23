@@ -216,6 +216,24 @@ _PAREN_UNIT_RE = re.compile(
 _LEAD_PUNCT_RE = re.compile(r"^[,\.;:\-\s]+")
 
 
+# Unified ingredient string parser — captures qty, unit, name in one pass.
+# Handles: "2 teaspoon(s) garlic", "1/2 cup broth", "3 tablespoons of butter"
+_ING_FULL_RE = re.compile(
+    r"^\s*"
+    r"(?P<qty>[\d¼½¾⅓⅔⅛⅜⅝⅞]+(?:[\.\/:][\d]+)?)"
+    r"\s*"
+    r"(?P<unit>cups?|tbsp|tsp|tablespoons?|teaspoons?|lbs?|oz|g|kg|ml|l|"
+    r"ounces?|pounds?|grams?|cloves?|heads?|bunches?|slices?|pieces?|"
+    r"cans?|packages?|units?|each|pinch(?:es)?|dash(?:es)?)?"
+    r"(?:\(s\))?"
+    r"\s+(?:of\s+)?"
+    r"(?P<name>.+)$",
+    re.IGNORECASE,
+)
+# Strip parenthetical quantity notes like "(15 oz)" before matching
+_PAREN_QTY_RE = re.compile(r"\(\s*[\d\.]+\s*(?:oz|g|kg|ml|l|lb|lbs)?\s*\)", re.IGNORECASE)
+
+
 def _extract_ingredients_from_raw(
     raw_strings: list[str],
     servings: Optional[float],
@@ -231,42 +249,35 @@ def _extract_ingredients_from_raw(
     for raw in raw_strings:
         if not raw or not raw.strip():
             continue
-        raw = raw.strip()
+        # Strip parenthetical qty notes before parsing: "1 (15 oz) can beans" → "1 can beans"
+        cleaned = _PAREN_QTY_RE.sub("", raw).strip()
 
-        # Extract leading quantity
-        m_qty = re.match(r"^\s*([\d¼½¾⅓⅔⅛⅜⅝⅞]+(?:[\./][\d]+)?)", raw)
         qty: Optional[float] = None
         unit: Optional[str] = None
-        if m_qty:
+        name: str = cleaned.lower()
+
+        m = _ING_FULL_RE.match(cleaned)
+        if m:
+            qty_s = m.group("qty")
             try:
-                raw_q = m_qty.group(1)
-                if "/" in raw_q:
-                    num, den = raw_q.split("/", 1)
+                if "/" in qty_s:
+                    num, den = qty_s.split("/", 1)
                     qty = float(num) / float(den)
                 else:
-                    qty = float(raw_q)
+                    qty = float(qty_s)
             except (ValueError, ZeroDivisionError):
                 qty = None
+            unit = m.group("unit")
+            raw_name = m.group("name").strip()
+            # Strip trailing parenthetical notes "(diced)" and take before first comma
+            raw_name = re.sub(r"\(.*?\)", "", raw_name)
+            name = raw_name.split(",")[0].strip().lower()
+            if not name:
+                name = cleaned.lower()
 
-        # Strip qty+unit prefix to get name
-        after_qty = _QTY_UNIT_RE.sub("", raw)
-        # Try to grab the unit that was stripped
-        if unit is None and qty is not None:
-            unit_part = raw[len(m_qty.group(0)) if m_qty else 0:].strip()
-            m_u = re.match(
-                r"^(cups?|tbsp|tablespoons?|tsp|teaspoons?|lbs?|oz|g|kg|ml|l|"
-                r"ounces?|pounds?|grams?|cloves?|heads?|bunches?|slices?|"
-                r"pieces?|cans?|packages?|pinch(?:es)?|dash(?:es)?)",
-                unit_part, re.IGNORECASE,
-            )
-            if m_u:
-                unit = m_u.group(1)
-
-        after_qty = _PAREN_UNIT_RE.sub("", after_qty)
-        after_qty = _LEAD_PUNCT_RE.sub("", after_qty).strip().lower()
-        name = after_qty.split(",")[0].strip()
-        if not name:
-            name = raw.lower()
+        # "unit" and "each" are not real culinary units — treat as count (no unit)
+        if unit and unit.lower() in ("unit", "units", "each"):
+            unit = None
 
         scaled = round(qty * scale, 3) if qty else None
         results.append({

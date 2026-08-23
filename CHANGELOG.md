@@ -1,5 +1,29 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 44: fix unit words appearing in ingredient names
+
+### Bug fix
+
+Unit words like "teaspoon", "tablespoon", "ounce" were leaking into the
+ingredient name on the shopping list. Root cause: the previous regex
+approach in `_extract_ingredients_from_raw` used two separate operations
+(strip qty+unit, then extract unit separately) that could get out of sync,
+especially for formats like `"1 Teaspoon(s) Salt"` where the `(s)` suffix
+broke the unit-stripping regex.
+
+Replaced with a single `_ING_FULL_RE` regex that captures `qty`, `unit`,
+and `name` in one match, handling:
+- `"2 unit(s) Garlic Cloves"` → garlic cloves (unit/each → no unit)
+- `"1 Teaspoon(s) Salt"` → 1 tsp salt
+- `"3 tablespoons of butter"` → 3 tbsp butter ("of" stripped)
+- `"1 (15 oz) can black beans"` → 1 can black beans (paren qty stripped first)
+- `"2 cloves garlic, minced"` → 2 cloves garlic (comma suffix stripped)
+- `"salt and pepper to taste"` → no qty, name preserved as-is
+
+All 12 test cases pass.
+
+---
+
 ## Phase 10 — Patch 43: use scraped ingredients for shopping list (bypass Mealie re-scrape)
 
 ### Architecture change
