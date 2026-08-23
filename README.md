@@ -50,7 +50,7 @@ Scraped from HelloFresh and Home Chef, scored against your current pantry, and r
 
 ```
 0. Select week            — pick current, next, or upcoming week to plan for
-1. Last week feedback     — rate / block / re-queue last week's meals
+1. Last week feedback     — rate / block / re-queue ALL unreviewed past meals (not just last week)
 2. Review pantry          — update what's on hand
 2. Set weekly intent      — ingredient hints boost matching scores
 3. Generate suggestions   — ranked list of N recipes; click ingredients to add to staples / exclude / dislike
@@ -122,6 +122,7 @@ Edit vocabulary: `backend/app/data/rejection_reasons.yaml`
 - **Logs page** — all frontend API errors are forwarded to the backend log ring and appear on the Logs page with logger `client`
 - **Ollama** — optional local LLM ingredient normalisation; set `OLLAMA_BASE_URL` in the Unraid template to enable
 - **Protein grouping** — suggestions grouped by protein type (Chicken, Pork, Beef, Seafood, Vegetarian, Other); order configurable from Sources page
+- **Past Meals** — rate or block any previous recipe from the history page; rated/blocked recipes are excluded from future feedback prompts
 
 ---
 
