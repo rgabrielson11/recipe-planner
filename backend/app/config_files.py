@@ -153,17 +153,35 @@ def get_enabled_sources() -> list[dict]:
     """Returns only the enabled source entries."""
     return [s for s in get_recipe_sources().get("sources", []) if s.get("enabled", True)]
 
+_PROTEIN_DEFAULTS = [
+    {"key": "chicken",    "label": "🍗 Chicken",    "order": 1, "enabled": True,
+     "keywords": ["chicken", "hen", "poultry"]},
+    {"key": "pork",       "label": "🐷 Pork",       "order": 2, "enabled": True,
+     "keywords": ["pork", "ham", "bacon", "sausage", "chorizo", "pancetta", "prosciutto", "pulled"]},
+    {"key": "turkey",     "label": "🦃 Turkey",     "order": 3, "enabled": True,
+     "keywords": ["turkey"]},
+    {"key": "beef",       "label": "🥩 Beef",       "order": 3, "enabled": True,
+     "keywords": ["beef", "steak", "brisket", "burger", "chuck", "ribeye", "sirloin", "flank", "meatball", "bolognese", "ground"]},
+    {"key": "seafood",    "label": "🐟 Seafood",    "order": 4, "enabled": True,
+     "keywords": ["fish", "salmon", "tuna", "shrimp", "prawn", "crab", "lobster", "scallop", "cod", "tilapia", "halibut", "trout", "mahi", "sea bass", "clam", "mussel", "squid", "calamari"]},
+    {"key": "vegetarian", "label": "🥦 Vegetarian", "order": 5, "enabled": True,
+     "keywords": ["tofu", "tempeh", "lentil", "chickpea", "falafel", "portobello", "veggie", "vegetarian", "vegan", "cauliflower", "eggplant", "mushroom"]},
+    {"key": "other",      "label": "🍽️ Other",     "order": 6, "enabled": True,
+     "keywords": []},
+]
+
+
 def get_protein_categories() -> list[dict]:
-    """Load protein category config. Returns empty list if file missing."""
+    """Load protein category config, falling back to built-in defaults."""
     path = _path("protein_categories.yaml")
     if path.exists():
         try:
             data = load_yaml(path)
-            if isinstance(data, dict) and "categories" in data:
+            if isinstance(data, dict) and "categories" in data and data["categories"]:
                 return data["categories"]
         except Exception:
             pass
-    return []
+    return _PROTEIN_DEFAULTS
 
 
 def save_protein_categories(categories: list[dict]) -> None:

@@ -1,5 +1,21 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 54: fix protein classification — hardcoded fallback defaults
+
+### Bug fix
+
+All recipes were being grouped under "Other" because `get_protein_categories()`
+returned an empty list when `protein_categories.yaml` wasn't present in the
+running container (containers built before Patch 22 lack the file).
+
+Fixed by adding `_PROTEIN_DEFAULTS` — a hardcoded list of the 7 standard
+categories — as a fallback when the YAML file is missing or empty.
+Classification now works immediately on any running container without
+requiring a rebuild. After a rebuild the YAML file takes precedence and
+user edits from the Sources page are honoured.
+
+---
+
 ## Phase 10 — Patch 53: fix default suggestions count + feedback dedup
 
 ### Bug fixes
