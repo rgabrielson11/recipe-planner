@@ -697,7 +697,7 @@ const PlannerPage=({hid})=>{
                       onClick={async()=>{
                         setRatings(r=>({...r,[entry.entry_id]:n}));
                         try{
-                          await post(`/meal-plan/entries/${entry.entry_id}/rate`,{rating:n});
+                          await post(`/meal-plan/entries/${entry.entry_id}/review`,{rating:n});
                           setFeedbackDone(d=>({...d,[entry.entry_id]:`Rated ${n}★`}));
                           toast(`${entry.title} — ${n}★`);
                         }catch(e){toast(e.message,'error');}
@@ -1764,7 +1764,7 @@ const HistoryPage=({hid})=>{
                           if(!r.entry_id){toast('No meal plan entry found','warning');return;}
                           setHistoryRatings(x=>({...x,[r.recipe_id]:n}));
                           try{
-                            await post(`/meal-plan/entries/${r.entry_id}/rate`,{rating:n});
+                            await post(`/meal-plan/entries/${r.entry_id}/review`,{rating:n});
                             setHistoryDone(d=>({...d,[r.recipe_id]:`Rated ${n}★`}));
                             toast(`${r.title} — ${n}★`);
                           }catch(e){toast(e.message,'error');}

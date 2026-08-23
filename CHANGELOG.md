@@ -1,5 +1,33 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 56: fix Past Meals rating and block not persisting
+
+### Bug fixes
+
+**Rating called wrong endpoint — 404 on every star click**
+
+The rate buttons on the Past Meals page and Last Week Feedback step were
+calling `POST /meal-plan/entries/{id}/rate` but the correct endpoint is
+`POST /meal-plan/entries/{id}/review`. The 404 response was caught by the
+error handler so the toast never fired, and `historyDone` was never set —
+clicks appeared to do nothing.
+
+Fixed in both places: feedback step (Step 1) and Past Meals page.
+
+**`entry_id` null for some recipes — rating silently skipped**
+
+The history endpoint looked up `MealPlanEntry` by exact `(household_id,
+recipe_id, week_start_date)` match. For older data where the entry's
+week might not match the selection's week, the lookup returned `None`
+→ `entry_id: null` → the frontend guard `if(!r.entry_id)` returned early.
+
+Added a fallback: if the exact-week query returns nothing, look up any
+`MealPlanEntry` for the same recipe and household (most recent first).
+
+VERSION bumped to 10.56.
+
+---
+
 ## Phase 10 — Patch 55: fix protein grouping — field stripped by Pydantic schema
 
 ### Bug fix

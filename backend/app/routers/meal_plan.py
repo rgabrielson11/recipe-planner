@@ -666,12 +666,18 @@ def get_meal_history(household_id: str, db: Session = Depends(get_db)):
             continue
         seen.add(key)
         recipe = sel.recipe
-        # Find the MealPlanEntry for this selection (for rating)
+        # Find the MealPlanEntry for this selection (for rating).
+        # Try exact week match first; fall back to any entry for the recipe.
         entry = db.query(models.MealPlanEntry).filter(
             models.MealPlanEntry.household_id == household_id,
             models.MealPlanEntry.recipe_id == sel.recipe_id,
             models.MealPlanEntry.week_start_date == sel.week_start_date,
         ).first()
+        if not entry:
+            entry = db.query(models.MealPlanEntry).filter(
+                models.MealPlanEntry.household_id == household_id,
+                models.MealPlanEntry.recipe_id == sel.recipe_id,
+            ).order_by(models.MealPlanEntry.created_at.desc()).first()
         # Check if permanently blocked
         is_blocked = db.query(models.RecipeRejection).filter(
             models.RecipeRejection.household_id == household_id,
