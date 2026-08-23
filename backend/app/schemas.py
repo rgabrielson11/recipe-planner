@@ -272,6 +272,7 @@ class SuggestedRecipe(BaseModel):
     missing_ingredients: list[str]
     is_favorite: bool
     total_time_minutes: Optional[int]
+    protein_category: Optional[str] = "other"   # classified by title/ingredient keywords
 
 
 class WeeklySuggestion(BaseModel):

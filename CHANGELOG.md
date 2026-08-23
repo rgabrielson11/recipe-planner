@@ -1,5 +1,24 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 55: fix protein grouping — field stripped by Pydantic schema
+
+### Bug fix
+
+All suggestions were showing under "Other" despite correct classification.
+
+Root cause: `GET /meal-plan/suggest` uses `response_model=schemas.WeeklySuggestion`
+→ `SuggestedRecipe`. `protein_category` was not in the `SuggestedRecipe`
+schema, so Pydantic silently stripped it from every response. The frontend
+received `undefined` for every recipe and fell back to `'other'`.
+
+Fix: added `protein_category: Optional[str] = "other"` to `SuggestedRecipe`.
+Classification now flows through correctly: Chicken, Pork, Beef, Seafood,
+Vegetarian, Other.
+
+VERSION bumped to 10.55.
+
+---
+
 ## Phase 10 — Patch 54: fix protein classification — hardcoded fallback defaults
 
 ### Bug fix
