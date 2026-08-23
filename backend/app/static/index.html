@@ -702,7 +702,7 @@ const PlannerPage=({hid})=>{
                 </div>
                 <button className="btn-secondary btn-sm" onClick={async()=>{
                   try{
-                    await post(`/recipes/${entry.recipe_id}/reject`,{household_id:hid,reason:'disliked',permanent:true});
+                    await post(`/recipes/${entry.recipe_id}/reject`,{household_id:hid,reason_category:'dislike'});
                     setFeedbackDone(d=>({...d,[entry.entry_id]:'Blocked'}));
                     toast(`${entry.title} blocked`);
                   }catch(e){toast(e.message,'error');}

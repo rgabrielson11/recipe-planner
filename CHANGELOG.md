@@ -1,5 +1,17 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 49: fix Block action in Last Week Feedback
+
+### Bug fix
+
+The 🚫 Block button on the Last Week Feedback step was sending
+`{reason: 'disliked', permanent: true}` but the reject endpoint expects
+`{reason_category: 'dislike'}` (the key from `rejection_reasons.yaml`).
+Fixed the payload to use `reason_category: 'dislike'` which is the
+permanent rejection key.
+
+---
+
 ## Phase 10 — Patch 48: fix print pantry list blank output
 
 ### Bug fix
