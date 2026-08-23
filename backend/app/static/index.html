@@ -381,7 +381,7 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,onRemove,confirmed,rejected,
             <span>Score: <b>{r.score}</b></span>
             <span>🥫 {r.pantry_overlap_pct}% on hand</span>
             {r.total_time_minutes&&<span>⏱ {r.total_time_minutes}m</span>}
-            {r.carbs_per_serving!=null&&<span>🌾 {Math.round(r.carbs_per_serving)}g carbs</span>}
+            <span>🌾 {r.carbs_per_serving!=null?Math.round(r.carbs_per_serving)+'g':'NA'} carbs</span>
             <span>🛒 {(r.missing_ingredients||[]).length} to buy</span>
           </div>
         </div>
@@ -1129,6 +1129,8 @@ const SettingsPage=({hid})=>{
   const [staples,setStaples]=useState([]);
   const [newStaple,setNewStaple]=useState('');
   const [vocab,setVocab]=useState({methods:[],cookware:[],skill_levels:[]});
+  const [proteinCats,setProteinCats]=useState([]);
+  const [savingProtein,setSavingProtein]=useState(false);
   const toast=useToast();
   const loadPrefs=()=>{
     setPrefsError(null);
@@ -1138,6 +1140,7 @@ const SettingsPage=({hid})=>{
     loadPrefs();
     get('/pantry/staples').then(d=>setStaples(d.staples||[])).catch(()=>{});
     get('/config/cooking-methods').then(d=>setVocab({methods:d.methods||[],cookware:d.cookware||[],skill_levels:d.skill_levels||[]})).catch(()=>{});
+    get('/config/protein-categories').then(d=>setProteinCats(d.categories||[])).catch(()=>{});
   },[hid]);
   const savePrefs=async()=>{try{await put(`/preferences/${hid}`,prefs);toast('Saved');}catch(e){toast(e.message,'error');}};
   const addStaple=async()=>{if(!newStaple.trim())return;try{const r=await post('/pantry/staples',{name:newStaple});setStaples(r.staples||[]);setNewStaple('');toast('Added');}catch(e){toast(e.message,'error');}};
@@ -1162,7 +1165,7 @@ const SettingsPage=({hid})=>{
   return(
     <div>
       <div className="page-header"><h1 className="page-title">⚙️ Settings</h1></div>
-      <div className="tabs">{[['prefs','Preferences'],['equipment','Equipment'],['staples','Pantry Staples']].map(([k,l])=><div key={k} className={`tab${tab===k?' active':''}`} onClick={()=>setTab(k)}>{l}</div>)}</div>
+      <div className="tabs">{[['prefs','Preferences'],['equipment','Equipment'],['staples','Pantry Staples'],['protein','Protein Groups']].map(([k,l])=><div key={k} className={`tab${tab===k?' active':''}`} onClick={()=>setTab(k)}>{l}</div>)}</div>
       {(tab==='prefs'||tab==='equipment')&&!prefs&&<div className="card">
         {prefsError
           ? <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
@@ -1216,6 +1219,41 @@ const SettingsPage=({hid})=>{
         </div>
         <button className="btn-primary" onClick={savePrefs}>Save Equipment</button>
       </div>}
+      {tab==='protein'&&<div className="card">
+        <h3 className="section-title">🥩 Protein Category Order</h3>
+        <p style={{fontSize:13,color:'var(--gray)',marginBottom:12}}>
+          Use ↑↓ to set the order protein groups appear in the suggestion list. Toggle Show to hide a category (its recipes merge into Other).
+        </p>
+        {proteinCats.length===0&&<div className="spinner"/>}
+        {proteinCats.map((cat,i)=>(
+          <div key={cat.key} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
+            <span style={{flex:1,fontWeight:500}}>{cat.label||cat.key}</span>
+            <button className="btn-icon" title="Move up" disabled={i===0}
+              onClick={()=>{const a=[...proteinCats];[a[i-1],a[i]]=[a[i],a[i-1]];a.forEach((c,j)=>c.order=j+1);setProteinCats(a);}}>▲</button>
+            <button className="btn-icon" title="Move down" disabled={i===proteinCats.length-1}
+              onClick={()=>{const a=[...proteinCats];[a[i],a[i+1]]=[a[i+1],a[i]];a.forEach((c,j)=>c.order=j+1);setProteinCats(a);}}>▼</button>
+            <label style={{display:'flex',alignItems:'center',gap:4,fontSize:13}}>
+              <input type="checkbox" checked={cat.enabled!==false}
+                onChange={e=>{const a=[...proteinCats];a[i]={...cat,enabled:e.target.checked};setProteinCats(a);}}/>
+              Show
+            </label>
+          </div>
+        ))}
+        {proteinCats.length>0&&(
+          <button className="btn-primary" style={{marginTop:12}} disabled={savingProtein}
+            onClick={async()=>{
+              setSavingProtein(true);
+              try{
+                await put('/config/protein-categories',{categories:proteinCats});
+                toast('Protein category order saved');
+              }catch(e){toast(e.message,'error');}
+              finally{setSavingProtein(false);}
+            }}>
+            {savingProtein?'Saving…':'Save Order'}
+          </button>
+        )}
+      </div>}
+
       {tab==='staples'&&<div className="card">
         <p style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>Staples are always assumed on hand and appear in the Pantry Check section, never the buy list.</p>
         <div style={{display:'flex',gap:8,marginBottom:16}}><input style={{maxWidth:300}} value={newStaple} onChange={e=>setNewStaple(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addStaple()} placeholder="e.g. olive oil"/><button className="btn-primary" onClick={addStaple}>Add</button></div>
@@ -1231,8 +1269,7 @@ const SourcesPage=()=>{
   const [disc,setDisc]=useState(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState(null);
-  const [proteinCats,setProteinCats]=useState([]);
-  const [savingProtein,setSavingProtein]=useState(false);
+
   const [showForm,setShowForm]=useState(false);
   const [editName,setEditName]=useState(null);
   const [form,setForm]=useState({name:'',enabled:true,category_urls:'',notes:''});
@@ -1244,7 +1281,7 @@ const SourcesPage=()=>{
   const load=async()=>{
     setLoading(true);setError(null);
     try{
-      const [s,d,st,pc]=await Promise.all([get('/config/sources'),get('/config/discovery'),get('/config/scrape-status').catch(()=>null),get('/config/protein-categories').catch(()=>({categories:[]}))]);      setSources(Array.isArray(s)?s:[]); setDisc(d); setScrapeStatus(st); setProteinCats(pc.categories||[]);
+      const [s,d,st]=await Promise.all([get('/config/sources'),get('/config/discovery'),get('/config/scrape-status').catch(()=>null)]);      setSources(Array.isArray(s)?s:[]); setDisc(d); setScrapeStatus(st);
     }catch(e){setError(e.message);}
     finally{setLoading(false);}
   };
@@ -1404,47 +1441,6 @@ const SourcesPage=()=>{
         </div>
       </div>}
 
-      {/* Protein category ordering */}
-      <div className="card" style={{marginTop:16}}>
-        <h3 className="section-title">🥩 Protein Category Order</h3>
-        <p style={{fontSize:13,color:'var(--gray)',marginBottom:12}}>
-          Drag or use ↑↓ to set the order in which protein groups appear in the suggestion list.
-        </p>
-        {proteinCats.map((cat,i)=>(
-          <div key={cat.key} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
-            <span style={{flex:1,fontWeight:500}}>{cat.label||cat.key}</span>
-            <input type="number" min={1} max={99} value={cat.order||i+1}
-              style={{width:52,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:4,textAlign:'center'}}
-              onChange={e=>{
-                const updated=[...proteinCats];
-                updated[i]={...cat,order:+e.target.value};
-                setProteinCats(updated);
-              }}/>
-            <button className="btn-icon" title="Move up" disabled={i===0}
-              onClick={()=>{const a=[...proteinCats];[a[i-1],a[i]]=[a[i],a[i-1]];a.forEach((c,j)=>c.order=j+1);setProteinCats(a);}}>▲</button>
-            <button className="btn-icon" title="Move down" disabled={i===proteinCats.length-1}
-              onClick={()=>{const a=[...proteinCats];[a[i],a[i+1]]=[a[i+1],a[i]];a.forEach((c,j)=>c.order=j+1);setProteinCats(a);}}>▼</button>
-            <label style={{display:'flex',alignItems:'center',gap:4,fontSize:13}}>
-              <input type="checkbox" checked={cat.enabled!==false}
-                onChange={e=>{const a=[...proteinCats];a[i]={...cat,enabled:e.target.checked};setProteinCats(a);}}/>
-              Show
-            </label>
-          </div>
-        ))}
-        {proteinCats.length>0&&(
-          <button className="btn-primary" style={{marginTop:12}} disabled={savingProtein}
-            onClick={async()=>{
-              setSavingProtein(true);
-              try{
-                await put('/config/protein-categories',{categories:proteinCats});
-                toast('Protein category order saved');
-              }catch(e){toast(e.message,'error');}
-              finally{setSavingProtein(false);}
-            }}>
-            {savingProtein?'Saving…':'Save Order'}
-          </button>
-        )}
-      </div>
 
     </div>
   );

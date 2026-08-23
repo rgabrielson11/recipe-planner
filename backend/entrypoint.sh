@@ -26,7 +26,7 @@ echo "[entrypoint] Syncing YAML configs..."
 mkdir -p "$DATA"
 
 # ── Code-owned: always update from image if content differs ──────────────────
-for f in recipe_sources.yaml; do
+for f in recipe_sources.yaml protein_categories.yaml; do
     if [ -f "$DEFAULTS/$f" ]; then
         if [ -f "$DATA/$f" ] && diff -q "$DEFAULTS/$f" "$DATA/$f" > /dev/null 2>&1; then
             echo "[entrypoint] $f is already up to date"
@@ -38,7 +38,7 @@ for f in recipe_sources.yaml; do
 done
 
 # ── User-owned: copy if missing OR empty (empty = broken from failed init) ────
-for f in pantry_staples.yaml package_sizes.yaml rejection_reasons.yaml cooking_vocabulary.yaml protein_categories.yaml; do
+for f in pantry_staples.yaml package_sizes.yaml rejection_reasons.yaml cooking_vocabulary.yaml; do
     if [ -f "$DEFAULTS/$f" ]; then
         # -s = file exists and has size > 0
         if [ ! -s "$DATA/$f" ]; then

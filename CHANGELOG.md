@@ -1,5 +1,32 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 59: carbs NA display; protein categories always sync; settings page move
+
+### Bug fixes + improvements
+
+**Carbs always shown on recipe cards**
+Previously `🌾 Xg carbs` only appeared when data was present. Now always
+shows `🌾 NA` when `carbs_per_serving` is null so the card layout is
+consistent and the missing data is visible rather than silently absent.
+
+**Protein categories always sync from image (code-owned)**
+`protein_categories.yaml` was user-owned (only copied if missing), so
+containers running before Patch 57 kept the old 7-category file and the
+Sources page showed stale categories. Moved to code-owned: the entrypoint
+now always syncs it from the image defaults on every container start,
+same as `recipe_sources.yaml`. New categories (Pasta, Fish, Shellfish)
+will appear immediately on next container restart without needing a rebuild.
+
+**Protein category ordering moved to Preferences page**
+The "🥩 Protein Category Order" UI has moved from the Sources page to the
+Preferences page (Settings → Protein Groups tab). Ordering is still global
+(writes to `protein_categories.yaml`), just displayed in a more logical
+location alongside other household-level preferences.
+
+VERSION bumped to 10.59.
+
+---
+
 ## Phase 10 — Patch 58: pasta/fish/shellfish categories; scrape block; auto-skip feedback; concurrent discovery
 
 ### New features
