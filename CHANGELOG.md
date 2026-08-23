@@ -1,5 +1,36 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 47: week picker + last week feedback step
+
+### New features
+
+**Step 0 — Select Week**
+The planner now opens with a week picker showing the current week plus the
+next 3 Mondays as buttons. Selecting a week sets it as the planning target
+for the entire session. The week display in the page header updates live.
+
+**Step 1 — Last Week Feedback**
+After selecting a week, the planner fetches meals from the PREVIOUS week
+(`GET /meal-plan/pending-feedback`) and shows them for review before
+planning begins. For each meal:
+- ⭐ **Rate (1–5 stars)** — calls `POST /meal-plan/entries/{id}/rate`,
+  pushed to Mealie; 4★+ marks the recipe as a favourite
+- 🚫 **Block** — calls `POST /recipes/{id}/reject` with `permanent: true`;
+  recipe is suppressed from future suggestions
+- 🔄 **Make again this week** — calls `POST /meal-plan/history/add` to
+  add the recipe directly to the current week's confirmed plan
+
+All existing steps shift up by 2:
+- Pantry Review → Step 2
+- Week Intent → Step 3
+- Suggestions → Step 4
+- Confirm → Step 5
+- Shopping List → Step 6
+
+New backend endpoint: `GET /meal-plan/pending-feedback?household_id=&week_start_date=`
+
+---
+
 ## Phase 10 — Patch 45: Ollama integration for ingredient normalisation
 
 ### New feature

@@ -49,7 +49,9 @@ Scraped from HelloFresh and Home Chef, scored against your current pantry, and r
 ### Weekly workflow
 
 ```
-1. Review pantry          — update what's on hand
+0. Select week            — pick current, next, or upcoming week to plan for
+1. Last week feedback     — rate / block / re-queue last week's meals
+2. Review pantry          — update what's on hand
 2. Set weekly intent      — ingredient hints boost matching scores
 3. Generate suggestions   — ranked list of N recipes; click ingredients to add to staples / exclude / dislike
                             or pull from 📆 Past Meals to repeat a favourite

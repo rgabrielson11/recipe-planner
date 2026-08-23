@@ -569,6 +569,45 @@ def weekly_review(
     ).all()
 
 
+# ── Pending feedback ──────────────────────────────────────────────────────────
+
+@router.get("/pending-feedback")
+def get_pending_feedback(household_id: str, week_start_date: str, db: Session = Depends(get_db)):
+    """
+    Return meals from the PREVIOUS week that haven't been rated.
+    week_start_date is the week being planned — returns the week before it.
+    """
+    from datetime import date as _date, timedelta
+    try:
+        current  = _date.fromisoformat(week_start_date)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid week_start_date")
+    prev_week = current - timedelta(weeks=1)
+
+    entries = (
+        db.query(models.MealPlanEntry)
+        .join(models.Recipe)
+        .filter(
+            models.MealPlanEntry.household_id == household_id,
+            models.MealPlanEntry.week_start_date == prev_week,
+        )
+        .all()
+    )
+    result = []
+    for e in entries:
+        r = e.recipe
+        result.append({
+            "entry_id":    e.id,
+            "recipe_id":   e.recipe_id,
+            "title":       r.title if r else "Unknown",
+            "source_url":  r.source_url if r else None,
+            "mealie_slug": r.mealie_slug if r else None,
+            "rating":      e.rating,
+            "reviewed_at": e.reviewed_at.isoformat() if e.reviewed_at else None,
+        })
+    return result
+
+
 # ── Meal history ──────────────────────────────────────────────────────────────
 
 @router.get("/history")
