@@ -1,5 +1,21 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 48: fix print pantry list blank output
+
+### Bug fix
+
+Print Pantry List on the shopping list page was generating a blank table.
+Root cause: the button relied on the `pantry` React state loaded at mount,
+which could be empty or stale by the time the user reaches the shopping list
+step.
+
+Fixed: the onClick is now `async` and fetches fresh pantry data directly
+from `GET /pantry?household_id=...` at print time. Falls back to cached
+state on error. Shows a warning toast if there are no items to print, and
+adds an item count line under the heading.
+
+---
+
 ## Phase 10 — Patch 47: week picker + last week feedback step
 
 ### New features

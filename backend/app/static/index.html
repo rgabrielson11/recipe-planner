@@ -939,15 +939,17 @@ const PlannerPage=({hid})=>{
           )}
 
           <div style={{marginTop:16,display:'flex',gap:8,flexWrap:'wrap'}}>
-            <button className="btn-secondary btn-sm" onClick={()=>{
-              const rows=(pantry||[]).map(p=>`<tr style="border-bottom:1px solid #eee">
+            <button className="btn-secondary btn-sm" onClick={async()=>{
+              const items=await get(`/pantry?household_id=${hid}`).catch(()=>pantry||[]);
+              if(!items||items.length===0){toast('No pantry items to print','warning');return;}
+              const rows=items.map(p=>`<tr style="border-bottom:1px solid #eee">
                 <td style="padding:5px 0">${p.name||''}</td>
                 <td style="padding:5px 8px;text-align:right">${p.quantity!=null?String(p.quantity)+' '+(p.unit||''):'—'}</td>
                 <td style="padding:5px 0 5px 8px;color:#666;font-size:12px">${p.category||''}</td>
                 <td style="padding:5px 0 5px 8px;font-size:12px">${p.expiry_date||''}</td>
               </tr>`).join('');
               const w=window.open('','_blank');
-              w.document.write('<!DOCTYPE html><html><head><title>Pantry</title><style>body{font-family:sans-serif;max-width:640px;margin:32px auto}h1{font-size:20px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:6px 0;border-bottom:2px solid #333;font-size:13px}td{vertical-align:top}@media print{button,a{display:none}}</style></head><body><a onclick="window.close()" style="display:block;margin:0 auto 24px;text-align:center;font-size:14px;color:#2563eb;cursor:pointer;text-decoration:underline;border-bottom:1px solid #e2e8f0;padding-bottom:16px">← Close print window</a><h1>&#x1F9EB; Pantry &mdash; '+new Date().toLocaleDateString()+'</h1><table><thead><tr><th>Item</th><th>Qty</th><th>Category</th><th>Expiry</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>');
+              w.document.write('<!DOCTYPE html><html><head><title>Pantry</title><style>body{font-family:sans-serif;max-width:640px;margin:32px auto}h1{font-size:20px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:6px 0;border-bottom:2px solid #333;font-size:13px}td{vertical-align:top}@media print{button,a{display:none}}</style></head><body><a onclick="window.close()" style="display:block;margin:0 auto 24px;text-align:center;font-size:14px;color:#2563eb;cursor:pointer;text-decoration:underline;border-bottom:1px solid #e2e8f0;padding-bottom:16px">← Close print window</a><h1>&#x1F9EB; Pantry &mdash; '+new Date().toLocaleDateString()+'</h1><p style="font-size:13px;color:#666">'+items.length+' items</p><table><thead><tr><th>Item</th><th>Qty</th><th>Category</th><th>Expiry</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>');
               w.document.close();setTimeout(()=>w.print(),300);
             }}>&#x1F5A8;&#xFE0F; Print Pantry List</button>
             <button className="btn-secondary" onClick={()=>{
