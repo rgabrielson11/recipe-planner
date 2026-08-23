@@ -1,5 +1,33 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 52: continuous feedback across all past meals
+
+### Changes
+
+**`GET /meal-plan/pending-feedback` — all unreviewed meals, not just last week**
+
+The feedback step now returns every past meal that hasn't been rated or
+permanently blocked, sorted most-recent-week first and deduped by recipe
+(same dish served across multiple weeks appears once). The current planning
+week is excluded.
+
+**Past Meals page — rate and block actions**
+
+Each recipe on the 📆 Past Meals page now shows:
+- ⭐ Star rating (1–5) — pushes to Mealie, marks as favourite if ≥ threshold
+- 🚫 Block — permanently rejects from future suggestions  
+- Already-rated recipes show their star badge; already-blocked show 🚫 Blocked
+
+History endpoint enhanced with `entry_id`, `rating`, and `is_blocked` fields.
+
+**Feedback step — shows week date per card**
+
+Each card in the Step 1 feedback list now shows the week the meal was
+served (📅 Mon dd mmm yyyy) so it's clear which meals are being reviewed.
+Description updated from "last week" to "all meals not yet rated".
+
+---
+
 ## Phase 10 — Patch 51: fix blocked recipes not removed from feedback list
 
 ### Bug fix

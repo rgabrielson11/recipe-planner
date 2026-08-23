@@ -663,7 +663,7 @@ const PlannerPage=({hid})=>{
         <div style={{marginBottom:16}}>
           <h2 style={{fontSize:18,fontWeight:700,margin:'0 0 4px'}}>How did last week's meals go?</h2>
           <p style={{fontSize:13,color:'var(--gray)',margin:0}}>
-            Week of {fmt((()=>{const d=new Date(week+'T12:00:00');d.setDate(d.getDate()-7);return d.toISOString().split('T')[0];})())}
+            All meals not yet rated — rate, block, or re-queue to keep your recommendations fresh
           </p>
         </div>
         {feedbackLoading&&<div className="spinner"/>}
@@ -678,8 +678,10 @@ const PlannerPage=({hid})=>{
             <div style={{display:'flex',alignItems:'flex-start',gap:10,flexWrap:'wrap'}}>
               <div style={{flex:1}}>
                 <div style={{fontWeight:600,fontSize:15}}>{entry.title}</div>
-                {entry.source_url&&<a href={entry.source_url} target="_blank" rel="noopener"
-                  style={{fontSize:12,color:'var(--gray)'}}>🔗 Source</a>}
+                <div style={{fontSize:12,color:'var(--gray)'}}>
+                  {entry.week_start_date&&<span style={{marginRight:8}}>📅 {fmt(entry.week_start_date)}</span>}
+                  {entry.source_url&&<a href={entry.source_url} target="_blank" rel="noopener" style={{color:'var(--gray)'}}>🔗 Source</a>}
+                </div>
               </div>
               {feedbackDone[entry.entry_id]&&(
                 <span className="badge badge-green">✓ {feedbackDone[entry.entry_id]}</span>
@@ -1693,6 +1695,8 @@ const HistoryPage=({hid})=>{
   const [loading,setLoading]=useState(true);
   const [adding,setAdding]=useState({});
   const [added,setAdded]=useState({});
+  const [historyRatings,setHistoryRatings]=useState({});
+  const [historyDone,setHistoryDone]=useState({});
   const toast=useToast();
   const week=weekMonday();
 
@@ -1746,14 +1750,44 @@ const HistoryPage=({hid})=>{
                   {r.source_url&&<a href={r.source_url} target="_blank" rel="noopener" style={{fontSize:11,color:'var(--gray)'}}>🔗 Source</a>}
                 </div>
               </div>
-              {added[r.recipe_id]
-                ?<span className="badge badge-green">✓ Added to this week</span>
-                :<button className="btn-secondary btn-sm"
-                    disabled={adding[r.recipe_id]}
-                    onClick={()=>addToWeek(r)}>
-                    {adding[r.recipe_id]?'Adding…':'+ Add to this week'}
-                  </button>
-              }
+              <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+                {r.rating&&<span className="badge badge-green">{'⭐'.repeat(r.rating)} Rated</span>}
+                {r.is_blocked&&<span className="badge badge-red">🚫 Blocked</span>}
+                {!r.is_blocked&&(historyDone[r.recipe_id]
+                  ?<span className="badge badge-green">✓ {historyDone[r.recipe_id]}</span>
+                  :<>
+                    {/* Stars */}
+                    {[1,2,3,4,5].map(n=>(
+                      <button key={n} className="btn-icon"
+                        style={{fontSize:16,opacity:(historyRatings[r.recipe_id]||r.rating||0)>=n?1:.3}}
+                        onClick={async()=>{
+                          if(!r.entry_id){toast('No meal plan entry found','warning');return;}
+                          setHistoryRatings(x=>({...x,[r.recipe_id]:n}));
+                          try{
+                            await post(`/meal-plan/entries/${r.entry_id}/rate`,{rating:n});
+                            setHistoryDone(d=>({...d,[r.recipe_id]:`Rated ${n}★`}));
+                            toast(`${r.title} — ${n}★`);
+                          }catch(e){toast(e.message,'error');}
+                        }}>⭐</button>
+                    ))}
+                    <button className="btn-secondary btn-sm" onClick={async()=>{
+                      try{
+                        await post(`/recipes/${r.recipe_id}/reject`,{household_id:hid,reason_category:'dislike'});
+                        setHistoryDone(d=>({...d,[r.recipe_id]:'Blocked'}));
+                        toast(`${r.title} blocked`);
+                      }catch(e){toast(e.message,'error');}
+                    }}>🚫</button>
+                    {added[r.recipe_id]
+                      ?<span className="badge badge-green">✓ Added</span>
+                      :<button className="btn-secondary btn-sm"
+                          disabled={adding[r.recipe_id]}
+                          onClick={()=>addToWeek(r)}>
+                          {adding[r.recipe_id]?'Adding…':'+ This week'}
+                        </button>
+                    }
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>

@@ -574,36 +574,56 @@ def weekly_review(
 @router.get("/pending-feedback")
 def get_pending_feedback(household_id: str, week_start_date: str, db: Session = Depends(get_db)):
     """
-    Return meals from the PREVIOUS week that haven't been rated.
-    week_start_date is the week being planned — returns the week before it.
+    Return ALL past meals that haven't been rated or permanently blocked,
+    sorted most-recent-week first. Excludes:
+      - Entries with a rating already set
+      - Entries whose recipe has a permanent rejection for this household
+    week_start_date is used only to exclude the current planning week itself.
     """
-    from datetime import date as _date, timedelta
+    from datetime import date as _date
     try:
-        current  = _date.fromisoformat(week_start_date)
+        current = _date.fromisoformat(week_start_date)
     except ValueError:
         raise HTTPException(status_code=422, detail="Invalid week_start_date")
-    prev_week = current - timedelta(weeks=1)
+
+    # Permanently blocked recipe IDs for this household
+    blocked_ids = {
+        r.recipe_id for r in db.query(models.RecipeRejection).filter(
+            models.RecipeRejection.household_id == household_id,
+            models.RecipeRejection.is_permanent == True,
+        ).all()
+    }
 
     entries = (
         db.query(models.MealPlanEntry)
         .join(models.Recipe)
         .filter(
             models.MealPlanEntry.household_id == household_id,
-            models.MealPlanEntry.week_start_date == prev_week,
+            models.MealPlanEntry.week_start_date < current,   # exclude current week
+            models.MealPlanEntry.rating.is_(None),            # unrated only
         )
+        .order_by(models.MealPlanEntry.week_start_date.desc())
         .all()
     )
+
     result = []
+    seen = set()
     for e in entries:
+        if e.recipe_id in blocked_ids:
+            continue
+        if e.recipe_id in seen:          # one entry per recipe (dedup cross-weeks)
+            continue
+        seen.add(e.recipe_id)
         r = e.recipe
         result.append({
-            "entry_id":    e.id,
-            "recipe_id":   e.recipe_id,
-            "title":       r.title if r else "Unknown",
-            "source_url":  r.source_url if r else None,
-            "mealie_slug": r.mealie_slug if r else None,
-            "rating":      e.rating,
-            "reviewed_at": e.reviewed_at.isoformat() if e.reviewed_at else None,
+            "entry_id":       e.id,
+            "recipe_id":      e.recipe_id,
+            "title":          r.title if r else "Unknown",
+            "source_url":     r.source_url if r else None,
+            "mealie_slug":    r.mealie_slug if r else None,
+            "week_start_date": str(e.week_start_date),
+            "rating":         e.rating,
+            "reviewed_at":    e.reviewed_at.isoformat() if e.reviewed_at else None,
         })
     return result
 
@@ -636,12 +656,27 @@ def get_meal_history(household_id: str, db: Session = Depends(get_db)):
             continue
         seen.add(key)
         recipe = sel.recipe
+        # Find the MealPlanEntry for this selection (for rating)
+        entry = db.query(models.MealPlanEntry).filter(
+            models.MealPlanEntry.household_id == household_id,
+            models.MealPlanEntry.recipe_id == sel.recipe_id,
+            models.MealPlanEntry.week_start_date == sel.week_start_date,
+        ).first()
+        # Check if permanently blocked
+        is_blocked = db.query(models.RecipeRejection).filter(
+            models.RecipeRejection.household_id == household_id,
+            models.RecipeRejection.recipe_id == sel.recipe_id,
+            models.RecipeRejection.is_permanent == True,
+        ).first() is not None
         weeks[str(sel.week_start_date)].append({
-            "recipe_id":   recipe.id,
-            "title":       recipe.title,
-            "source_url":  recipe.source_url,
-            "mealie_slug": recipe.mealie_slug,
+            "recipe_id":          recipe.id,
+            "entry_id":           entry.id if entry else None,
+            "title":              recipe.title,
+            "source_url":         recipe.source_url,
+            "mealie_slug":        recipe.mealie_slug,
             "total_time_minutes": recipe.scraped_time_minutes,
+            "rating":             entry.rating if entry else None,
+            "is_blocked":         is_blocked,
         })
 
     return [
