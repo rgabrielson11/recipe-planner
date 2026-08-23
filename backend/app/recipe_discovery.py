@@ -620,6 +620,45 @@ def _update_row_from_detail(row: models.Recipe, detail: dict) -> None:
     row.last_scraped_at          = datetime.utcnow()
 
 
+
+def _classify_protein(title: str, tokens: list[str]) -> str:
+    """
+    Classify a recipe into a protein category by matching keywords against
+    the title (primary) then ingredient tokens (fallback).
+    Returns the category key, defaulting to 'other'.
+    """
+    from app import config_files as _cf
+    categories = _cf.get_protein_categories()
+    if not categories:
+        return "other"
+
+    sorted_cats = sorted(
+        [c for c in categories if c.get("enabled", True) and c.get("key") != "other"],
+        key=lambda c: (c.get("order", 99), c.get("key", "")),
+    )
+    title_lower = title.lower()
+
+    for cat in sorted_cats:
+        for kw in (cat.get("keywords") or []):
+            if re.search(r"\b" + re.escape(kw.lower()) + r"\b", title_lower):
+                return cat["key"]
+
+    if tokens:
+        scores: dict = {}
+        tokens_lower = [t.lower() for t in tokens]
+        for cat in sorted_cats:
+            hits = sum(
+                1 for kw in (cat.get("keywords") or [])
+                for t in tokens_lower if kw.lower() in t
+            )
+            if hits:
+                scores[cat["key"]] = hits
+        if scores:
+            return max(scores, key=lambda k: scores[k])
+
+    return "other"
+
+
 def collect_and_scrape(
     db: Session,
     budget: Optional[int] = None,
@@ -929,6 +968,7 @@ def score_cached(
             "missing_ingredients": missing[:15],
             "is_favorite":         False,
             "total_time_minutes":  stub.scraped_time_minutes,
+            "protein_category":    _classify_protein(stub.title, tokens),
             "_pending_import":     True,
         })
 

@@ -536,6 +536,7 @@ const PlannerPage=({hid})=>{
   const [mealieUrl,setMealieUrl]=useState('');
   const [rejectionReasons,setRejectionReasons]=useState([]);
   const [cookingMethods,setCookingMethods]=useState([]);
+  const [proteinCategories,setProteinCategories]=useState([]);
   const [progress,setProgress]=useState(0);
   const [progressLabel,setProgressLabel]=useState('');
   const [pushingBring,setPushingBring]=useState(false);
@@ -558,6 +559,7 @@ const PlannerPage=({hid})=>{
     get('/config/mealie-url').then(d=>{if(d.mealie_base_url)setMealieUrl(`${d.mealie_base_url}/g/${d.group_slug}/r/create/url`);}).catch(()=>{});
     get('/recipes/rejection-reasons').then(d=>setRejectionReasons(d.reasons||[])).catch(()=>{});
     get('/config/cooking-methods').then(d=>setCookingMethods(d.methods||[])).catch(()=>{});
+    get('/config/protein-categories').then(d=>setProteinCategories(d.categories||[])).catch(()=>{});
   },[hid]);
 
   const loadSuggestions=async(countOverride)=>{
@@ -773,11 +775,36 @@ const PlannerPage=({hid})=>{
           <div style={{fontSize:48}}>🍽️</div>
           <p>No suggestions. Check Recipe Sources to ensure sources are enabled.</p>
         </div>}
-        {suggestions.map(r=><RecipeCard key={r.recipe_id} r={r} pantryItems={pantry}
-          onConfirm={toggleConfirm} onReject={toggleReject}
-          onRemove={id=>setSug(s=>s.filter(x=>x.recipe_id!==id))}
-          confirmed={confirmed} rejected={rejected} hid={hid} prefs={prefs}
-          rejectionReasons={rejectionReasons} cookingMethods={cookingMethods}/>)}
+        {(()=>{
+          // Group suggestions by protein category using loaded config order
+          const catOrder=proteinCategories.length
+            ?[...proteinCategories].sort((a,b)=>(a.order||99)-(b.order||99)||a.key.localeCompare(b.key))
+            :[{key:'other',label:'🍽️ Other',order:99}];
+          const grouped={};
+          suggestions.forEach(r=>{
+            const k=r.protein_category||'other';
+            if(!grouped[k])grouped[k]=[];
+            grouped[k].push(r);
+          });
+          // Build ordered list of groups, appending any unconfigured keys at the end
+          const allKeys=[...catOrder.map(c=>c.key),...Object.keys(grouped).filter(k=>!catOrder.find(c=>c.key===k))];
+          const seenKeys=new Set();
+          return allKeys.filter(k=>{if(seenKeys.has(k)||!grouped[k])return false;seenKeys.add(k);return true;}).map(k=>{
+            const cat=catOrder.find(c=>c.key===k)||{key:k,label:k};
+            const recs=grouped[k]||[];
+            return(<div key={k} style={{marginBottom:8}}>
+              <div style={{fontSize:13,fontWeight:700,color:'var(--gray)',textTransform:'uppercase',
+                letterSpacing:'.06em',padding:'6px 0 4px',borderBottom:'2px solid var(--border)',marginBottom:8}}>
+                {cat.label||k} <span style={{fontWeight:400,opacity:.6}}>({recs.length})</span>
+              </div>
+              {recs.map(r=><RecipeCard key={r.recipe_id} r={r} pantryItems={pantry}
+                onConfirm={toggleConfirm} onReject={toggleReject}
+                onRemove={id=>setSug(s=>s.filter(x=>x.recipe_id!==id))}
+                confirmed={confirmed} rejected={rejected} hid={hid} prefs={prefs}
+                rejectionReasons={rejectionReasons} cookingMethods={cookingMethods}/>)}
+            </div>);
+          });
+        })()}
         {/* All-rejected banner */}
         {suggestions.length>0&&suggestions.every(r=>rejected.includes(r.recipe_id))&&!loading&&(
           <div style={{marginTop:16,padding:16,background:'#fef9c3',border:'1px solid #fde047',borderRadius:8,textAlign:'center'}}>
@@ -1187,6 +1214,8 @@ const SourcesPage=()=>{
   const [disc,setDisc]=useState(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState(null);
+  const [proteinCats,setProteinCats]=useState([]);
+  const [savingProtein,setSavingProtein]=useState(false);
   const [showForm,setShowForm]=useState(false);
   const [editName,setEditName]=useState(null);
   const [form,setForm]=useState({name:'',enabled:true,category_urls:'',notes:''});
@@ -1198,8 +1227,7 @@ const SourcesPage=()=>{
   const load=async()=>{
     setLoading(true);setError(null);
     try{
-      const [s,d,st]=await Promise.all([get('/config/sources'),get('/config/discovery'),get('/config/scrape-status').catch(()=>null)]);
-      setSources(Array.isArray(s)?s:[]); setDisc(d); setScrapeStatus(st);
+      const [s,d,st,pc]=await Promise.all([get('/config/sources'),get('/config/discovery'),get('/config/scrape-status').catch(()=>null),get('/config/protein-categories').catch(()=>({categories:[]}))]);      setSources(Array.isArray(s)?s:[]); setDisc(d); setScrapeStatus(st); setProteinCats(pc.categories||[]);
     }catch(e){setError(e.message);}
     finally{setLoading(false);}
   };
@@ -1358,6 +1386,49 @@ const SourcesPage=()=>{
           </div>
         </div>
       </div>}
+
+      {/* Protein category ordering */}
+      <div className="card" style={{marginTop:16}}>
+        <h3 className="section-title">🥩 Protein Category Order</h3>
+        <p style={{fontSize:13,color:'var(--gray)',marginBottom:12}}>
+          Drag or use ↑↓ to set the order in which protein groups appear in the suggestion list.
+        </p>
+        {proteinCats.map((cat,i)=>(
+          <div key={cat.key} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
+            <span style={{flex:1,fontWeight:500}}>{cat.label||cat.key}</span>
+            <input type="number" min={1} max={99} value={cat.order||i+1}
+              style={{width:52,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:4,textAlign:'center'}}
+              onChange={e=>{
+                const updated=[...proteinCats];
+                updated[i]={...cat,order:+e.target.value};
+                setProteinCats(updated);
+              }}/>
+            <button className="btn-icon" title="Move up" disabled={i===0}
+              onClick={()=>{const a=[...proteinCats];[a[i-1],a[i]]=[a[i],a[i-1]];a.forEach((c,j)=>c.order=j+1);setProteinCats(a);}}>▲</button>
+            <button className="btn-icon" title="Move down" disabled={i===proteinCats.length-1}
+              onClick={()=>{const a=[...proteinCats];[a[i],a[i+1]]=[a[i+1],a[i]];a.forEach((c,j)=>c.order=j+1);setProteinCats(a);}}>▼</button>
+            <label style={{display:'flex',alignItems:'center',gap:4,fontSize:13}}>
+              <input type="checkbox" checked={cat.enabled!==false}
+                onChange={e=>{const a=[...proteinCats];a[i]={...cat,enabled:e.target.checked};setProteinCats(a);}}/>
+              Show
+            </label>
+          </div>
+        ))}
+        {proteinCats.length>0&&(
+          <button className="btn-primary" style={{marginTop:12}} disabled={savingProtein}
+            onClick={async()=>{
+              setSavingProtein(true);
+              try{
+                await put('/config/protein-categories',{categories:proteinCats});
+                toast('Protein category order saved');
+              }catch(e){toast(e.message,'error');}
+              finally{setSavingProtein(false);}
+            }}>
+            {savingProtein?'Saving…':'Save Order'}
+          </button>
+        )}
+      </div>
+
     </div>
   );
 };

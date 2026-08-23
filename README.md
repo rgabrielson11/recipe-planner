@@ -121,6 +121,7 @@ Edit vocabulary: `backend/app/data/rejection_reasons.yaml`
 - **Database page** — Tools → Database shows per-source recipe stub counts and a wipe-with-confirmation to reset the cache
 - **Logs page** — all frontend API errors are forwarded to the backend log ring and appear on the Logs page with logger `client`
 - **Ollama** — optional local LLM ingredient normalisation; set `OLLAMA_BASE_URL` in the Unraid template to enable
+- **Protein grouping** — suggestions grouped by protein type (Chicken, Pork, Beef, Seafood, Vegetarian, Other); order configurable from Sources page
 
 ---
 

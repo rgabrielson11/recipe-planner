@@ -1,5 +1,45 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 50: protein category grouping in suggestions
+
+### New feature
+
+**Suggestions grouped by protein type**
+
+Recipes in the suggestion list are now grouped under category headers
+(🍗 Chicken, 🐷 Pork, 🦃 Turkey, 🥩 Beef, 🐟 Seafood, 🥦 Vegetarian,
+🍽️ Other) based on keyword matching against the recipe title and
+ingredient tokens.
+
+Classification priority:
+1. Title keyword match (strongest signal, first-match wins by category order)
+2. Ingredient token match (most hits wins)
+3. Falls back to "Other"
+
+**Configurable order via Sources page**
+
+The "🥩 Protein Category Order" section on the Sources page lets you:
+- Reorder categories with ↑↓ buttons or by editing the order number
+- Toggle categories on/off (hidden categories merge into "Other")
+- Save changes to `protein_categories.yaml`
+
+Default order: Chicken (1) → Pork (2) → Turkey (3) → Beef (3) →
+Seafood (4) → Vegetarian (5) → Other (6).
+
+**New files / endpoints:**
+- `backend/app/data/protein_categories.yaml` — default config (code-owned)
+- `GET /config/protein-categories` / `PUT /config/protein-categories`
+- `config_files.get_protein_categories()` / `save_protein_categories()`
+- `recipe_discovery._classify_protein(title, tokens)` used in both Pool A
+  (Mealie favourites) and Pool B (discovered) suggestion outputs
+
+`protein_categories.yaml` is user-owned — copied to `/data/` on first
+container start, never overwritten by the entrypoint.
+
+**VERSION bumped to 10.50**
+
+---
+
 ## Phase 10 — Patch 49: fix Block action in Last Week Feedback
 
 ### Bug fix

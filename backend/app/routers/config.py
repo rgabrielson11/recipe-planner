@@ -381,3 +381,17 @@ def get_version():
         "ollama_model":    _oc.OLLAMA_MODEL if _oc.OLLAMA_BASE_URL else None,
         "ollama_available": _oc.is_available() if _oc.OLLAMA_BASE_URL else False,
     }
+
+
+# ── Protein categories ────────────────────────────────────────────────────────
+
+@router.get("/protein-categories")
+def get_protein_categories():
+    return {"categories": config_files.get_protein_categories()}
+
+
+@router.put("/protein-categories")
+def save_protein_categories(payload: dict):
+    cats = payload.get("categories", [])
+    config_files.save_protein_categories(cats)
+    return {"categories": cats}

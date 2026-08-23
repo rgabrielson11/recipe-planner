@@ -329,6 +329,7 @@ def build_suggestions(
                 "missing_ingredients": missing[:15],
                 "is_favorite":         True,
                 "total_time_minutes":  _parse_minutes(detail.get("totalTime") or detail.get("performTime")),
+                "protein_category":    recipe_discovery._classify_protein(detail.get("name", slug), []),
                 "_pending_import":     False,
             })
 
