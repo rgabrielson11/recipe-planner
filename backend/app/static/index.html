@@ -705,15 +705,15 @@ const PlannerPage=({hid})=>{
                 <button className="btn-secondary btn-sm" onClick={async()=>{
                   try{
                     await post(`/recipes/${entry.recipe_id}/reject`,{household_id:hid,reason_category:'dislike'});
-                    setFeedbackDone(d=>({...d,[entry.entry_id]:'Blocked'}));
                     toast(`${entry.title} blocked`);
+                    setTimeout(()=>setFeedback(f=>f.filter(e=>e.entry_id!==entry.entry_id)),400);
                   }catch(e){toast(e.message,'error');}
                 }}>🚫 Block</button>
                 <button className="btn-secondary btn-sm" onClick={async()=>{
                   try{
                     await post(`/meal-plan/history/add`,{household_id:hid,week_start_date:week,recipe_ids:[entry.recipe_id]});
-                    setFeedbackDone(d=>({...d,[entry.entry_id]:'Added to this week'}));
                     toast(`${entry.title} added to this week`);
+                    setTimeout(()=>setFeedback(f=>f.filter(e=>e.entry_id!==entry.entry_id)),400);
                   }catch(e){toast(e.message,'error');}
                 }}>🔄 Make again this week</button>
               </div>

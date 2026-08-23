@@ -1,5 +1,19 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 51: fix blocked recipes not removed from feedback list
+
+### Bug fix
+
+After clicking 🚫 Block or 🔄 Make again this week in the Last Week
+Feedback step, the recipe card remained visible (only showing a badge).
+Fixed: both actions now remove the card from the feedback list after a
+400 ms delay (enough time for the toast to appear and the user to see the
+confirmation before it disappears).
+
+Rating (⭐) keeps the card visible so the user can adjust stars.
+
+---
+
 ## Phase 10 — Patch 50: protein category grouping in suggestions
 
 ### New feature
