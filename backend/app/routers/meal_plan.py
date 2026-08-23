@@ -586,7 +586,7 @@ def get_pending_feedback(household_id: str, week_start_date: str, db: Session = 
     except ValueError:
         raise HTTPException(status_code=422, detail="Invalid week_start_date")
 
-    # Permanently blocked recipe IDs for this household
+    # Recipe IDs that have been permanently blocked for this household
     blocked_ids = {
         r.recipe_id for r in db.query(models.RecipeRejection).filter(
             models.RecipeRejection.household_id == household_id,
@@ -594,13 +594,25 @@ def get_pending_feedback(household_id: str, week_start_date: str, db: Session = 
         ).all()
     }
 
+    # Recipe IDs that have been rated at least once — exclude entirely so that
+    # rating via the Past Meals page removes the recipe from this list even if
+    # the same recipe appeared in multiple weeks.
+    rated_ids = {
+        e.recipe_id for e in db.query(models.MealPlanEntry).filter(
+            models.MealPlanEntry.household_id == household_id,
+            models.MealPlanEntry.rating.isnot(None),
+        ).all()
+    }
+
+    processed_ids = blocked_ids | rated_ids
+
     entries = (
         db.query(models.MealPlanEntry)
         .join(models.Recipe)
         .filter(
             models.MealPlanEntry.household_id == household_id,
-            models.MealPlanEntry.week_start_date < current,   # exclude current week
-            models.MealPlanEntry.rating.is_(None),            # unrated only
+            models.MealPlanEntry.week_start_date < current,
+            models.MealPlanEntry.recipe_id.notin_(processed_ids) if processed_ids else True,
         )
         .order_by(models.MealPlanEntry.week_start_date.desc())
         .all()
@@ -609,9 +621,7 @@ def get_pending_feedback(household_id: str, week_start_date: str, db: Session = 
     result = []
     seen = set()
     for e in entries:
-        if e.recipe_id in blocked_ids:
-            continue
-        if e.recipe_id in seen:          # one entry per recipe (dedup cross-weeks)
+        if e.recipe_id in seen:   # dedup — show each recipe once
             continue
         seen.add(e.recipe_id)
         r = e.recipe

@@ -555,7 +555,7 @@ const PlannerPage=({hid})=>{
 
   useEffect(()=>{
     get(`/pantry?household_id=${hid}`).then(setPantry).catch(()=>{});
-    get(`/preferences/${hid}`).then(setPrefs).catch(()=>{});
+    get(`/preferences/${hid}`).then(p=>{setPrefs(p);if(p?.default_num_suggestions)setNumSug(p.default_num_suggestions);}).catch(()=>{});
     get('/config/mealie-url').then(d=>{if(d.mealie_base_url)setMealieUrl(`${d.mealie_base_url}/g/${d.group_slug}/r/create/url`);}).catch(()=>{});
     get('/recipes/rejection-reasons').then(d=>setRejectionReasons(d.reasons||[])).catch(()=>{});
     get('/config/cooking-methods').then(d=>setCookingMethods(d.methods||[])).catch(()=>{});

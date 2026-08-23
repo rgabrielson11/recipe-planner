@@ -1,5 +1,33 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 53: fix default suggestions count + feedback dedup
+
+### Bug fixes
+
+**Default number of suggestions not applied**
+
+`numSug` was hardcoded to `useState(10)` — the household preference
+`default_num_suggestions` was never used for the initial value because it
+loads asynchronously. Fixed: the prefs fetch callback now calls
+`setNumSug(p.default_num_suggestions)` immediately after `setPrefs(p)`,
+so the configured default is applied as soon as prefs resolve.
+
+**Rated/blocked meals still appearing in planner feedback**
+
+`pending-feedback` filtered `MealPlanEntry.rating.is_(None)` on individual
+entries. If a recipe was selected in multiple weeks, rating one week's entry
+left other entries (same recipe, different week) still appearing as
+unreviewed. Also, ratings set on the Past Meals page weren't suppressing
+the recipe in the planner feedback step.
+
+Fixed: the query now pre-computes `rated_ids` — the set of all recipe_ids
+that have ANY rated MealPlanEntry for this household — and excludes them
+entirely via `recipe_id NOT IN (...)`. Combined with `blocked_ids`, the
+`processed_ids` set ensures a recipe disappears from the feedback step as
+soon as it's rated or blocked anywhere in the app.
+
+---
+
 ## Phase 10 — Patch 52: continuous feedback across all past meals
 
 ### Changes
