@@ -154,23 +154,21 @@ def get_enabled_sources() -> list[dict]:
     return [s for s in get_recipe_sources().get("sources", []) if s.get("enabled", True)]
 
 def get_protein_categories() -> list[dict]:
-    """Load protein category config. Returns default list if file missing."""
-    path = _user_data_path("protein_categories.yaml")
-    fallback_path = _APP_DATA / "protein_categories.yaml"
-    for p in (path, fallback_path):
-        if p.exists():
-            try:
-                data = load_yaml(p)
-                if isinstance(data, dict) and "categories" in data:
-                    return data["categories"]
-            except Exception:
-                pass
+    """Load protein category config. Returns empty list if file missing."""
+    path = _path("protein_categories.yaml")
+    if path.exists():
+        try:
+            data = load_yaml(path)
+            if isinstance(data, dict) and "categories" in data:
+                return data["categories"]
+        except Exception:
+            pass
     return []
 
 
 def save_protein_categories(categories: list[dict]) -> None:
     """Save protein category config to the user data directory."""
-    path = _user_data_path("protein_categories.yaml")
+    path = _path("protein_categories.yaml")
     path.parent.mkdir(parents=True, exist_ok=True)
     _yaml = _make_yaml()
     with open(path, "w", encoding="utf-8") as f:
