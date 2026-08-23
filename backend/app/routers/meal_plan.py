@@ -193,7 +193,7 @@ def suggest(
     num: Optional[int] = Query(
         default=None,
         ge=1,
-        le=50,
+        le=500,
         description=(
             "Override the number of suggestions for this request only. "
             "Priority: this param > WeeklyIntent.num_suggestions > "

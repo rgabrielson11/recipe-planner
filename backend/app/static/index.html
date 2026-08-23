@@ -757,7 +757,7 @@ const PlannerPage=({hid})=>{
             </div>
             <div style={{maxWidth:200}}>
               <label>Number of suggestions</label>
-              <input type="number" min={3} max={30} value={numSug} onChange={e=>setNumSug(+e.target.value)}/>
+              <input type="number" min={1} value={numSug} onChange={e=>setNumSug(+e.target.value)}/>
             </div>
           </div>
         </div>
@@ -1180,7 +1180,7 @@ const SettingsPage=({hid})=>{
         <ArrayEditor label="Excluded ingredients (hard filter)" fk="excluded_items"/>
         <div className="form-row">
           <div><label>Max cook time (min)</label><input type="number" value={prefs.max_cook_time_minutes||''} onChange={e=>setPrefs(p=>({...p,max_cook_time_minutes:e.target.value?+e.target.value:null}))} placeholder="e.g. 60"/></div>
-          <div><label>Default suggestions</label><input type="number" min={3} max={30} value={prefs.default_num_suggestions||10} onChange={e=>setPrefs(p=>({...p,default_num_suggestions:+e.target.value}))}/></div>
+          <div><label>Default suggestions</label><input type="number" min={1} max={200} value={prefs.default_num_suggestions||10} onChange={e=>setPrefs(p=>({...p,default_num_suggestions:+e.target.value}))}/></div>
           <div><label>Favourite threshold (★)</label><select value={prefs.favorite_rating_threshold||4} onChange={e=>setPrefs(p=>({...p,favorite_rating_threshold:+e.target.value}))}>{[3,4,5].map(n=><option key={n} value={n}>{n} stars</option>)}</select></div>
           <div><label>Skill level</label><select value={prefs.skill_level||''} onChange={e=>setPrefs(p=>({...p,skill_level:e.target.value||null}))}>
             <option value="">— not set —</option>

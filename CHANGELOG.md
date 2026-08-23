@@ -1,5 +1,22 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 60: remove artificial suggestion count cap
+
+### Bug fix
+
+`GET /meal-plan/suggest` had `le=50` on the `num` query parameter, causing
+a 422 validation error for any request with `num > 50`. The Load More button
+increments by 5 each click, so the 55th request would always fail.
+
+Fixes:
+- Backend `num` query param raised from `le=50` to `le=500`
+- Frontend numSug input `max={30}` removed (no upper limit on suggestions step)
+- Default suggestions preference input raised from `max={30}` to `max={200}`
+
+VERSION bumped to 10.60.
+
+---
+
 ## Phase 10 — Patch 59: carbs NA display; protein categories always sync; settings page move
 
 ### Bug fixes + improvements
