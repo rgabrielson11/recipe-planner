@@ -541,6 +541,7 @@ const PlannerPage=({hid})=>{
   const [progress,setProgress]=useState(0);
   const [progressLabel,setProgressLabel]=useState('');
   const [pushingBring,setPushingBring]=useState(false);
+  const [scrapeActive,setScrapeActive]=useState(false);
   const toast=useToast();
 
   const pushToBring=async()=>{
@@ -653,7 +654,8 @@ const PlannerPage=({hid})=>{
           try{
             const r=await get(`/meal-plan/pending-feedback?household_id=${hid}&week_start_date=${week}`);
             setFeedback(r||[]);
-          }catch(e){setFeedback([]);}
+            if(!r||r.length===0){setFeedbackLoading(false);setStep(2);return;}
+          }catch(e){setFeedback([]);setStep(2);return;}
           finally{setFeedbackLoading(false);}
           setStep(1);
         }}>Continue →</button>
@@ -759,12 +761,24 @@ const PlannerPage=({hid})=>{
             </div>
           </div>
         </div>
+        {scrapeActive&&<div className="alert alert-warning" style={{marginBottom:12}}>
+          ⏳ Recipe scraping is in progress — suggestions will be available once it completes.
+          <button className="btn-secondary btn-sm" style={{marginLeft:8}}
+            onClick={async()=>{try{const s=await get('/config/scrape-status');setScrapeActive(s?.running===true);}catch(e){}}}>
+            Check
+          </button>
+        </div>}
         {loading?(<div>
           <div style={{background:'var(--border)',borderRadius:8,height:8,margin:'16px 0 6px',overflow:'hidden'}}>
             <div style={{height:'100%',borderRadius:8,background:'var(--primary)',width:`${progress}%`,transition:'width .5s ease'}}/>
           </div>
           <p style={{fontSize:12,color:'var(--gray)',textAlign:'center',marginBottom:0}}>{progressLabel||'Loading...'}</p>
-        </div>):<button className="btn-primary" onClick={()=>loadSuggestions()}>🔍 Generate Suggestions →</button>}
+        </div>):<button className="btn-primary" disabled={scrapeActive} onClick={async()=>{
+          // Check if a scrape is running before generating suggestions
+          try{const s=await get('/config/scrape-status');if(s?.running===true){setScrapeActive(true);return;}}catch(e){}
+          setScrapeActive(false);
+          loadSuggestions();
+        }}>🔍 Generate Suggestions →</button>}
       </div>}
 
       {/* Step 2 */}

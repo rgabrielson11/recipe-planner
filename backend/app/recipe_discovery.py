@@ -43,6 +43,7 @@ Stub loop fix (from Phase 7)
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import random
 from datetime import date, datetime, timedelta
 from typing import Optional
@@ -594,6 +595,14 @@ def _score_scraped(
 _scrape_lock = threading.Lock()
 
 
+def is_scraping() -> bool:
+    """Returns True if a scrape is currently running."""    # non-blocking acquire: if we get it immediately, no scrape is active
+    got = _scrape_lock.acquire(blocking=False)
+    if got:
+        _scrape_lock.release()
+    return not got
+
+
 def _update_row_from_detail(row: models.Recipe, detail: dict) -> None:
     """
     Write the scraped payload to a Recipe row, including precomputed
@@ -775,41 +784,55 @@ def collect_and_scrape(
         )
 
         # ── Phase 1: collect URLs from HTML category / directory pages ────────
+        # Fetch category pages concurrently (different domains → no rate-limit risk).
+        # Recipe scraping (Phase 2) stays sequential to respect per-site rate limits.
         html_candidate_urls: list[str] = []
         headers = {
             "User-Agent": user_agent,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
         }
+
+        # Build flat task list: (source_name, cat_url)
+        cat_tasks = [
+            (source["name"], cat_url)
+            for source in sources
+            for cat_url in source.get("category_urls", [])
+        ]
+        _total_pages = len(cat_tasks)
         pages_fetched = 0
-        _total_pages  = sum(len(s.get("category_urls", [])) for s in sources)
-        _page_idx     = 0
-        for source in sources:
-            for cat_url in source.get("category_urls", []):
-                _page_idx += 1
-                _prog(
-                    5 + int((_page_idx / max(_total_pages, 1)) * 40),
-                    f"Fetching {source['name']} ({_page_idx} of {_total_pages} pages)...",
-                )
-                try:
-                    resp = requests.get(cat_url, headers=headers, timeout=15)
-                    if resp.status_code != 200:
-                        log.warning("Category page %s returned HTTP %s", cat_url, resp.status_code)
-                        continue
+        _prog(5, f"Fetching {_total_pages} category pages (concurrent)...")
+
+        def _fetch_cat(args):
+            src_name, url = args
+            try:
+                r = requests.get(url, headers=headers, timeout=15)
+                if r.status_code != 200:
+                    log.warning("Category page %s returned HTTP %s", url, r.status_code)
+                    return src_name, url, []
+                found  = _extract_recipe_urls(r.text, url)
+                dinner = [u for u in found if _is_dinner_url(u, non_dinner_re)]
+                log.info("HTML '%s' — %s: %d links, %d dinner",
+                         src_name, url, len(found), len(dinner))
+                return src_name, url, dinner
+            except Exception as e:
+                log.warning("Category page failed (%s: %s): %s", src_name, url, e)
+                return src_name, url, []
+
+        # Workers: 1 per source (caps at 4) to avoid hammering the same domain
+        n_workers = min(len(sources), 4) if sources else 1
+        completed = 0
+        with ThreadPoolExecutor(max_workers=n_workers) as pool:
+            futures = {pool.submit(_fetch_cat, task): task for task in cat_tasks}
+            for fut in as_completed(futures):
+                completed += 1
+                _prog(5 + int((completed / max(_total_pages, 1)) * 40),
+                      f"Fetching category pages ({completed}/{_total_pages})...")
+                src_name, url, dinner = fut.result()
+                new = [u for u in dinner if u not in all_known and u not in html_candidate_urls]
+                html_candidate_urls.extend(new)
+                if new:
                     pages_fetched += 1
-                    found = _extract_recipe_urls(resp.text, cat_url)
-                    # Non-dinner pre-filter against URL slugs (recipe name is in the slug)
-                    dinner     = [u for u in found if _is_dinner_url(u, non_dinner_re)]
-                    nd_skipped = len(found) - len(dinner)
-                    new = [u for u in dinner if u not in all_known and u not in html_candidate_urls]
-                    html_candidate_urls.extend(new)
-                    log.info(
-                        "HTML '%s' — %s: %d links extracted, %d non-dinner skipped, %d new",
-                        source["name"], cat_url, len(found), nd_skipped, len(new),
-                    )
-                    time.sleep(delay)
-                except Exception as e:
-                    log.warning("Category page failed (%s: %s): %s", source["name"], cat_url, e)
 
         # Deduplicate while preserving order
         seen: set[str] = set()

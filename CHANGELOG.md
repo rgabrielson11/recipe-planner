@@ -1,5 +1,46 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 58: pasta/fish/shellfish categories; scrape block; auto-skip feedback; concurrent discovery
+
+### New features
+
+**Pasta + Fish/Shellfish split protein categories**
+
+Seven categories become nine:
+- 🍝 Pasta (order 5) — pasta, spaghetti, fettuccine, gnocchi, noodle, ramen, udon, pad thai, lo mein, etc.
+- 🐟 Fish (order 6) — salmon, tuna, cod, tilapia, halibut, trout, mahi, sea bass, haddock, swordfish, snapper, etc.
+- 🦐 Shellfish (order 7) — shrimp, prawn, crab, lobster, scallop, clam, mussel, squid, calamari, oyster, etc.
+
+Final order: Chicken → Pork → Turkey → Beef → Pasta → Fish → Shellfish → Vegetarian → Other.
+
+**Block planning while scraping**
+
+`GET /meal-plan/suggest` now returns `503 Service Unavailable` if a scrape
+is currently running. The Generate Suggestions button checks scrape status
+before firing and shows a warning banner if a scrape is active, with a
+"Check" button to re-poll. Button is disabled until scraping completes.
+
+**Auto-skip Last Week Feedback if nothing to review**
+
+If `pending-feedback` returns zero items, Step 1 is skipped automatically
+and the planner advances directly to Step 2 (Pantry Review). No flash of
+the empty-state card. On error, also skips forward gracefully.
+
+**Concurrent category page discovery**
+
+Phase 1 (fetching category/directory pages) now uses `ThreadPoolExecutor`
+with one worker per source (capped at 4). Category pages from different
+sources hit different domains so there is no rate-limit risk. Expected
+speedup: 3–4× for the discovery phase (57 pages across 2 sources).
+Recipe scraping (Phase 2) remains sequential to respect per-site limits.
+
+New helper `recipe_discovery.is_scraping()` uses a non-blocking lock
+acquire to check if a scrape is in progress without blocking the caller.
+
+VERSION bumped to 10.58.
+
+---
+
 ## Phase 10 — Patch 57: vegetarian default classification + carbs on recipe cards
 
 ### Bug fix

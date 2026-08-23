@@ -216,6 +216,12 @@ def suggest(
         forever. Use temporary reasons (not_this_week, already_made_recently)
         to suppress it for a few weeks and let it resurface later.
     """
+    if recipe_discovery.is_scraping():
+        raise HTTPException(
+            status_code=503,
+            detail="Recipe scraping is in progress — suggestions will be available once the scrape completes. Check the Sources page for progress.",
+        )
+
     try:
         result = matching_engine.build_suggestions(
             household_id=household_id,

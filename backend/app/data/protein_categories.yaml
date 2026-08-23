@@ -1,14 +1,7 @@
 # Protein category grouping for the suggestion picker.
-# Recipes are classified by matching keywords against the recipe title
-# (primary) and ingredient tokens (fallback).
-#
-# order:    Lower number appears first in the suggestion list.
-#           Two categories with the same order are sorted alphabetically.
-# keywords: Words to match against title / ingredient tokens (case-insensitive).
-#           The first category whose keywords appear in the title wins.
-#           If no title match, the category with the most ingredient hits wins.
-# enabled:  Set to false to hide the category header (recipes still show,
-#           grouped under "Other").
+# order: Lower number appears first. Same order = alphabetical.
+# keywords: Matched against recipe title (primary) and ingredient tokens.
+# enabled: false merges recipes into Other.
 
 categories:
 
@@ -32,24 +25,36 @@ categories:
 
   - key: beef
     label: "🥩 Beef"
-    order: 3
+    order: 4
     enabled: true
     keywords: [beef, steak, brisket, burger, chuck, ribeye, sirloin, flank, meatball, bolognese, ground]
 
-  - key: seafood
-    label: "🐟 Seafood"
-    order: 4
+  - key: pasta
+    label: "🍝 Pasta"
+    order: 5
     enabled: true
-    keywords: [fish, salmon, tuna, shrimp, prawn, crab, lobster, scallop, cod, tilapia, halibut, trout, mahi, sea bass, clam, mussel, squid, calamari, anchovy, sardine]
+    keywords: [pasta, spaghetti, fettuccine, linguine, penne, rigatoni, tagliatelle, gnocchi, lasagna, lasagne, ravioli, tortellini, orzo, noodle, ramen, udon, lo mein, pad thai]
+
+  - key: fish
+    label: "🐟 Fish"
+    order: 6
+    enabled: true
+    keywords: [salmon, tuna, cod, tilapia, halibut, trout, mahi, sea bass, haddock, swordfish, snapper, flounder, catfish, bass, sole, grouper, mackerel, anchovy, sardine]
+
+  - key: shellfish
+    label: "🦐 Shellfish"
+    order: 7
+    enabled: true
+    keywords: [shrimp, prawn, crab, lobster, scallop, clam, mussel, squid, calamari, oyster, octopus, crawfish, crayfish]
 
   - key: vegetarian
     label: "🥦 Vegetarian"
-    order: 5
+    order: 8
     enabled: true
     keywords: [tofu, tempeh, lentil, chickpea, falafel, portobello, veggie, vegetarian, vegan, cauliflower, eggplant, mushroom]
 
   - key: other
     label: "🍽️ Other"
-    order: 6
+    order: 9
     enabled: true
-    keywords: []
+    keywords: [lamb, mutton, duck, venison, bison, rabbit, goat, quail, veal]
