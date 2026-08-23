@@ -167,7 +167,7 @@ _PROTEIN_DEFAULTS = [
     {"key": "vegetarian", "label": "🥦 Vegetarian", "order": 5, "enabled": True,
      "keywords": ["tofu", "tempeh", "lentil", "chickpea", "falafel", "portobello", "veggie", "vegetarian", "vegan", "cauliflower", "eggplant", "mushroom"]},
     {"key": "other",      "label": "🍽️ Other",     "order": 6, "enabled": True,
-     "keywords": []},
+     "keywords": ["lamb", "mutton", "duck", "venison", "bison", "rabbit", "goat", "quail", "veal"]},
 ]
 
 

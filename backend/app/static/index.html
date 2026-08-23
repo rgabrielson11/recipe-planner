@@ -381,6 +381,7 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,onRemove,confirmed,rejected,
             <span>Score: <b>{r.score}</b></span>
             <span>🥫 {r.pantry_overlap_pct}% on hand</span>
             {r.total_time_minutes&&<span>⏱ {r.total_time_minutes}m</span>}
+            {r.carbs_per_serving!=null&&<span>🌾 {Math.round(r.carbs_per_serving)}g carbs</span>}
             <span>🛒 {(r.missing_ingredients||[]).length} to buy</span>
           </div>
         </div>

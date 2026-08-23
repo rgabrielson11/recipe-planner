@@ -39,6 +39,7 @@ def run_migrations():
         ("recipes", "last_scraped_at",          "DATETIME"),
         ("recipes", "scraped_instructions_json", "TEXT"),      # print support
         ("recipes", "scraped_servings",          "TEXT"),      # e.g. "4 servings"
+        ("recipes", "scraped_carbs",            "REAL"),      # grams carbs per serving
         ("recipes", "scraped_tokens_json",      "TEXT"),      # Patch 12
         ("recipes", "scraped_rating",           "FLOAT"),     # Patch 13
         ("recipes", "scraped_reviews",          "INTEGER"),   # Patch 13

@@ -612,6 +612,15 @@ def _update_row_from_detail(row: models.Recipe, detail: dict) -> None:
     row.scraped_ingredients_json = _json.dumps(ing_strings)
     row.scraped_instructions_json = _json.dumps(instruction_steps)
     row.scraped_servings          = str(detail.get("recipeServings") or "").strip() or None
+    _nutrition = detail.get("nutrition") or {}
+    if isinstance(_nutrition, dict):
+        import re as _re
+        for _key in ("carbohydrateContent", "carbohydrates"):
+            _carb_raw = str(_nutrition.get(_key, "") or "")
+            _m = _re.search(r"(\d+(?:\.\d+)?)", _carb_raw)
+            if _m:
+                row.scraped_carbs = float(_m.group(1))
+                break
     row.scraped_time_minutes     = _parse_minutes(detail.get("totalTime"))
     row.scraped_description      = (detail.get("description") or "")[:500]
     row.scraped_tokens_json      = _json.dumps(sorted(_ingredient_names_from_text(detail)))
@@ -621,28 +630,44 @@ def _update_row_from_detail(row: models.Recipe, detail: dict) -> None:
 
 
 
+# Keywords that indicate a non-vegetarian protein NOT listed in categories
+# (e.g. lamb, duck). If matched, the recipe goes to "other" rather than
+# defaulting to vegetarian.
+_OTHER_PROTEIN_KEYWORDS = [
+    "lamb", "mutton", "duck", "venison", "bison", "rabbit", "goat",
+    "quail", "veal", "elk", "boar", "pheasant", "ostrich",
+]
+
+
 def _classify_protein(title: str, tokens: list[str]) -> str:
     """
     Classify a recipe into a protein category by matching keywords against
     the title (primary) then ingredient tokens (fallback).
-    Returns the category key, defaulting to 'other'.
+
+    If no specific protein keyword matches, defaults to 'vegetarian' rather
+    than 'other' — plant-based dishes (pasta, salad, soup) are vegetarian
+    by omission. 'Other' is reserved for proteins not listed in the
+    categories (lamb, duck, venison, etc.).
     """
     from app import config_files as _cf
     categories = _cf.get_protein_categories()
     if not categories:
-        return "other"
+        return "vegetarian"
 
     sorted_cats = sorted(
-        [c for c in categories if c.get("enabled", True) and c.get("key") != "other"],
+        [c for c in categories if c.get("enabled", True) and c.get("key") not in ("other", "vegetarian")],
         key=lambda c: (c.get("order", 99), c.get("key", "")),
     )
     title_lower = title.lower()
+    all_text = title_lower + " " + " ".join(t.lower() for t in tokens)
 
+    # Title keyword match — specific protein categories
     for cat in sorted_cats:
         for kw in (cat.get("keywords") or []):
             if re.search(r"\b" + re.escape(kw.lower()) + r"\b", title_lower):
                 return cat["key"]
 
+    # Token match — most ingredient hits
     if tokens:
         scores: dict = {}
         tokens_lower = [t.lower() for t in tokens]
@@ -656,7 +681,13 @@ def _classify_protein(title: str, tokens: list[str]) -> str:
         if scores:
             return max(scores, key=lambda k: scores[k])
 
-    return "other"
+    # No specific protein matched — check if an unlisted animal protein is present
+    for kw in _OTHER_PROTEIN_KEYWORDS:
+        if re.search(r"\b" + re.escape(kw) + r"\b", all_text):
+            return "other"
+
+    # Default: no animal protein detected → vegetarian
+    return "vegetarian"
 
 
 def collect_and_scrape(
@@ -969,6 +1000,7 @@ def score_cached(
             "is_favorite":         False,
             "total_time_minutes":  stub.scraped_time_minutes,
             "protein_category":    _classify_protein(stub.title, tokens),
+            "carbs_per_serving":   stub.scraped_carbs,
             "_pending_import":     True,
         })
 

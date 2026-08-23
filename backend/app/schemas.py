@@ -273,6 +273,7 @@ class SuggestedRecipe(BaseModel):
     is_favorite: bool
     total_time_minutes: Optional[int]
     protein_category: Optional[str] = "other"   # classified by title/ingredient keywords
+    carbs_per_serving: Optional[float] = None  # grams carbs per serving from nutrition data
 
 
 class WeeklySuggestion(BaseModel):

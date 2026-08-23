@@ -1,5 +1,41 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 57: vegetarian default classification + carbs on recipe cards
+
+### Bug fix
+
+**Unclassified recipes default to Vegetarian, not Other**
+
+The protein classifier now distinguishes between:
+- **No animal protein detected** → `vegetarian` (pasta, salads, soups, grain bowls)
+- **Unlisted animal protein detected** → `other` (lamb, duck, venison, bison, etc.)
+
+`_OTHER_PROTEIN_KEYWORDS` catches proteins not in the standard categories.
+If none of these appear in the title or tokens either, the recipe defaults
+to vegetarian — which is correct for plant-based dishes.
+
+The hardcoded `_PROTEIN_DEFAULTS` in `config_files.py` updated to include
+unlisted protein keywords on the "Other" category.
+
+Vegetarian keyword matching is unchanged; explicit vegetarian keywords still
+trigger the vegetarian category first.
+
+### New feature
+
+**🌾 Carbs per serving on recipe cards**
+
+Displayed next to score, cook time, and shopping count on every recipe
+suggestion card. Populated from the `carbohydrateContent` field in the
+recipe's JSON-LD nutrition block (scraped at discovery time).
+
+New DB column `scraped_carbs REAL` (auto-migrated). Existing stubs will
+show carbs after the next nightly re-scrape. Added to `SuggestedRecipe`
+schema and both Pool A and Pool B suggestion outputs.
+
+VERSION bumped to 10.57.
+
+---
+
 ## Phase 10 — Patch 56: fix Past Meals rating and block not persisting
 
 ### Bug fixes
