@@ -32,7 +32,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app import models, mealie_client, config_files, ingredient_utils
+from app import models, mealie_client, config_files, ingredient_utils, ollama_client
 
 log = logging.getLogger(__name__)
 
