@@ -1,5 +1,35 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 62: Bring! catalog matching for ingredient categorisation
+
+### Bug fix
+
+Shopping list items pushed to Bring! were all appearing as uncategorised
+"own items" (no Produce / Dairy / Meat section). Bring! only auto-categorises
+items when the name exactly matches an entry in their article catalog — our
+parsed ingredient names ("boneless chicken breast", "garlic cloves") didn't
+match exactly.
+
+**Fix:** after login, `reload_article_translations()` is called to load
+Bring!'s article catalog for the user's locale. `_build_catalog_lookup()`
+inverts this into a `{lower_name: canonical_name}` reverse index.
+`_match_catalog()` then tries three strategies in order:
+
+1. Exact match (case-insensitive)
+2. Catalog entry contained in our name — e.g. "boneless chicken breast" →
+   "Chicken Breast" (picks the longest/most specific match)
+3. Our name contained in a catalog entry — e.g. "garlic" → "Garlic"
+
+If no match is found the original name is used (becomes an "own item" as
+before). Matched names are logged at DEBUG level for diagnostics.
+
+The catalog contains ~1,000+ entries per locale and loads in ~200 ms;
+it runs once per push operation.
+
+VERSION bumped to 10.62.
+
+---
+
 ## Phase 10 — Patch 61: background Mealie import + recipe categories
 
 ### New features

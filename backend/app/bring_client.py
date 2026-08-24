@@ -77,6 +77,46 @@ async def list_bring_lists() -> list[dict]:
         return [{"listUuid": l["listUuid"], "name": l["name"]} for l in resp["lists"]]
 
 
+def _build_catalog_lookup(translations: dict) -> dict[str, str]:
+    """
+    Build a reverse lookup {normalized_name: canonical_name} from Bring!'s
+    article translations so we can map our ingredient names to catalog names.
+    Bring! only categorizes items automatically when the name exactly matches
+    a catalog entry — "own items" get no category/section.
+    """
+    lookup: dict[str, str] = {}
+    for locale_dict in translations.values():
+        for catalog_name in locale_dict.values():
+            if isinstance(catalog_name, str) and catalog_name.strip():
+                lookup[catalog_name.lower()] = catalog_name
+    return lookup
+
+
+def _match_catalog(name: str, lookup: dict[str, str]) -> str:
+    """
+    Return the Bring! catalog name for `name`, or the original if no match.
+    Tries: exact → our name is contained in a catalog entry → catalog entry
+    is contained in our name (longest wins).
+    """
+    nl = name.lower().strip()
+    # Exact match
+    if nl in lookup:
+        return lookup[nl]
+    # Our name contains a catalog entry (e.g. "boneless chicken breast" → "Chicken Breast")
+    best: Optional[str] = None
+    best_len = 0
+    for catalog_key, catalog_name in lookup.items():
+        if catalog_key in nl and len(catalog_key) > best_len:
+            best, best_len = catalog_name, len(catalog_key)
+    if best:
+        return best
+    # Catalog entry contains our name (e.g. "garlic" → "Garlic Cloves")
+    matches = [cn for ck, cn in lookup.items() if nl in ck]
+    if matches:
+        return min(matches, key=len)   # prefer shortest / most specific
+    return name
+
+
 async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = None) -> dict:
     """
     Push every BUY item (shopping_by_section) in a built shopping-list dict
@@ -141,10 +181,24 @@ async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = Non
                 "use in Settings → Preferences → 'Bring! list name'."
             )
 
+        # Load catalog translations so ingredient names match Bring!'s item database
+        # (matched items get auto-categorized; unmatched become uncategorized "own items")
+        catalog_lookup: dict[str, str] = {}
+        try:
+            await bring.reload_article_translations()
+            raw_translations = getattr(bring, "_Bring__translations", {})
+            catalog_lookup = _build_catalog_lookup(raw_translations)
+            log.info("Bring! catalog loaded: %d entries", len(catalog_lookup))
+        except Exception as e:
+            log.warning("Could not load Bring! catalog — items may be uncategorized: %s", e)
+
         pushed: list[str] = []
         errors:  list[str] = []
         for item in items:
-            name = item["item"]
+            raw_name = item["item"]
+            name = _match_catalog(raw_name, catalog_lookup) if catalog_lookup else raw_name
+            if name != raw_name:
+                log.debug("Bring! catalog match: '%s' → '%s'", raw_name, name)
             spec = _format_spec(item)
             try:
                 await bring.save_item(target["listUuid"], name, spec)
