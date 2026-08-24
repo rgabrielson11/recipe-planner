@@ -310,3 +310,74 @@ def get_top_rated_recipes(min_rating: int = 4, page: int = 1, per_page: int = 20
         return result.get("items", [])
     except MealieError:
         return []
+
+
+# ── Categories ────────────────────────────────────────────────────────────────
+
+def _get_or_create_category(name: str) -> dict:
+    """
+    Return {id, name, slug} for a category, creating it if it doesn't exist.
+    Same pattern as _get_or_create_tag — Mealie requires the ID when patching.
+    """
+    _check_configured()
+    try:
+        r = requests.get(
+            f"{MEALIE_BASE_URL}/api/organizers/categories",
+            headers=_headers(),
+            params={"search": name, "perPage": 20},
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        for cat in r.json().get("items", []):
+            if cat.get("name", "").lower() == name.lower():
+                log.debug("Mealie category found: '%s' id=%s", name, cat["id"])
+                return {"id": cat["id"], "name": cat["name"], "slug": cat.get("slug", "")}
+    except requests.RequestException as e:
+        log.debug("Category search failed for '%s': %s", name, e)
+
+    try:
+        r = requests.post(
+            f"{MEALIE_BASE_URL}/api/organizers/categories",
+            headers=_headers(),
+            json={"name": name},
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        cat = r.json()
+        log.info("Mealie category created: '%s' id=%s", name, cat["id"])
+        return {"id": cat["id"], "name": cat["name"], "slug": cat.get("slug", "")}
+    except requests.RequestException as e:
+        raise MealieError(f"Failed to create category '{name}': {e}") from e
+
+
+def set_recipe_categories(slug: str, category_names: list[str]) -> None:
+    """
+    Set recipe categories on a Mealie recipe, merging with any existing ones.
+    Categories are looked up / created as needed.
+    Best-effort — logs and returns quietly on failure.
+    """
+    _check_configured()
+    try:
+        detail = get_recipe(slug)
+        existing = {c["name"].lower() for c in (detail.get("recipeCategory") or [])}
+        new_cats = []
+        for name in category_names:
+            if name.lower() in existing:
+                continue
+            try:
+                new_cats.append(_get_or_create_category(name))
+            except MealieError as e:
+                log.debug("Skipping category '%s': %s", name, e)
+        if not new_cats:
+            return
+        detail["recipeCategory"] = list(detail.get("recipeCategory") or []) + new_cats
+        r = requests.patch(
+            f"{MEALIE_BASE_URL}/api/recipes/{slug}",
+            headers=_headers(),
+            json=detail,
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        log.info("Set categories %s on '%s'", [c['name'] for c in new_cats], slug)
+    except Exception as e:
+        log.debug("set_recipe_categories skipped for '%s': %s", slug, e)

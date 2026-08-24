@@ -15,7 +15,7 @@ from collections import defaultdict
 from datetime import date, datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 import logging
@@ -239,6 +239,7 @@ def suggest(
 @router.post("/selections", response_model=schemas.WeeklySelectionSummary)
 def confirm_selections(
     payload: schemas.WeeklySelectionCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """
@@ -312,65 +313,66 @@ def confirm_selections(
 
     db.commit()
 
-    # ── Auto-import newly discovered recipes into Mealie ─────────────────
-    # Any selected recipe that has no mealie_slug yet was discovered via
-    # recipe-scrapers and has never been in Mealie. Import it now and apply
-    # the dinner-planner tag so it appears in future Mealie-based suggestions.
     prefs = db.query(models.Preference).filter(
         models.Preference.household_id == payload.household_id
     ).first()
     dinner_tag = (prefs.mealie_dinner_tag if prefs else "") or "dinner-planner"
-    import_results: list[dict] = []
 
-    for recipe in recipes:
-        if recipe.mealie_slug:
-            log.info("Selection '%s' already in Mealie (slug=%s)", recipe.title, recipe.mealie_slug)
-            import_results.append({"title": recipe.title, "status": "already_in_mealie", "slug": recipe.mealie_slug})
-            continue
-        try:
-            log.info("Importing '%s' from %s", recipe.title, recipe.source_url)
+    # Separate recipes that need Mealie import from those already there
+    to_import   = [r for r in recipes if not r.mealie_slug]
+    already_in  = [r for r in recipes if r.mealie_slug]
 
-            # ── Dedup check: recipe may already exist in Mealie ───────────
-            # Handles DB-reset scenarios where our local slug was lost but
-            # the recipe still lives in Mealie. Avoids creating duplicates.
-            existing_slug = mealie_client.find_recipe_by_url(recipe.source_url)
-            if existing_slug:
-                log.info("Recipe already in Mealie (orgURL match): '%s' slug=%s", recipe.title, existing_slug)
-                recipe.mealie_slug = existing_slug
-                db.add(recipe)
-                db.commit()
-                import_results.append({"title": recipe.title, "status": "already_in_mealie", "slug": existing_slug})
-                continue
+    import_results: list[dict] = [
+        {"title": r.title, "status": "already_in_mealie", "slug": r.mealie_slug}
+        for r in already_in
+    ] + [
+        {"title": r.title, "status": "queued", "slug": None}
+        for r in to_import
+    ]
 
-            slug = mealie_client.import_recipe_from_url(recipe.source_url)
+    # ── Background Mealie import ──────────────────────────────────────────
+    # Selections are already saved. Start the Mealie import as a background
+    # task so the user can proceed immediately to the shopping list.
+    # The shopping list uses scraped ingredients (not Mealie) for Pool B
+    # recipes so it works before the import completes.
+    if to_import and mealie_client.is_configured():
+        recipe_ids  = [r.id for r in to_import]
+        household_id_ = payload.household_id
 
-            # ── Commit slug IMMEDIATELY, independently of tagging ──────────
-            # Tag failures must NEVER prevent the slug from being saved.
-            # The shopping list depends on this slug to fetch ingredients.
-            recipe.mealie_slug = slug
-            db.add(recipe)
-            db.commit()
-            log.info("Slug saved to DB: '%s' → %s", recipe.title, slug)
-
-            # Tag is best-effort — failure is logged but does not raise
+        def _background_import() -> None:
+            from app.database import SessionLocal
+            bg_db = SessionLocal()
             try:
-                mealie_client.add_tag_to_recipe(slug, dinner_tag)
-                log.info("Tagged '%s' with '%s'", slug, dinner_tag)
-            except mealie_client.MealieError as tag_err:
-                log.warning("Tag failed for '%s' (slug=%s): %s — slug already saved, continuing", recipe.title, slug, tag_err)
+                bg_recipes = bg_db.query(models.Recipe).filter(
+                    models.Recipe.id.in_(recipe_ids)
+                ).all()
+                for recipe in bg_recipes:
+                    if recipe.mealie_slug:
+                        continue
+                    try:
+                        log.info("[BG] Importing '%s' from %s", recipe.title, recipe.source_url)
+                        existing_slug = mealie_client.find_recipe_by_url(recipe.source_url)
+                        if existing_slug:
+                            recipe.mealie_slug = existing_slug
+                            bg_db.commit()
+                            log.info("[BG] Already in Mealie: '%s' slug=%s", recipe.title, existing_slug)
+                            _apply_mealie_metadata(existing_slug, dinner_tag, recipe)
+                            continue
 
-            import_results.append({"title": recipe.title, "status": "imported", "slug": slug})
+                        slug = mealie_client.import_recipe_from_url(recipe.source_url)
+                        recipe.mealie_slug = slug
+                        bg_db.commit()
+                        log.info("[BG] Imported and slug saved: '%s' → %s", recipe.title, slug)
+                        _apply_mealie_metadata(slug, dinner_tag, recipe)
+                    except Exception as e:
+                        log.warning("[BG] Mealie import FAILED for '%s': %s", recipe.title, e)
+            finally:
+                bg_db.close()
 
-        except mealie_client.MealieError as e:
-            log.warning("Mealie import FAILED for '%s': %s", recipe.title, e)
-            import_results.append({
-                "title":      recipe.title,
-                "status":     "import_failed",
-                "error":      str(e),
-                "source_url": recipe.source_url,   # needed for manual-import deep link in UI
-            })
+        background_tasks.add_task(_background_import)
+        log.info("Mealie import queued for %d recipe(s)", len(to_import))
 
-    db.commit()   # final commit for any remaining state
+    db.commit()
 
     return {
         "week_start_date":     payload.week_start_date,
@@ -379,6 +381,31 @@ def confirm_selections(
         "meal_plan_entry_ids": entry_ids,
         "mealie_imports":      import_results,
     }
+
+
+def _apply_mealie_metadata(slug: str, dinner_tag: str, recipe: models.Recipe) -> None:
+    """Apply tag + categories to a newly imported Mealie recipe. Best-effort."""
+    try:
+        mealie_client.add_tag_to_recipe(slug, dinner_tag)
+    except Exception as e:
+        log.debug("Tag failed for '%s': %s", slug, e)
+
+    # Set Mealie recipe categories: Dinner + protein group
+    try:
+        protein = recipe_discovery._classify_protein(recipe.title, [])
+        # Map our internal keys to human-readable category names
+        _PROTEIN_LABELS = {
+            "chicken": "Chicken", "pork": "Pork", "turkey": "Turkey",
+            "beef": "Beef", "pasta": "Pasta", "fish": "Fish",
+            "shellfish": "Shellfish", "vegetarian": "Vegetarian", "other": "Other",
+        }
+        categories = ["Dinner"]
+        cat_label = _PROTEIN_LABELS.get(protein)
+        if cat_label and cat_label not in ("Other",):
+            categories.append(cat_label)
+        mealie_client.set_recipe_categories(slug, categories)
+    except Exception as e:
+        log.debug("Category set failed for '%s': %s", slug, e)
 
 
 @router.get("/selections", response_model=list[schemas.WeeklySelectionOut])
@@ -708,10 +735,14 @@ def get_meal_history(household_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/history/add")
-def add_from_history(payload: schemas.WeeklySelectionCreate, db: Session = Depends(get_db)):
+def add_from_history(
+    payload: schemas.WeeklySelectionCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     """
     Add previously-selected recipes directly to the current week's plan,
     importing them to Mealie if not already imported.
     Returns import results in the same shape as confirm-selections.
     """
-    return confirm_selections(payload, db)
+    return confirm_selections(payload, background_tasks, db)

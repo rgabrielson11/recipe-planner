@@ -607,7 +607,7 @@ const PlannerPage=({hid})=>{
     setLoading(true);
     try{
       const r=await post('/meal-plan/selections',{household_id:hid,week_start_date:week,recipe_ids:confirmed});
-      setImportResults(r.mealie_imports||[]);toast(`${confirmed.length} meals confirmed`);setStep(5);
+      setImportResults(r.mealie_imports||[]);toast(`${confirmed.length} meals confirmed — importing to Mealie in background`);setStep(5);
     }catch(e){toast(e.message,'error');}
     finally{setLoading(false);}
   };
@@ -903,9 +903,9 @@ const PlannerPage=({hid})=>{
           <h3 className="section-title">Mealie Import Status</h3>
           {importResults.map((r,i)=>(
             <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',fontSize:13,flexWrap:'wrap'}}>
-              <span>{r.status==='imported'?'✅':r.status==='already_in_mealie'?'ℹ️':'⚠️'}</span>
+              <span>{r.status==='imported'?'✅':r.status==='already_in_mealie'?'ℹ️':r.status==='queued'?'⏳':'⚠️'}</span>
               <span style={{flex:1}}>{r.title}</span>
-              <span className={`badge badge-${r.status==='imported'?'green':r.status==='already_in_mealie'?'blue':'amber'}`}>{r.status}</span>
+              <span className={`badge badge-${r.status==='imported'?'green':r.status==='already_in_mealie'?'blue':r.status==='queued'?'blue':'amber'}`}>{r.status}</span>
               {r.slug&&<span style={{fontSize:11,color:'var(--gray)'}}>{r.slug}</span>}
               {r.status==='import_failed'&&r.source_url&&<div style={{width:'100%',paddingLeft:20,display:'flex',gap:12,marginTop:2}}>
                 {mealieUrl&&<a href={`${mealieUrl}?recipe_import_url=${encodeURIComponent(r.source_url)}`} target="_blank" rel="noopener" style={{fontSize:12,color:'var(--primary)'}}>↗ Import in Mealie</a>}

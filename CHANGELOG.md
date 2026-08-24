@@ -1,5 +1,40 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 61: background Mealie import + recipe categories
+
+### New features
+
+**Background Mealie import**
+
+`POST /meal-plan/selections` (confirm) now saves `WeeklySelection` and
+`MealPlanEntry` rows synchronously then schedules the Mealie import as a
+FastAPI `BackgroundTask`. The response returns immediately with status
+`"queued"` for recipes pending import — the user can proceed to the
+shopping list without waiting. The shopping list uses scraped ingredients
+for Pool B recipes so it works before the import completes.
+
+Background import uses a separate `SessionLocal` DB session so the
+request session can close cleanly.
+
+**Mealie recipe categories**
+
+When a recipe is imported, two categories are set:
+- **Dinner** — always applied
+- **Protein category** (Chicken, Pork, Beef, Pasta, Fish, Shellfish,
+  Vegetarian) — derived from `_classify_protein()`, skips "Other"
+
+`mealie_client.set_recipe_categories(slug, names)` and
+`_get_or_create_category(name)` added — mirrors the tag find-or-create
+pattern. Both are best-effort (log + continue on failure).
+
+The `⏳ Importing in background…` status shows in the import results
+panel on the Confirm step. `history/add` endpoint updated to also pass
+`BackgroundTasks` through to `confirm_selections`.
+
+VERSION bumped to 10.61.
+
+---
+
 ## Phase 10 — Patch 60: remove artificial suggestion count cap
 
 ### Bug fix
