@@ -331,6 +331,7 @@ def build_suggestions(
                 "total_time_minutes":  _parse_minutes(detail.get("totalTime") or detail.get("performTime")),
                 "protein_category":    recipe_discovery._classify_protein(detail.get("name", slug), []),
                 "carbs_per_serving":   local.scraped_carbs if local else None,
+                "scraped_servings":    local.scraped_servings if local else None,
                 "_pending_import":     False,
             })
 

@@ -298,6 +298,7 @@ def search_recipes(
             "mealie_slug":        r.mealie_slug,
             "total_time_minutes": r.scraped_time_minutes,
             "carbs_per_serving":  r.scraped_carbs,
+            "scraped_servings":   r.scraped_servings,
             "protein_category":   _rd._classify_protein(r.title, []),
             "is_blocked":         r.id in blocked_ids,
             "rating":             rated_map.get(r.id),

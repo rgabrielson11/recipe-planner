@@ -1033,6 +1033,7 @@ def score_cached(
             "total_time_minutes":  stub.scraped_time_minutes,
             "protein_category":    _classify_protein(stub.title, tokens),
             "carbs_per_serving":   stub.scraped_carbs,
+            "scraped_servings":    stub.scraped_servings,
             "_pending_import":     True,
         })
 

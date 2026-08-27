@@ -55,10 +55,11 @@ def load_yaml(filename: str) -> Any:
     """
     result = None
     try:
+        # Create a fresh ruamel instance per call to prevent parser state
+        # leakage between failed loads ('string index out of range' etc.)
+        _fresh = _make_yaml()
         with open(_path(filename)) as f:
-            # load_all handles files that ruamel wrote with an accidental '---'
-            # separator; we take only the first document.
-            docs = list(_yaml.load_all(f))
+            docs = list(_fresh.load_all(f))
             result = docs[0] if docs else None
     except Exception as ruamel_err:
         # ruamel.yaml can raise bare Python exceptions (IndexError, etc.) on

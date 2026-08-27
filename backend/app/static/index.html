@@ -382,6 +382,7 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,onRemove,confirmed,rejected,
             <span>Score: <b>{r.score}</b></span>
             <span>🥫 {r.pantry_overlap_pct}% on hand</span>
             {r.total_time_minutes&&<span>⏱ {r.total_time_minutes}m</span>}
+            {r.scraped_servings&&<span>🍽 {r.scraped_servings}</span>}
             <span>🌾 {r.carbs_per_serving!=null?Math.round(r.carbs_per_serving)+'g':'NA'} carbs</span>
             <span>🛒 {(r.missing_ingredients||[]).length} to buy</span>
           </div>
@@ -1871,8 +1872,17 @@ const RecipeSearchPage=({hid})=>{
   const [loading,setLoading]=useState(false);
   const [adding,setAdding]=useState({});
   const [done,setDone]=useState({});
+  const [inPlan,setInPlan]=useState(new Set());
+  const [unblocking,setUnblocking]=useState({});
+  const [servingOverrides,setServingOverrides]=useState({});
   const toast=useToast();
   const week=weekMonday();
+
+  useEffect(()=>{
+    get(`/meal-plan/selections?household_id=${hid}&week_start_date=${week}`)
+      .then(rows=>setInPlan(new Set((rows||[]).map(r=>r.recipe_id))))
+      .catch(()=>{});
+  },[hid,week]);
 
   const search=async(q)=>{
     if(!q||!q.trim()){setResults(null);return;}
@@ -1887,9 +1897,11 @@ const RecipeSearchPage=({hid})=>{
   const addToWeek=async(recipe)=>{
     setAdding(a=>({...a,[recipe.recipe_id]:true}));
     try{
-      await post('/meal-plan/history/add',{household_id:hid,week_start_date:week,recipe_ids:[recipe.recipe_id]});
-      setDone(d=>({...d,[recipe.recipe_id]:'Added to this week'}));
-      toast(`"${recipe.title}" added to this week`);
+      const servings=servingOverrides[recipe.recipe_id]||null;
+      await post('/meal-plan/history/add',{household_id:hid,week_start_date:week,recipe_ids:[recipe.recipe_id],...(servings?{servings_override:{[recipe.recipe_id]:servings}}:{})});
+      setInPlan(s=>new Set([...s,recipe.recipe_id]));
+      setDone(d=>({...d,[recipe.recipe_id]:"In this week's plan \u2713"}));
+      toast(`"${recipe.title}" added to this week's plan`);
     }catch(e){toast(e.message,'error');}
     finally{setAdding(a=>({...a,[recipe.recipe_id]:false}));}
   };
@@ -1943,6 +1955,7 @@ const RecipeSearchPage=({hid})=>{
               <div style={{fontWeight:600,fontSize:15}}>{r.title}</div>
               <div style={{fontSize:12,color:'var(--gray)',marginTop:3,display:'flex',gap:10,flexWrap:'wrap'}}>
                 {r.total_time_minutes&&<span>⏱ {r.total_time_minutes}m</span>}
+                {r.scraped_servings&&<span>🍽 {r.scraped_servings}</span>}
                 {r.carbs_per_serving!=null&&<span>🌾 {Math.round(r.carbs_per_serving)}g carbs</span>}
                 {r.protein_category&&r.protein_category!=='other'&&<span className="badge badge-blue" style={{fontSize:11}}>{r.protein_category}</span>}
                 {r.mealie_slug&&<span className="badge badge-green" style={{fontSize:11}}>In Mealie</span>}
@@ -1951,12 +1964,21 @@ const RecipeSearchPage=({hid})=>{
                 {r.source_url&&<a href={r.source_url} target="_blank" rel="noopener" style={{color:'var(--gray)'}}>🔗 Source</a>}
               </div>
             </div>
-            {done[r.recipe_id]
-              ?<span className="badge badge-green">✓ {done[r.recipe_id]}</span>
+            {(inPlan.has(r.recipe_id)||done[r.recipe_id])
+              ?<span className="badge badge-green">
+                  {done[r.recipe_id]||"✓ In this week's plan"}
+                </span>
               :<div style={{display:'flex',gap:6,flexShrink:0}}>
-                <button className="btn-secondary btn-sm" disabled={adding[r.recipe_id]}
+                {r.scraped_servings&&<label style={{display:'flex',alignItems:'center',gap:4,fontSize:12}}>
+                  <span style={{color:'var(--gray)'}}>Servings:</span>
+                  <input type="number" min={1} max={20}
+                    value={servingOverrides[r.recipe_id]||(parseInt(r.scraped_servings)||4)}
+                    onChange={e=>setServingOverrides(s=>({...s,[r.recipe_id]:+e.target.value}))}
+                    style={{width:44,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:4,textAlign:'center',fontSize:12}}/>
+                </label>}
+                <button className="btn-primary btn-sm" disabled={adding[r.recipe_id]}
                   onClick={()=>addToWeek(r)}>
-                  {adding[r.recipe_id]?'Adding…':'+ This week'}
+                  {adding[r.recipe_id]?'Adding…':'+ Add to plan'}
                 </button>
                 {!r.is_blocked&&(
                   <button className="btn-icon" title="Block recipe"

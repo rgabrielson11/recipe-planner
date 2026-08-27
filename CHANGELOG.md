@@ -1,5 +1,41 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 67: fix blank search page; servings display; YAML fix
+
+### Bug fixes
+
+**Recipe search page was blank**
+`inPlan` state (`useState(new Set())`) and its `useEffect` loader were
+missing from `RecipeSearchPage` — the JSX used `inPlan.size` which crashed
+the component before anything rendered. Added the missing state, effect,
+and button logic from Patch 66.
+
+**ruamel.yaml state leakage causing warnings on unrelated files**
+`load_yaml()` reused the module-level `_yaml` singleton. When one file
+caused a ruamel exception that left the parser in a bad internal state,
+the next file load inherited that state and also failed. Fixed by calling
+`_make_yaml()` inside `load_yaml()` to create a fresh parser per call —
+warnings on `rejection_reasons.yaml` and `cooking_vocabulary.yaml` should
+now stop.
+
+### New features
+
+**🍽 Servings shown on recipe cards and search results**
+`scraped_servings` now appears next to ⏱ cook time and 🌾 carbs on
+suggestion cards and in Recipe Search results. Added to `SuggestedRecipe`
+schema and all Pool A/B outputs.
+
+**Serving count adjustment in Recipe Search add flow**
+When a recipe has servings data, a small number input appears next to
+"+ Add to plan" in Recipe Search. The default is the scraped serving count;
+change it to adjust how many servings are added to the shopping list for
+that recipe. The value is passed as `servings_override` in the
+`history/add` payload.
+
+VERSION bumped to 10.67.
+
+---
+
 ## Phase 10 — Patch 66: recipe search marks current week plan status
 
 ### Improvement
