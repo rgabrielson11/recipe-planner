@@ -1,5 +1,31 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 69: per-recipe servings adjustment on confirm step
+
+### New feature
+
+**Servings input on the Confirm step**
+
+Each recipe on the Confirm step (Step 5) now shows a "Servings:" number
+input. The default is the recipe's scraped serving count (or household
+size if unknown). Adjust before clicking "Lock In" to scale that recipe's
+shopping quantities independently — useful for making a double batch of one
+dish or a smaller portion of another.
+
+The override is stored as `servings_override INTEGER` on `WeeklySelection`
+(auto-migrated) and applied in the shopping list generator: if an override
+is set, it replaces `household.num_people` as the target when calculating
+the ingredient scale factor. Works for both Pool A (Mealie) and Pool B
+(scraped) recipes.
+
+The serving adjustment in Recipe Search (Patch 67) also stores its value
+via the same `servings_overrides` field in the `WeeklySelectionCreate`
+payload.
+
+VERSION bumped to 10.69.
+
+---
+
 ## Phase 10 — Patch 68: fix confirm_selections — mealie_client.is_configured missing
 
 ### Bug fix

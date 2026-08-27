@@ -207,6 +207,7 @@ class WeeklySelectionCreate(BaseModel):
     household_id: str
     week_start_date: date
     recipe_ids: list[str]
+    servings_overrides: dict[str, int] = {}  # recipe_id → serving count override
 
 
 class WeeklySelectionOut(BaseModel):

@@ -609,7 +609,7 @@ const PlannerPage=({hid})=>{
     if(!confirmed.length){toast('Select at least one meal','warning');return;}
     setLoading(true);
     try{
-      const r=await post('/meal-plan/selections',{household_id:hid,week_start_date:week,recipe_ids:confirmed});
+      const r=await post('/meal-plan/selections',{household_id:hid,week_start_date:week,recipe_ids:confirmed,servings_overrides:servingOverrides});
       setImportResults(r.mealie_imports||[]);toast(`${confirmed.length} meals confirmed — importing to Mealie in background`);setStep(5);
     }catch(e){toast(e.message,'error');}
     finally{setLoading(false);}
@@ -853,12 +853,22 @@ const PlannerPage=({hid})=>{
         <div className="card" style={{marginBottom:16}}>
           <h3 className="section-title">Confirm Your Selections</h3>
           {suggestions.filter(s=>confirmed.includes(s.recipe_id)).map(r=>(
-            <div key={r.recipe_id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
+            <div key={r.recipe_id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'1px solid var(--border)',flexWrap:'wrap'}}>
               <span>🍽️</span>
               <div style={{flex:1}}>
                 <div style={{fontWeight:600}}>{r.title}</div>
-                <div style={{fontSize:12,color:'var(--gray)'}}>{r.total_time_minutes?`⏱ ${r.total_time_minutes}m · `:''}🛒 {r.missing_ingredients?.length||0} items to buy</div>
+                <div style={{fontSize:12,color:'var(--gray)'}}>
+                  {r.total_time_minutes?`⏱ ${r.total_time_minutes}m · `:''}🛒 {r.missing_ingredients?.length||0} to buy
+                  {r.scraped_servings&&<span style={{marginLeft:6}}>· base: {r.scraped_servings}</span>}
+                </div>
               </div>
+              {!importResults&&<label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,flexShrink:0}}>
+                <span style={{color:'var(--gray)'}}>Servings:</span>
+                <input type="number" min={1} max={20}
+                  value={servingOverrides[r.recipe_id]||(parseInt(r.scraped_servings)||prefs?.default_num_people||4)}
+                  onChange={e=>setServingOverrides(s=>({...s,[r.recipe_id]:+e.target.value}))}
+                  style={{width:50,padding:'3px 6px',border:'1px solid var(--border)',borderRadius:4,textAlign:'center',fontSize:13}}/>
+              </label>}
             </div>
           ))}
         </div>

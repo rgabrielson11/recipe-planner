@@ -523,7 +523,9 @@ def build_shopping_list(
             # Pool B / discovered recipe — use our scraped strings
             servings_str = recipe.scraped_servings or ""
             servings = _parse_servings_str(servings_str)
-            scale = (household.num_people / servings) if servings and servings > 0 else 1.0
+            # Use per-recipe servings override if set (from confirm step adjustment)
+            target_servings = sel.servings_override or household.num_people
+            scale = (target_servings / servings) if servings and servings > 0 else 1.0
             ings = _extract_ingredients_from_raw(raw_ings, servings, scale)
             log.info("Using scraped ingredients for '%s' — %d items, servings=%s, scale=%.2f",
                      recipe.title, len(ings), servings, scale)
@@ -533,7 +535,8 @@ def build_shopping_list(
             try:
                 detail   = mealie_client.get_recipe(recipe.mealie_slug)
                 servings = _parse_servings(detail)
-                scale    = (household.num_people / servings) if servings and servings > 0 else 1.0
+                target_servings = sel.servings_override or household.num_people
+                scale    = (target_servings / servings) if servings and servings > 0 else 1.0
                 ings = _extract_ingredients(detail)
                 log.info("Mealie fetch OK: '%s' — %d ingredients, servings=%s, scale=%.2f",
                          recipe.title, len(ings), servings, scale)

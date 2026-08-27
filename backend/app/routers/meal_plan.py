@@ -298,6 +298,7 @@ def confirm_selections(
             household_id=payload.household_id,
             week_start_date=payload.week_start_date,
             recipe_id=recipe_id,
+            servings_override=(payload.servings_overrides or {}).get(recipe_id),
         )
         db.add(sel)
         new_selections.append(sel)

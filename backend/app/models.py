@@ -128,6 +128,7 @@ class WeeklySelection(Base):
     created_at      = Column(DateTime, default=datetime.utcnow)
 
     household = relationship("Household", back_populates="weekly_selections")
+    servings_override = Column(Integer, nullable=True)  # per-recipe serving override
     recipe    = relationship("Recipe",    back_populates="selections")
 
 
