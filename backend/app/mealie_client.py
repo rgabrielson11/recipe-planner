@@ -56,8 +56,13 @@ def _headers() -> dict:
     }
 
 
+def is_configured() -> bool:
+    """Returns True if Mealie credentials are set."""
+    return bool(MEALIE_BASE_URL and MEALIE_API_TOKEN)
+
+
 def _check_configured() -> None:
-    if not MEALIE_BASE_URL or not MEALIE_API_TOKEN:
+    if not is_configured():
         raise MealieError(
             "MEALIE_BASE_URL / MEALIE_API_TOKEN not configured — set both in .env"
         )
