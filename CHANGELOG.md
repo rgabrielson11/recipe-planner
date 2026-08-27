@@ -1,5 +1,19 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 68: fix confirm_selections — mealie_client.is_configured missing
+
+### Bug fix
+
+`confirm_selections` called `mealie_client.is_configured()` which didn't
+exist — the module only had `_check_configured()` which raises rather than
+returns. Added `is_configured() -> bool` as a public function that returns
+`True` when both `MEALIE_BASE_URL` and `MEALIE_API_TOKEN` are set.
+`_check_configured()` now delegates to it.
+
+VERSION bumped to 10.68.
+
+---
+
 ## Phase 10 — Patch 67: fix blank search page; servings display; YAML fix
 
 ### Bug fixes
