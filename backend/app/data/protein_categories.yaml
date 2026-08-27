@@ -33,7 +33,7 @@ categories:
     label: "🍝 Pasta"
     order: 5
     enabled: true
-    keywords: [pasta, spaghetti, fettuccine, linguine, penne, rigatoni, tagliatelle, gnocchi, lasagna, lasagne, ravioli, tortellini, orzo, noodle, ramen, udon, lo mein, pad thai]
+    keywords: [pasta, spaghetti, fettuccine, linguine, penne, rigatoni, tagliatelle, gnocchi, lasagna, lasagne, ravioli, tortellini, orzo, noodle, ramen, udon, "lo mein", "pad thai"]
 
   - key: fish
     label: "🐟 Fish"
