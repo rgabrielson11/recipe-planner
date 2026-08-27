@@ -1,5 +1,30 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 65: global recipe search page
+
+### New feature
+
+**🔍 Recipe Search page** (Planning → Recipe Search in nav)
+
+Searches the full recipe database by title — all scraped stubs from
+HelloFresh, Home Chef, and Mealie — not just the current week's suggestions.
+
+- Type and press Enter or click Search
+- Results ranked: exact word matches first, then alphabetical
+- Each result shows cook time, carbs, protein category badge, Mealie badge,
+  star rating, blocked status, and source link
+- **+ This week** — add directly to the current week's plan
+- **🚫** — block the recipe (same as feedback step)
+
+Backend: `GET /api/recipes/search?q=...&household_id=...&limit=50`
+searches `Recipe.title` with SQLAlchemy `contains`, over-fetches and
+re-ranks by exact word boundary match, returns rejection/rating status
+for the household.
+
+VERSION bumped to 10.65.
+
+---
+
 ## Phase 10 — Patch 64: suggestion search; unblock from Past Meals
 
 ### New features

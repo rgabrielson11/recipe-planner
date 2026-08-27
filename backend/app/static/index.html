@@ -167,7 +167,7 @@ const NAV=[
   {key:'pantry',icon:'🥫',label:'Pantry'},
   {section:'Configuration'},{key:'settings',icon:'⚙️',label:'Preferences'},
   {key:'sources',icon:'🌐',label:'Recipe Sources'},{key:'keywords',icon:'🔍',label:'Dinner Filter'},
-  {section:'Planning'},{key:'history',icon:'📆',label:'Past Meals'},
+  {section:'Planning'},{key:'history',icon:'📆',label:'Past Meals'},{key:'search',icon:'🔍',label:'Recipe Search'},
   {section:'Tools'},{key:'rejections',icon:'🚫',label:'Rejections'},{key:'logs',icon:'📋',label:'Logs'},{key:'database',icon:'🗄️',label:'Database'},
 ];
 const Nav=({page,setPage,navOpen,onClose,version})=>(
@@ -1865,6 +1865,112 @@ const HistoryPage=({hid})=>{
   );
 };
 
+const RecipeSearchPage=({hid})=>{
+  const [query,setQuery]=useState('');
+  const [results,setResults]=useState(null);
+  const [loading,setLoading]=useState(false);
+  const [adding,setAdding]=useState({});
+  const [done,setDone]=useState({});
+  const toast=useToast();
+  const week=weekMonday();
+
+  const search=async(q)=>{
+    if(!q||!q.trim()){setResults(null);return;}
+    setLoading(true);
+    try{
+      const r=await get(`/recipes/search?q=${encodeURIComponent(q)}&household_id=${hid}`);
+      setResults(r);
+    }catch(e){toast(e.message,'error');}
+    finally{setLoading(false);}
+  };
+
+  const addToWeek=async(recipe)=>{
+    setAdding(a=>({...a,[recipe.recipe_id]:true}));
+    try{
+      await post('/meal-plan/history/add',{household_id:hid,week_start_date:week,recipe_ids:[recipe.recipe_id]});
+      setDone(d=>({...d,[recipe.recipe_id]:'Added to this week'}));
+      toast(`"${recipe.title}" added to this week`);
+    }catch(e){toast(e.message,'error');}
+    finally{setAdding(a=>({...a,[recipe.recipe_id]:false}));}
+  };
+
+  const block=async(recipe)=>{
+    try{
+      await post(`/recipes/${recipe.recipe_id}/reject`,{household_id:hid,reason_category:'dislike'});
+      setDone(d=>({...d,[recipe.recipe_id]:'Blocked'}));
+      toast(`"${recipe.title}" blocked`);
+    }catch(e){toast(e.message,'error');}
+  };
+
+  return(
+    <div>
+      <div className="page-header">
+        <h1 className="page-title">🔍 Recipe Search</h1>
+        <p className="page-sub">Search all {results?.total!=null?`${results.total} matching recipes (showing up to 50) — `:``}scraped recipes by title</p>
+      </div>
+      <div style={{display:'flex',gap:8,marginBottom:16}}>
+        <input className="input" placeholder="Search by recipe title…" value={query}
+          style={{flex:1,padding:'8px 12px',border:'1px solid var(--border)',borderRadius:6,fontSize:14}}
+          onChange={e=>setQuery(e.target.value)}
+          onKeyDown={e=>e.key==='Enter'&&search(query)}/>
+        <button className="btn-primary" onClick={()=>search(query)} disabled={loading||!query.trim()}>
+          {loading?'Searching…':'Search'}
+        </button>
+        {query&&<button className="btn-secondary" onClick={()=>{setQuery('');setResults(null);}}>Clear</button>}
+      </div>
+
+      {results===null&&!loading&&(
+        <div className="card" style={{textAlign:'center',padding:48,color:'var(--gray)'}}>
+          <div style={{fontSize:48,marginBottom:8}}>🍽️</div>
+          <p>Search across all scraped recipes from HelloFresh, Home Chef, and your Mealie library.</p>
+        </div>
+      )}
+
+      {loading&&<div className="spinner"/>}
+
+      {results&&results.results.length===0&&(
+        <div className="card" style={{textAlign:'center',padding:48,color:'var(--gray)'}}>
+          <p>No recipes found for "{query}"</p>
+        </div>
+      )}
+
+      {results&&results.results.map(r=>(
+        <div key={r.recipe_id} className="card" style={{marginBottom:10,
+          opacity:r.is_blocked?0.6:1,
+          borderLeft:r.is_blocked?'3px solid #dc2626':r.rating?'3px solid var(--green)':''}}>
+          <div style={{display:'flex',alignItems:'flex-start',gap:10,flexWrap:'wrap'}}>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:600,fontSize:15}}>{r.title}</div>
+              <div style={{fontSize:12,color:'var(--gray)',marginTop:3,display:'flex',gap:10,flexWrap:'wrap'}}>
+                {r.total_time_minutes&&<span>⏱ {r.total_time_minutes}m</span>}
+                {r.carbs_per_serving!=null&&<span>🌾 {Math.round(r.carbs_per_serving)}g carbs</span>}
+                {r.protein_category&&r.protein_category!=='other'&&<span className="badge badge-blue" style={{fontSize:11}}>{r.protein_category}</span>}
+                {r.mealie_slug&&<span className="badge badge-green" style={{fontSize:11}}>In Mealie</span>}
+                {r.is_blocked&&<span className="badge badge-red" style={{fontSize:11}}>Blocked</span>}
+                {r.rating&&<span>{'⭐'.repeat(r.rating)}</span>}
+                {r.source_url&&<a href={r.source_url} target="_blank" rel="noopener" style={{color:'var(--gray)'}}>🔗 Source</a>}
+              </div>
+            </div>
+            {done[r.recipe_id]
+              ?<span className="badge badge-green">✓ {done[r.recipe_id]}</span>
+              :<div style={{display:'flex',gap:6,flexShrink:0}}>
+                <button className="btn-secondary btn-sm" disabled={adding[r.recipe_id]}
+                  onClick={()=>addToWeek(r)}>
+                  {adding[r.recipe_id]?'Adding…':'+ This week'}
+                </button>
+                {!r.is_blocked&&(
+                  <button className="btn-icon" title="Block recipe"
+                    onClick={()=>block(r)}>🚫</button>
+                )}
+              </div>
+            }
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const App=()=>{
   const [page,setPage]=useState('planner');
   const [hid,setHid]=useState(()=>localStorage.getItem('householdId')||'');
@@ -1879,7 +1985,7 @@ const App=()=>{
   },[hid]);
   if(!hid||!valid)return<ToastProvider><HouseholdGate onSave={saveHid}/></ToastProvider>;
   const pageLabel=NAV.find(n=>n.key===page)?.label||'';
-  const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,history:<HistoryPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage/>};
+  const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,history:<HistoryPage hid={hid}/>,search:<RecipeSearchPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage/>};
   return(
     <ToastProvider>
       <div className="topbar">

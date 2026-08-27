@@ -240,3 +240,73 @@ def unblock_recipe(recipe_id: str, household_id: str, db: Session = Depends(get_
     db.commit()
     log.info("Unblocked recipe %s for household %s (%d rejection(s) removed)", recipe_id, household_id, deleted)
     return {"unblocked": recipe_id, "removed": deleted}
+
+
+@router.get("/search")
+def search_recipes(
+    q: str,
+    household_id: str,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+):
+    """
+    Full-text search across all scraped recipe stubs by title.
+    Returns recipes ranked by relevance (exact word match first, then partial).
+    Includes rejection and rating status for the household.
+    """
+    q_lower = q.strip().lower()
+    if not q_lower:
+        return {"results": [], "total": 0}
+
+    # Fetch all recipes with title matching the query
+    from sqlalchemy import func
+    recipes = (
+        db.query(models.Recipe)
+        .filter(func.lower(models.Recipe.title).contains(q_lower))
+        .order_by(models.Recipe.title)
+        .limit(limit * 3)   # over-fetch to allow relevance re-ranking
+        .all()
+    )
+
+    # Lookup rejection and rating status for this household
+    blocked_ids = {
+        r.recipe_id for r in db.query(models.RecipeRejection).filter(
+            models.RecipeRejection.household_id == household_id,
+            models.RecipeRejection.is_permanent == True,
+        ).all()
+    }
+    rated_map = {}
+    for entry in db.query(models.MealPlanEntry).filter(
+        models.MealPlanEntry.household_id == household_id,
+        models.MealPlanEntry.rating.isnot(None),
+    ).all():
+        if entry.recipe_id not in rated_map:
+            rated_map[entry.recipe_id] = entry.rating
+
+    from app import recipe_discovery as _rd
+
+    results = []
+    for r in recipes:
+        # Relevance: exact word match scores higher
+        import re as _re
+        title_lower = r.title.lower()
+        exact = bool(_re.search(r"\b" + _re.escape(q_lower) + r"\b", title_lower))
+        results.append({
+            "recipe_id":          r.id,
+            "title":              r.title,
+            "source_url":         r.source_url,
+            "mealie_slug":        r.mealie_slug,
+            "total_time_minutes": r.scraped_time_minutes,
+            "carbs_per_serving":  r.scraped_carbs,
+            "protein_category":   _rd._classify_protein(r.title, []),
+            "is_blocked":         r.id in blocked_ids,
+            "rating":             rated_map.get(r.id),
+            "_exact":             exact,
+        })
+
+    # Sort: exact matches first, then alphabetical
+    results.sort(key=lambda x: (0 if x["_exact"] else 1, x["title"]))
+    for r in results:
+        del r["_exact"]
+
+    return {"results": results[:limit], "total": len(results)}
