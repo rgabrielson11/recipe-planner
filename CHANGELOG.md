@@ -1,5 +1,24 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 70: fix _make_yaml scope; fix confirm page blank
+
+### Bug fixes
+
+**`_make_yaml` not defined — protein category loading failed**
+`load_yaml()` was updated to call `_make_yaml()` for a fresh ruamel
+instance, but `_make_yaml` was never defined in the file. Added the
+function definition before `load_yaml` so it's in scope at call time.
+
+**Confirm step blank — wrong prefs field name**
+The serving input default used `prefs?.default_num_people` which doesn't
+exist on the Preferences object (the field is `num_people` on Household,
+not Preferences). Changed to plain `4` as the safe fallback when no
+scraped servings are available — the user can still adjust the input.
+
+VERSION bumped to 10.70.
+
+---
+
 ## Phase 10 — Patch 69: per-recipe servings adjustment on confirm step
 
 ### New feature

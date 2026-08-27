@@ -17,10 +17,15 @@ log = logging.getLogger(__name__)
 DATA_DIR = Path(__file__).resolve().parent / "data"
 _lock    = Lock()
 
-_yaml = YAML()
-_yaml.preserve_quotes  = True
-_yaml.explicit_start   = False   # never write '---' document separator
-_yaml.indent(mapping=2, sequence=2, offset=0)
+def _make_yaml():
+    """Return a fresh ruamel.yaml instance — call per-use to avoid state leakage."""
+    y = YAML()
+    y.preserve_quotes = True
+    y.explicit_start  = False
+    y.indent(mapping=2, sequence=2, offset=0)
+    return y
+
+_yaml = _make_yaml()
 
 
 def _path(filename: str) -> Path:
