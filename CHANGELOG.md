@@ -1,5 +1,35 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 64: suggestion search; unblock from Past Meals
+
+### New features
+
+**🔍 Search on Suggestions page**
+
+A search input appears in the suggestions step header. Typing filters
+recipes by title in real-time — protein category groups update to reflect
+only matching recipes. Clearing the search (✕ button) restores the full
+list. The filter is client-side so it works instantly without a re-fetch.
+
+**✅ Unblock recipes from Past Meals page**
+
+The 📆 Past Meals page now shows a "🚫 Blocked Recipes" card at the bottom
+listing all permanently blocked recipes. Each row has:
+- **✅ Unblock** — removes the permanent rejection record so the recipe can
+  appear in suggestions again
+- **+ This week** — optionally add it directly to the current week's plan
+
+The history endpoint (`GET /meal-plan/history`) now returns
+`{weeks: [...], blocked: [...]}` instead of a plain array. The frontend
+handles both formats for backwards compatibility.
+
+New backend endpoint: `DELETE /api/recipes/{recipe_id}/reject?household_id=`
+removes all permanent rejections for a recipe+household pair.
+
+VERSION bumped to 10.64.
+
+---
+
 ## Phase 10 — Patch 63: fix carb scraping; fix week picker timezone; TZ env var
 
 ### Bug fixes

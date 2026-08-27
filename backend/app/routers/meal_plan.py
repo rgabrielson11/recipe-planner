@@ -728,10 +728,44 @@ def get_meal_history(household_id: str, db: Session = Depends(get_db)):
             "is_blocked":         is_blocked,
         })
 
-    return [
-        {"week_start_date": week, "recipes": recipes}
-        for week, recipes in weeks.items()
-    ]
+    # Also fetch permanently blocked recipes so the Past Meals page can show
+    # them with an Unblock button — they aren't in WeeklySelection but the
+    # user may want to review and unblock them.
+    blocked_rows = (
+        db.query(models.RecipeRejection)
+        .join(models.Recipe)
+        .filter(
+            models.RecipeRejection.household_id == household_id,
+            models.RecipeRejection.is_permanent == True,
+        )
+        .order_by(models.RecipeRejection.created_at.desc())
+        .all()
+    )
+    blocked_recipes = []
+    seen_blocked = set()
+    for rej in blocked_rows:
+        if rej.recipe_id in seen_blocked:
+            continue
+        seen_blocked.add(rej.recipe_id)
+        r = rej.recipe
+        blocked_recipes.append({
+            "recipe_id":    rej.recipe_id,
+            "entry_id":     None,
+            "title":        r.title if r else "Unknown",
+            "source_url":   r.source_url if r else None,
+            "mealie_slug":  r.mealie_slug if r else None,
+            "rating":       None,
+            "is_blocked":   True,
+            "total_time_minutes": r.scraped_time_minutes if r else None,
+        })
+
+    return {
+        "weeks": [
+            {"week_start_date": week, "recipes": recipes}
+            for week, recipes in weeks.items()
+        ],
+        "blocked": blocked_recipes,
+    }
 
 
 @router.post("/history/add")

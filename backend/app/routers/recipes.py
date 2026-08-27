@@ -218,3 +218,23 @@ def get_print_data(recipe_id: str, db: Session = Depends(get_db)):
             pass   # Mealie unavailable — fall back to scraped data only
 
     return data
+
+
+@router.delete("/{recipe_id}/reject")
+def unblock_recipe(recipe_id: str, household_id: str, db: Session = Depends(get_db)):
+    """
+    Remove all permanent rejections for a recipe+household combination,
+    effectively unblocking it so it can appear in suggestions again.
+    """
+    deleted = (
+        db.query(models.RecipeRejection)
+        .filter(
+            models.RecipeRejection.recipe_id == recipe_id,
+            models.RecipeRejection.household_id == household_id,
+            models.RecipeRejection.is_permanent == True,
+        )
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    log.info("Unblocked recipe %s for household %s (%d rejection(s) removed)", recipe_id, household_id, deleted)
+    return {"unblocked": recipe_id, "removed": deleted}
