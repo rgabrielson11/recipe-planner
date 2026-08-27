@@ -1,5 +1,22 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 71: fix confirm step blank — servingOverrides in wrong component
+
+### Bug fix
+
+`servingOverrides` state was declared inside `RecipeSearchPage` but used
+inside `PlannerPage` — causing a `ReferenceError` that crashed the confirm
+step with a blank page and no console output.
+
+Fixed: `servingOverrides` / `setServingOverrides` moved to `PlannerPage`
+where it belongs (lines 608 and 868 use it). `RecipeSearchPage` gets its
+own separate `searchServings` / `setSearchServings` local state for the
+serving adjustment on the search add flow.
+
+VERSION bumped to 10.71.
+
+---
+
 ## Phase 10 — Patch 70: fix _make_yaml scope; fix confirm page blank
 
 ### Bug fixes

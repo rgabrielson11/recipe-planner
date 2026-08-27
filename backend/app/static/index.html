@@ -541,6 +541,7 @@ const PlannerPage=({hid})=>{
   const [cookingMethods,setCookingMethods]=useState([]);
   const [proteinCategories,setProteinCategories]=useState([]);
   const [sugSearch,setSugSearch]=useState('');
+  const [servingOverrides,setServingOverrides]=useState({});
   const [progress,setProgress]=useState(0);
   const [progressLabel,setProgressLabel]=useState('');
   const [pushingBring,setPushingBring]=useState(false);
@@ -1731,6 +1732,7 @@ const HistoryPage=({hid})=>{
   const [historyDone,setHistoryDone]=useState({});
   const [blocked,setBlocked]=useState([]);
   const [unblocking,setUnblocking]=useState({});
+  const [searchServings,setSearchServings]=useState({});
   const toast=useToast();
   const week=weekMonday();
 
@@ -1884,7 +1886,6 @@ const RecipeSearchPage=({hid})=>{
   const [done,setDone]=useState({});
   const [inPlan,setInPlan]=useState(new Set());
   const [unblocking,setUnblocking]=useState({});
-  const [servingOverrides,setServingOverrides]=useState({});
   const toast=useToast();
   const week=weekMonday();
 
@@ -1907,7 +1908,7 @@ const RecipeSearchPage=({hid})=>{
   const addToWeek=async(recipe)=>{
     setAdding(a=>({...a,[recipe.recipe_id]:true}));
     try{
-      const servings=servingOverrides[recipe.recipe_id]||null;
+      const servings=searchServings[recipe.recipe_id]||null;
       await post('/meal-plan/history/add',{household_id:hid,week_start_date:week,recipe_ids:[recipe.recipe_id],...(servings?{servings_override:{[recipe.recipe_id]:servings}}:{})});
       setInPlan(s=>new Set([...s,recipe.recipe_id]));
       setDone(d=>({...d,[recipe.recipe_id]:"In this week's plan \u2713"}));
@@ -1982,8 +1983,8 @@ const RecipeSearchPage=({hid})=>{
                 {r.scraped_servings&&<label style={{display:'flex',alignItems:'center',gap:4,fontSize:12}}>
                   <span style={{color:'var(--gray)'}}>Servings:</span>
                   <input type="number" min={1} max={20}
-                    value={servingOverrides[r.recipe_id]||(parseInt(r.scraped_servings)||4)}
-                    onChange={e=>setServingOverrides(s=>({...s,[r.recipe_id]:+e.target.value}))}
+                    value={searchServings[r.recipe_id]||(parseInt(r.scraped_servings)||4)}
+                    onChange={e=>setSearchServings(s=>({...s,[r.recipe_id]:+e.target.value}))}
                     style={{width:44,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:4,textAlign:'center',fontSize:12}}/>
                 </label>}
                 <button className="btn-primary btn-sm" disabled={adding[r.recipe_id]}
