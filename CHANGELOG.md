@@ -1,5 +1,41 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 63: fix carb scraping; fix week picker timezone; TZ env var
+
+### Bug fixes
+
+**Carb data never populated — nutrition not extracted from recipe-scrapers**
+
+`_scrape_recipe()` called `scraper.title()`, `scraper.ingredients()`, etc.
+but never called `scraper.nutrients()`. The returned dict had no `nutrition`
+key, so `_update_row_from_detail()` always got an empty dict and
+`scraped_carbs` was never set. Fixed: `scraper.nutrients()` is now called
+and the result included in the returned dict as `nutrition`. Existing stubs
+need a re-scrape (nightly job or manual ⚡ Scrape) to populate carb data.
+
+**Week picker starts on wrong day — UTC vs local timezone**
+
+All date calculations used `d.toISOString().split('T')[0]` which always
+returns the UTC date. Users in UTC-5 to UTC-12 saw Tuesday instead of
+Monday because the UTC date was ahead of their local date. Fixed by
+introducing `localISO(d)` — a helper that formats dates using local time
+(`getFullYear/getMonth/getDate`) rather than UTC. Applied to:
+- `weekMonday()` — default week initialisation
+- Week picker offset buttons
+- Pantry expiry `today` comparison
+- Pantry expiry "soon" (7-day) threshold
+
+**TZ environment variable added to Unraid template**
+
+New "Timezone" field (default `America/Los_Angeles`, Display: always) so
+the container's system timezone matches the host. This also fixes the
+nightly scrape schedule (3 AM runs in the correct local timezone) and any
+Python `datetime` comparisons in the backend that depend on local time.
+
+VERSION bumped to 10.63.
+
+---
+
 ## Phase 10 — Patch 62: Bring! catalog matching for ingredient categorisation
 
 ### Bug fix

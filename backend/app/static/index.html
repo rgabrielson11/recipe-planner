@@ -143,7 +143,8 @@ const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 // etc.) is dropped rather than rendered as a link.
 const safeHref=u=>{try{const p=new URL(u,window.location.origin);if(p.protocol!=='http:'&&p.protocol!=='https:')return '';return escapeHtml(u);}catch{return '';}};
 
-const weekMonday=(d=new Date())=>{const dd=new Date(d);const day=dd.getDay();dd.setDate(dd.getDate()-(day===0?6:day-1));return dd.toISOString().split('T')[0];};
+const localISO=d=>{const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const dy=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${dy}`;};
+const weekMonday=(d=new Date())=>{const dd=new Date(d);const day=dd.getDay();dd.setDate(dd.getDate()-(day===0?6:day-1));return localISO(dd);};
 const fmt=s=>s?new Date(s+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'—';
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -636,7 +637,7 @@ const PlannerPage=({hid})=>{
             {[0,1,2,3].map(offset=>{
               const d=new Date();const day=d.getDay();
               d.setDate(d.getDate()-(day===0?6:day-1)+offset*7);
-              const iso=d.toISOString().split('T')[0];
+              const iso=localISO(d);
               const label=offset===0?'This week':offset===1?'Next week':`+${offset} weeks`;
               return(
                 <button key={offset}
@@ -1065,7 +1066,7 @@ const PantryPage=({hid})=>{
   };
   const startEdit=item=>{setEditId(item.id);setForm({name:item.name,quantity:item.quantity||'',unit:item.unit||'',category:item.category||'',expiry_date:item.expiry_date||''});};
   const remove=async id=>{try{await del(`/pantry/${id}`);setConfirmDeleteId(null);load();toast('Removed');}catch(e){toast(e.message,'error');}};
-  const today=new Date().toISOString().split('T')[0];
+  const today=localISO(new Date());
   const filtered=items.filter(i=>i.name.toLowerCase().includes(filter.toLowerCase()));
   return(
     <div>
@@ -1097,7 +1098,7 @@ const PantryPage=({hid})=>{
         <table className="table"><thead><tr><th>Name</th><th>Qty</th><th>Unit</th><th>Category</th><th>Expiry</th><th></th></tr></thead>
           <tbody>{filtered.map(item=>{
             const exp=item.expiry_date&&item.expiry_date<today;
-            const soon=item.expiry_date&&!exp&&item.expiry_date<=new Date(Date.now()+7*864e5).toISOString().split('T')[0];
+            const soon=item.expiry_date&&!exp&&item.expiry_date<=localISO(new Date(Date.now()+7*864e5));
             return(<tr key={item.id} style={{background:exp?'#fef2f2':soon?'#fffbeb':''}}>
               <td style={{fontWeight:500}}>{item.name}</td><td>{item.quantity||'—'}</td><td>{item.unit||'—'}</td><td>{item.category||'—'}</td>
               <td>{item.expiry_date?<span className={`badge badge-${exp?'red':soon?'amber':'green'}`}>{exp?'⚠️ ':soon?'⏰ ':''}{fmt(item.expiry_date)}</span>:'—'}</td>

@@ -4,7 +4,8 @@ Self-hosted household dinner meal planner for a family of 4. Plans weekly dinner
 
 **Runs on:** `http://<unraid-ip>:8111`  
 **API docs:** `http://<unraid-ip>:8111/docs`  
-**Mobile:** fully responsive — hamburger drawer nav on screens ≤ 639 px
+**Mobile:** fully responsive — hamburger drawer nav on screens ≤ 639 px  
+**Timezone:** set `TZ` in the Unraid template to match your local timezone for correct week calculation and scrape schedule
 
 ---
 

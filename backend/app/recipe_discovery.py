@@ -393,6 +393,14 @@ def _scrape_recipe(
         except Exception:
             pass
 
+        nutrition: dict = {}
+        try:
+            raw_nutrients = scraper.nutrients()
+            if isinstance(raw_nutrients, dict):
+                nutrition = raw_nutrients
+        except Exception:
+            pass
+
         if not title or not ingredients:
             log.debug("No title/ingredients at %s — skipping", url)
             return None
@@ -413,6 +421,7 @@ def _scrape_recipe(
             "recipeInstructions":  [{"text": s} for s in instructions],
             "totalTime":           total_time_raw,
             "recipeServings":      yields_raw,
+            "nutrition":           nutrition,
             "_source_url":         url,
             "_rating":             rating,
             "_reviews":            reviews,
