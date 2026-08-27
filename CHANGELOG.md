@@ -1,5 +1,26 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 66: recipe search marks current week plan status
+
+### Improvement
+
+The Recipe Search page now loads the current week's confirmed selections on
+mount (`GET /meal-plan/selections`). Recipes already in this week's plan
+show a **"✓ In this week's plan"** green badge immediately — no need to add
+them again. The subtitle shows how many recipes are already planned.
+
+After clicking **+ Add to plan**, the recipe is added to the `WeeklySelection`
+table (via `history/add`) and the button updates to the green badge
+immediately — the status persists when searching for other recipes in the
+same session.
+
+The button is now styled as `btn-primary` (blue) for not-yet-added recipes
+to make it more prominent.
+
+VERSION bumped to 10.66.
+
+---
+
 ## Phase 10 — Patch 65: global recipe search page
 
 ### New feature

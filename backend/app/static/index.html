@@ -1906,7 +1906,7 @@ const RecipeSearchPage=({hid})=>{
     <div>
       <div className="page-header">
         <h1 className="page-title">🔍 Recipe Search</h1>
-        <p className="page-sub">Search all {results?.total!=null?`${results.total} matching recipes (showing up to 50) — `:``}scraped recipes by title</p>
+        <p className="page-sub">Search all scraped recipes{inPlan.size>0?` — ${inPlan.size} already in this week's plan`:''}</p>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <input className="input" placeholder="Search by recipe title…" value={query}
