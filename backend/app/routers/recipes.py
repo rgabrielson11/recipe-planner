@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from typing import Optional
 
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas, config_files, mealie_client
 from app.database import get_db
+log = logging.getLogger(__name__)
 from app.url_safety import UnsafeUrlError, assert_safe_url
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
