@@ -1,5 +1,26 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 73: auto-scale recipe servings to household size
+
+### Improvement
+
+The confirm step serving inputs now default to the household's `num_people`
+setting rather than the recipe's base serving count. When a recipe is added
+to the confirmed list, a `useEffect` pre-populates `servingOverrides` for
+all confirmed recipes with the household size — so the shopping list scales
+correctly immediately without any manual adjustment.
+
+The household's `num_people` is loaded at PlannerPage mount via
+`GET /households/{hid}` and stored as `numPeople` state (defaults to 4
+while loading). Users can still override per-recipe from the confirm step.
+
+The base serving count ("base: 4 servings") is still shown as a reference
+alongside the adjustable input.
+
+VERSION bumped to 10.73.
+
+---
+
 ## Phase 10 — Patch 72: fix Bring! catalog loading — items now categorised
 
 ### Bug fix

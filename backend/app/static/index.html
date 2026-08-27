@@ -616,6 +616,16 @@ const PlannerPage=({hid})=>{
     finally{setLoading(false);}
   };
 
+  // Pre-populate serving overrides with household num_people when confirmed list changes
+  useEffect(()=>{
+    if(!confirmed.length)return;
+    setServingOverrides(prev=>{
+      const next={...prev};
+      confirmed.forEach(rid=>{if(!next[rid])next[rid]=numPeople;});
+      return next;
+    });
+  },[confirmed,numPeople]);
+
   const loadShoppingList=async()=>{
     setLoading(true);
     try{
@@ -866,7 +876,7 @@ const PlannerPage=({hid})=>{
               {!importResults&&<label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,flexShrink:0}}>
                 <span style={{color:'var(--gray)'}}>Servings:</span>
                 <input type="number" min={1} max={20}
-                  value={servingOverrides[r.recipe_id]||(parseInt(r.scraped_servings)||4)}
+                  value={servingOverrides[r.recipe_id]||numPeople}
                   onChange={e=>setServingOverrides(s=>({...s,[r.recipe_id]:+e.target.value}))}
                   style={{width:50,padding:'3px 6px',border:'1px solid var(--border)',borderRadius:4,textAlign:'center',fontSize:13}}/>
               </label>}
