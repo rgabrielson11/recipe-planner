@@ -181,14 +181,23 @@ async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = Non
                 "use in Settings → Preferences → 'Bring! list name'."
             )
 
-        # Load catalog translations so ingredient names match Bring!'s item database
-        # (matched items get auto-categorized; unmatched become uncategorized "own items")
+        # Load catalog translations so ingredient names match Bring!'s item database.
+        # Must call reload_user_list_settings() first so reload_article_translations()
+        # knows which locale the list uses. Also explicitly set list article language
+        # to en-US on the target list to ensure the English catalog is loaded.
         catalog_lookup: dict[str, str] = {}
         try:
+            # Set list language to en-US so items match the English catalog
+            await bring.set_list_article_language(target["listUuid"], "en-US")
+            await bring.reload_user_list_settings()
             await bring.reload_article_translations()
             raw_translations = getattr(bring, "_Bring__translations", {})
             catalog_lookup = _build_catalog_lookup(raw_translations)
-            log.info("Bring! catalog loaded: %d entries", len(catalog_lookup))
+            log.info("Bring! catalog loaded: %d entries across %d locale(s)",
+                     len(catalog_lookup), len(raw_translations))
+            if not catalog_lookup:
+                log.warning("Bring! catalog empty — user_locale=%s, translations keys=%s",
+                            getattr(bring, 'user_locale', '?'), list(raw_translations.keys()))
         except Exception as e:
             log.warning("Could not load Bring! catalog — items may be uncategorized: %s", e)
 

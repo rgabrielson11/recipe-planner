@@ -1,5 +1,30 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 72: fix Bring! catalog loading — items now categorised
+
+### Bug fix
+
+Bring! items were still showing as uncategorised "own items" despite the
+catalog matching code added in Patch 62. Root cause: 
+
+`reload_article_translations()` builds its list of locales to load from
+`user_list_settings`, which was never populated (we hadn't called
+`reload_user_list_settings()` first). With empty settings the list fell
+back to just `[user_locale]`. The library then **skips** `de-CH` (the
+Bring! default locale) because it expects a local file — so if the account
+locale was `de-CH`, zero catalog files were downloaded and
+`_Bring__translations` stayed empty.
+
+Fix: before loading translations, call
+`set_list_article_language(listUuid, "en-US")` to explicitly set the
+list's item language, then `reload_user_list_settings()` to reflect it,
+then `reload_article_translations()`. This forces the English catalog to
+be downloaded. Added logging for catalog size and a warning if it's empty.
+
+VERSION bumped to 10.72.
+
+---
+
 ## Phase 10 — Patch 71: fix confirm step blank — servingOverrides in wrong component
 
 ### Bug fix
