@@ -542,6 +542,7 @@ const PlannerPage=({hid})=>{
   const [proteinCategories,setProteinCategories]=useState([]);
   const [sugSearch,setSugSearch]=useState('');
   const [servingOverrides,setServingOverrides]=useState({});
+  const [numPeople,setNumPeople]=useState(4);
   const [progress,setProgress]=useState(0);
   const [progressLabel,setProgressLabel]=useState('');
   const [pushingBring,setPushingBring]=useState(false);
@@ -566,6 +567,7 @@ const PlannerPage=({hid})=>{
     get('/recipes/rejection-reasons').then(d=>setRejectionReasons(d.reasons||[])).catch(()=>{});
     get('/config/cooking-methods').then(d=>setCookingMethods(d.methods||[])).catch(()=>{});
     get('/config/protein-categories').then(d=>setProteinCategories(d.categories||[])).catch(()=>{});
+    get(`/households/${hid}`).then(h=>{if(h?.num_people)setNumPeople(h.num_people);}).catch(()=>{});
   },[hid]);
 
   const loadSuggestions=async(countOverride)=>{

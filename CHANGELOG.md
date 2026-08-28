@@ -1,5 +1,23 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 74: fix blank page — numPeople state undeclared
+
+### Bug fix
+
+Patch 73 added `numPeople` state to `PlannerPage` but the `useState(4)`
+declaration and the household load (`GET /households/{hid}`) were missing
+from the committed file — only the `useEffect` that used `numPeople` was
+written, causing an immediate `ReferenceError` and a blank page.
+
+Added:
+- `const [numPeople, setNumPeople] = useState(4)` in PlannerPage
+- `get('/households/${hid}').then(h => setNumPeople(h.num_people))`
+  in the mount useEffect
+
+VERSION bumped to 10.74.
+
+---
+
 ## Phase 10 — Patch 73: auto-scale recipe servings to household size
 
 ### Improvement
