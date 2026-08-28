@@ -394,7 +394,7 @@ def add_to_mealie_meal_plan(slug: str, date_str: str, entry_type: str = "dinner"
     """
     Add a recipe to Mealie's meal planner for the given date.
     date_str should be ISO format YYYY-MM-DD (Monday of the planning week).
-    Best-effort — logs and returns quietly on failure.
+    Best-effort — logs at INFO so failures are visible.
     """
     _check_configured()
     try:
@@ -406,19 +406,23 @@ def add_to_mealie_meal_plan(slug: str, date_str: str, entry_type: str = "dinner"
             return
 
         # Check if an entry for this recipe+date already exists
-        existing = requests.get(
-            f"{MEALIE_BASE_URL}/api/groups/mealplans/",
-            headers=_headers(),
-            params={"start_date": date_str, "end_date": date_str},
-            timeout=_TIMEOUT,
-        )
-        if existing.ok:
-            entries = existing.json().get("items", [])
-            for e in entries:
-                if e.get("recipeId") == recipe_id:
-                    log.debug("Meal plan entry already exists for slug=%s date=%s", slug, date_str)
-                    return
+        try:
+            existing = requests.get(
+                f"{MEALIE_BASE_URL}/api/groups/mealplans/",
+                headers=_headers(),
+                params={"start_date": date_str, "end_date": date_str},
+                timeout=_TIMEOUT,
+            )
+            if existing.ok:
+                entries = existing.json().get("items", [])
+                for e in entries:
+                    if e.get("recipeId") == recipe_id or e.get("recipe_id") == recipe_id:
+                        log.info("Meal plan entry already exists for '%s' on %s", slug, date_str)
+                        return
+        except Exception as _ce:
+            log.debug("Meal plan duplicate check failed: %s", _ce)
 
+        # Mealie v1.x uses camelCase in JSON body
         payload = {
             "date":      date_str,
             "entryType": entry_type,
@@ -431,7 +435,10 @@ def add_to_mealie_meal_plan(slug: str, date_str: str, entry_type: str = "dinner"
             json=payload,
             timeout=_TIMEOUT,
         )
-        r.raise_for_status()
+        if not r.ok:
+            log.warning("Meal plan add failed for '%s' (%s): %s — body: %s",
+                        slug, date_str, r.status_code, r.text[:300])
+            return
         log.info("Added '%s' to Mealie meal plan for %s", detail.get("name", slug), date_str)
     except Exception as e:
-        log.debug("add_to_mealie_meal_plan failed for slug=%s: %s", slug, e)
+        log.warning("add_to_mealie_meal_plan failed for slug=%s: %s", slug, e)

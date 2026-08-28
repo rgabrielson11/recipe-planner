@@ -1,5 +1,30 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 87: fix Mealie ingredient field + meal plan logging
+
+### Bug fixes
+
+**Ingredient parsing: use display/originalText not note**
+
+The Pool A improvement (Patch 86) used Mealie's `note` field as the primary
+raw ingredient text source. However Mealie's `note` field is for user-added
+notes and is typically empty. The correct fields are:
+- `display` — Mealie's computed display string, always populated (e.g. "10 oz Chicken Breast")
+- `originalText` — the raw text from the scrape (when present)
+
+Updated priority: `display` → `originalText` → reconstruct from quantity+unit+food.name → `note`.
+
+**Meal plan: raise logging to WARNING so failures are visible**
+
+The meal plan `add_to_mealie_meal_plan` function was logging failures at
+DEBUG level, making them invisible in the default Logs view. Raised to
+WARNING so the response body is visible when the API call fails, making
+it easy to diagnose format/auth issues.
+
+VERSION bumped to 10.87.
+
+---
+
 ## Phase 10 — Patch 86: improve Mealie ingredient parsing via note strings
 
 ### Improvement

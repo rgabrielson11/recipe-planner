@@ -549,22 +549,31 @@ def build_shopping_list(
                 # the structured quantity/unit/food fields are null.
                 note_strings = []
                 for ing in detail.get("recipeIngredient", []):
-                    note = (ing.get("note") or "").strip()
-                    if note:
-                        note_strings.append(note)
+                    # Prefer 'display' (Mealie's computed display string, always set),
+                    # then 'originalText' (raw scraped text), then reconstruct from fields.
+                    raw = (
+                        (ing.get("display") or "").strip()
+                        or (ing.get("originalText") or "").strip()
+                    )
+                    if raw:
+                        note_strings.append(raw)
                     else:
-                        # Reconstruct from structured fields as fallback
-                        qty  = ing.get("quantity")
+                        # Reconstruct from structured fields
+                        qty      = ing.get("quantity")
                         unit_raw = ing.get("unit") or {}
-                        unit_name = unit_raw.get("name","") if isinstance(unit_raw, dict) else str(unit_raw)
+                        unit_name = unit_raw.get("name","") if isinstance(unit_raw, dict) else str(unit_raw or "")
                         food_raw = ing.get("food") or {}
-                        food_name = food_raw.get("name","") if isinstance(food_raw, dict) else str(food_raw)
+                        food_name = food_raw.get("name","") if isinstance(food_raw, dict) else str(food_raw or "")
+                        user_note = (ing.get("note") or "").strip()
                         if food_name:
                             parts = []
-                            if qty: parts.append(str(qty))
+                            if qty is not None: parts.append(str(qty))
                             if unit_name: parts.append(unit_name)
                             parts.append(food_name)
+                            if user_note: parts.append(f"({user_note})")
                             note_strings.append(" ".join(parts))
+                        elif user_note:
+                            note_strings.append(user_note)
 
                 if note_strings:
                     ings = _extract_ingredients_from_raw(note_strings, servings, scale)
