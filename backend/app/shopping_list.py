@@ -496,14 +496,19 @@ def build_shopping_list(
                 import json as _json
                 try:
                     ing_strings = _json.loads(recipe.scraped_ingredients_json)
-                    for ing_str in ing_strings:
-                        if ing_str.strip():
-                            all_ingredients.append(
-                                ingredient_utils.parse_scraped_ingredient(ing_str)
-                            )
+                    servings_str = recipe.scraped_servings or ""
+                    servings = _parse_servings_str(servings_str)
+                    target_servings = sel.servings_override or household.num_people
+                    scale = (target_servings / servings) if servings and servings > 0 else 1.0
+                    ings = _extract_ingredients_from_raw(ing_strings, servings, scale)
+                    all_ingredients.extend(ings)
+                    log.info("Fallback (no slug): '%s' — %d items, servings=%s, scale=%.2f",
+                             recipe.title, len(ings), servings, scale)
                     warnings.append(
-                        f"'{recipe.title}': using scraped ingredient list (not yet in Mealie — "                        f"quantities are best-effort parsed, not household-scaled; confirm and check Mealie import).")
-                except Exception:
+                        f"'{recipe.title}': Mealie import pending — using scraped ingredients "
+                        f"(scaled ×{round(scale, 2)} to {target_servings} servings).")
+                except Exception as _e:
+                    log.warning("Fallback parse failed for '%s': %s", recipe.title, _e)
                     missing_mealie.append(recipe.title)
             else:
                 warnings.append(

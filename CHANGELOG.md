@@ -1,5 +1,28 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 84: fix unscaled shopping list when recipe not yet in Mealie
+
+### Bug fix
+
+The shopping list showed unscaled quantities (base recipe amounts) for
+recipes that hadn't been imported to Mealie yet (Mealie import is async
+background task, so the slug may not exist when the shopping list is
+generated immediately after confirming).
+
+Root cause: a Patch 15 fallback path at `if not recipe.mealie_slug:` used
+`ingredient_utils.parse_scraped_ingredient()` per-ingredient with no scale
+factor, then continued — bypassing the main Pool B scaling code entirely.
+
+Fix: the fallback now applies the same scaling as Pool B —
+`_extract_ingredients_from_raw(ing_strings, servings, scale)` where
+`target_servings = sel.servings_override or household.num_people`.
+The warning message updated to show scale factor and target servings
+rather than claiming "not household-scaled".
+
+VERSION bumped to 10.84.
+
+---
+
 ## Phase 10 — Patch 83: tighten Bring! Ollama normalization prompt
 
 ### Bug fix
