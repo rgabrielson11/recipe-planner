@@ -113,3 +113,61 @@ Output:"""
     except Exception as e:
         log.warning("Ollama ingredient normalisation failed to parse: %s — raw=%r", e, raw[:200])
         return {n: n for n in names}
+
+
+def normalize_for_bring(names: list[str]) -> dict[str, str]:
+    """
+    Use the LLM to map specialty ingredient names to their generic
+    equivalents that are more likely to be found in Bring!'s article catalog.
+
+    Examples:
+      "herbes de provence"  → "mixed herbs"
+      "demi-baguette"       → "baguette"
+      "poulet brüstli"      → "chicken breast"
+      "pancetta"            → "bacon"
+      "creme fraiche"       → "sour cream"
+      "arborio rice"        → "rice"
+
+    Returns a dict mapping each input name → catalog-friendly name.
+    Falls back to identity mapping on any failure or if Ollama is not configured.
+    """
+    if not names or not OLLAMA_BASE_URL:
+        return {n: n for n in names}
+
+    items_json = json.dumps(names, ensure_ascii=False)
+    prompt = f"""You are a grocery catalog matcher for the Bring! shopping app.
+Given ingredient names, return a JSON object mapping each to its most common
+generic grocery store name — the plain, simple term a shopper would look for
+in a store catalog.
+
+Rules:
+- Use the simplest, most common English term: "herbes de provence" → "mixed herbs"
+- Drop brand, regional, or specialty qualifiers: "arborio rice" → "rice"
+- Map foreign/specialty names to English equivalents: "pancetta" → "bacon"
+- Keep it to 1-3 words max: "boneless skinless chicken thigh" → "chicken thigh"  
+- If it's already generic and common, keep it: "onion" → "onion"
+- Never output cooking instructions, quantities, or descriptors
+- Output ONLY a valid JSON object, no markdown, no explanation.
+
+Input: {items_json}
+Output:"""
+
+    raw = generate(prompt, expect_json=True)
+    if not raw:
+        return {n: n for n in names}
+
+    try:
+        clean = re.sub(r"```(?:json)?", "", raw).strip()
+        mapping = json.loads(clean)
+        if not isinstance(mapping, dict):
+            raise ValueError("not a dict")
+        result = {}
+        for name in names:
+            mapped = mapping.get(name, name)
+            result[name] = mapped if isinstance(mapped, str) and mapped.strip() else name
+        log.info("Ollama Bring! normalisation: %d names → %d remapped",
+                 len(names), sum(1 for k, v in result.items() if v != k))
+        return result
+    except Exception as e:
+        log.warning("Ollama Bring! normalisation failed: %s — raw=%r", e, raw[:200])
+        return {n: n for n in names}

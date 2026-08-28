@@ -229,10 +229,21 @@ async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = Non
             log.warning("Could not load Bring! catalog — items may be uncategorized: %s", e)
 
         pushed: list[str] = []
+        # Pre-normalize ingredient names via Ollama to improve catalog match rate.
+        # Maps specialty/foreign names to common generic equivalents before
+        # catalog lookup: "herbes de provence" → "mixed herbs", "arborio" → "rice"
+        all_names = [item["item"] for item in items]
+        bring_names = _oc.normalize_for_bring(all_names)
+        log.info("Bring! Ollama pre-normalisation: %d items", len(bring_names))
+
         errors:  list[str] = []
         for item in items:
             raw_name = item["item"]
-            article_id = _match_catalog(raw_name, catalog_lookup) if catalog_lookup else None
+            # Use Ollama-normalized name for catalog matching, then try raw name as fallback
+            normalized_name = bring_names.get(raw_name, raw_name)
+            article_id = _match_catalog(normalized_name, catalog_lookup) if catalog_lookup else None
+            if article_id is None and normalized_name != raw_name:
+                article_id = _match_catalog(raw_name, catalog_lookup)
             send_name = article_id if article_id else raw_name
             if article_id:
                 log.info("Bring! matched: '%s' → article_id='%s'", raw_name, article_id)

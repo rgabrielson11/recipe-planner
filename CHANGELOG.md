@@ -1,5 +1,31 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 81: Ollama pre-normalization for Bring! catalog matching
+
+### New feature
+
+Before pushing items to Bring!, an Ollama call now maps specialty and
+foreign ingredient names to their common generic equivalents, improving
+catalog match rate:
+
+- `"herbes de provence"` → `"mixed herbs"` → matches catalog
+- `"arborio rice"` → `"rice"` → matches catalog
+- `"demi-baguette"` → `"baguette"` → matches catalog
+- `"pancetta"` → `"bacon"` → matches catalog
+- `"creme fraiche"` → `"sour cream"` → matches catalog
+
+The normalized name is tried first for catalog lookup; if it still doesn't
+match, the original name is tried as a fallback. Only fires when
+`OLLAMA_BASE_URL` is set — no-op if Ollama is not configured.
+
+New function: `ollama_client.normalize_for_bring(names)` — separate from
+the shopping list normalizer so the prompt is specifically tuned for
+grocery catalog matching rather than deduplication.
+
+VERSION bumped to 10.81.
+
+---
+
 ## Phase 10 — Patch 80: fix bring-api v1.x dataclass API
 
 ### Bug fix
