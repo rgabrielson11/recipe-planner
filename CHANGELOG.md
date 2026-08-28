@@ -1,5 +1,23 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 88: fix Mealie meal plan endpoint
+
+### Bug fix
+
+`POST /api/groups/mealplans/` returned `405 Method Not Allowed` — this
+endpoint no longer accepts POST in Mealie nightly. The correct endpoint
+confirmed via live API testing is `POST /api/households/mealplans` (no
+trailing slash).
+
+Also confirmed: Mealie ingredient `note` field contains the full ingredient
+text ("18 ounce Italian Chicken Sausage") and `quantity` is stored as `0.0`
+not `null` when Mealie couldn't parse the structured value. The note-string
+parsing approach from Patch 86 is correct.
+
+VERSION bumped to 10.88.
+
+---
+
 ## Phase 10 — Patch 87: fix Mealie ingredient field + meal plan logging
 
 ### Bug fixes

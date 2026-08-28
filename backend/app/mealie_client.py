@@ -408,7 +408,7 @@ def add_to_mealie_meal_plan(slug: str, date_str: str, entry_type: str = "dinner"
         # Check if an entry for this recipe+date already exists
         try:
             existing = requests.get(
-                f"{MEALIE_BASE_URL}/api/groups/mealplans/",
+                f"{MEALIE_BASE_URL}/api/households/mealplans",
                 headers=_headers(),
                 params={"start_date": date_str, "end_date": date_str},
                 timeout=_TIMEOUT,
@@ -430,7 +430,7 @@ def add_to_mealie_meal_plan(slug: str, date_str: str, entry_type: str = "dinner"
             "title":     detail.get("name", slug),
         }
         r = requests.post(
-            f"{MEALIE_BASE_URL}/api/groups/mealplans/",
+            f"{MEALIE_BASE_URL}/api/households/mealplans",
             headers=_headers(),
             json=payload,
             timeout=_TIMEOUT,
