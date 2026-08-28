@@ -195,8 +195,12 @@ async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = Non
             log.info("Bring! catalog loaded: %d entries across %d locale(s)",
                      len(catalog_lookup), len(raw_translations))
             if not catalog_lookup:
-                log.warning("Bring! catalog empty — user_locale=%s, translations keys=%s",
+                log.warning("Bring! catalog empty — user_locale=%s, translation locales=%s",
                             getattr(bring, 'user_locale', '?'), list(raw_translations.keys()))
+            else:
+                # Log sample entries so we can see the article_id format
+                sample = list(catalog_lookup.items())[:8]
+                log.info("Bring! catalog sample (name→article_id): %s", sample)
         except Exception as e:
             log.warning("Could not load Bring! catalog — items may be uncategorized: %s", e)
 
@@ -207,7 +211,9 @@ async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = Non
             article_id = _match_catalog(raw_name, catalog_lookup) if catalog_lookup else None
             send_name = article_id if article_id else raw_name
             if article_id:
-                log.debug("Bring! matched: '%s' → '%s'", raw_name, article_id)
+                log.info("Bring! matched: '%s' → article_id='%s'", raw_name, article_id)
+            else:
+                log.info("Bring! NO MATCH for '%s' — will be own item", raw_name)
             spec = _format_spec(item)
             try:
                 await bring.save_item(target["listUuid"], send_name, spec)

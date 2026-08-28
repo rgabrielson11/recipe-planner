@@ -1,5 +1,24 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 77: Bring! catalog diagnostic logging
+
+### Diagnostic
+
+Added INFO-level logging to diagnose why items arrive as "own items":
+
+- **Catalog sample** — logs first 8 entries after loading so we can see
+  the actual article_id format (`name→article_id`)
+- **Per-item matching** — logs `matched: 'chicken breast' → 'article_id'`
+  or `NO MATCH for 'chicken breast'` at INFO level for every item pushed
+
+Check the Logs page after the next Bring! push to see what the catalog
+contains and whether items are matching. This will confirm whether the
+issue is the catalog not loading, wrong article_id format, or no name matches.
+
+VERSION bumped to 10.77.
+
+---
+
 ## Phase 10 — Patch 76: fix Bring! categorisation — send article_id not name
 
 ### Bug fix
