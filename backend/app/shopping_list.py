@@ -536,18 +536,50 @@ def build_shopping_list(
                      recipe.title, len(ings), servings, scale)
             all_ingredients.extend(ings)
         else:
-            # Pool A / Mealie-native — fall back to Mealie API
+            # Pool A / Mealie-native — fetch from Mealie then prefer note strings
+            # over Mealie's structured quantity/unit/food fields which are often null.
             try:
                 detail   = mealie_client.get_recipe(recipe.mealie_slug)
                 servings = _parse_servings(detail)
                 target_servings = sel.servings_override or household.num_people
                 scale    = (target_servings / servings) if servings and servings > 0 else 1.0
-                ings = _extract_ingredients(detail)
-                log.info("Mealie fetch OK: '%s' — %d ingredients, servings=%s, scale=%.2f",
-                         recipe.title, len(ings), servings, scale)
-                for ing in ings:
-                    scaled = round(ing["quantity"] * scale, 3) if ing["quantity"] else None
-                    all_ingredients.append({**ing, "quantity": scaled})
+
+                # Build a list of raw note strings from Mealie's ingredient list.
+                # The note field is always populated with the original text even when
+                # the structured quantity/unit/food fields are null.
+                note_strings = []
+                for ing in detail.get("recipeIngredient", []):
+                    note = (ing.get("note") or "").strip()
+                    if note:
+                        note_strings.append(note)
+                    else:
+                        # Reconstruct from structured fields as fallback
+                        qty  = ing.get("quantity")
+                        unit_raw = ing.get("unit") or {}
+                        unit_name = unit_raw.get("name","") if isinstance(unit_raw, dict) else str(unit_raw)
+                        food_raw = ing.get("food") or {}
+                        food_name = food_raw.get("name","") if isinstance(food_raw, dict) else str(food_raw)
+                        if food_name:
+                            parts = []
+                            if qty: parts.append(str(qty))
+                            if unit_name: parts.append(unit_name)
+                            parts.append(food_name)
+                            note_strings.append(" ".join(parts))
+
+                if note_strings:
+                    ings = _extract_ingredients_from_raw(note_strings, servings, scale)
+                    log.info("Mealie (note-parsed) '%s' — %d items, servings=%s, scale=%.2f",
+                             recipe.title, len(ings), servings, scale)
+                    all_ingredients.extend(ings)
+                else:
+                    # Last resort: use structured extraction
+                    ings = _extract_ingredients(detail)
+                    log.info("Mealie (structured) '%s' — %d items, servings=%s, scale=%.2f",
+                             recipe.title, len(ings), servings, scale)
+                    for ing in ings:
+                        scaled = round(ing["quantity"] * scale, 3) if ing["quantity"] else None
+                        all_ingredients.append({**ing, "quantity": scaled})
+
             except mealie_client.MealieError as e:
                 log.warning("Mealie fetch FAILED for '%s' (slug=%s): %s", recipe.title, recipe.mealie_slug, e)
                 warnings.append(f"Mealie error for '{recipe.title}': {e} — add manually.")

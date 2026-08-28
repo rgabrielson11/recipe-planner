@@ -1,5 +1,31 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 86: improve Mealie ingredient parsing via note strings
+
+### Improvement
+
+Pool A (Mealie-native) recipes use `_extract_ingredients()` which relies on
+Mealie's structured `quantity`/`unit`/`food.name` fields. These are often
+`null` when Mealie's own scraper couldn't parse the structured data — leading
+to "as needed" quantities and poor ingredient names.
+
+Mealie **always** populates the `note` field on each ingredient with the
+original raw text (e.g. `"10 oz chicken breast"`, `"1 tablespoon olive oil"`).
+
+Fix: Pool A now extracts `note` strings from all Mealie ingredients and runs
+them through `_extract_ingredients_from_raw()` — the same parser used for
+Pool B discovered recipes. This handles fractions, unit abbreviations, and
+multi-word ingredient names correctly.
+
+Fallback chain:
+1. note strings via `_extract_ingredients_from_raw` (primary)
+2. Reconstruct note from structured qty+unit+food if note is empty
+3. `_extract_ingredients` structured extraction (last resort)
+
+VERSION bumped to 10.86.
+
+---
+
 ## Phase 10 — Patch 85: add planned recipes to Mealie meal planner
 
 ### New feature
