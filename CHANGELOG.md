@@ -1,5 +1,28 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 76: fix Bring! categorisation — send article_id not name
+
+### Bug fix
+
+Items in Bring! were still all "own items" with no grocery section. Root cause:
+`_build_catalog_lookup` built `{name: name}` — we sent the translated name
+("Chicken Breast") as `itemId`. Bring! treats any unrecognised string as an
+"own item" even when it looks like a catalog name.
+
+The correct approach: build `{name_lower: article_id}` and send the
+**article_id** (the key from `articles.en-US.json`) as `itemId`. Bring! maps
+article IDs to their catalog entries with predefined grocery sections
+(Meat & Fish, Produce, Dairy, Bakery, etc.).
+
+`_match_catalog` now returns `Optional[str]` (the article_id, or None on no
+match). The send loop uses `article_id` when found and falls back to the
+raw ingredient name (own item) when not. Debug logging added to diagnose
+matches and misses per item.
+
+VERSION bumped to 10.76.
+
+---
+
 ## Phase 10 — Patch 75: confirm step servings redesign
 
 ### Improvement

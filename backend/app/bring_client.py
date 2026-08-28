@@ -79,42 +79,41 @@ async def list_bring_lists() -> list[dict]:
 
 def _build_catalog_lookup(translations: dict) -> dict[str, str]:
     """
-    Build a reverse lookup {normalized_name: canonical_name} from Bring!'s
-    article translations so we can map our ingredient names to catalog names.
-    Bring! only categorizes items automatically when the name exactly matches
-    a catalog entry — "own items" get no category/section.
+    Build reverse lookup {name_lower: article_id} from Bring!'s catalog.
+    Translations: {locale: {article_id: translated_name}}.
+    We use article_id as itemId in save_item() — Bring! maps this to the
+    catalog article with its grocery section (Meat, Produce, Dairy, etc.).
     """
     lookup: dict[str, str] = {}
     for locale_dict in translations.values():
-        for catalog_name in locale_dict.values():
+        if not isinstance(locale_dict, dict):
+            continue
+        for article_id, catalog_name in locale_dict.items():
             if isinstance(catalog_name, str) and catalog_name.strip():
-                lookup[catalog_name.lower()] = catalog_name
+                lookup[catalog_name.lower()] = article_id
     return lookup
 
 
-def _match_catalog(name: str, lookup: dict[str, str]) -> str:
+def _match_catalog(name: str, lookup: dict[str, str]) -> Optional[str]:
     """
-    Return the Bring! catalog name for `name`, or the original if no match.
-    Tries: exact → our name is contained in a catalog entry → catalog entry
-    is contained in our name (longest wins).
+    Return Bring! article_id for `name`, or None. Sends article_id as
+    itemId so Bring! categorises the item into the right grocery section.
     """
     nl = name.lower().strip()
-    # Exact match
     if nl in lookup:
         return lookup[nl]
-    # Our name contains a catalog entry (e.g. "boneless chicken breast" → "Chicken Breast")
-    best: Optional[str] = None
+    best_id: Optional[str] = None
     best_len = 0
-    for catalog_key, catalog_name in lookup.items():
-        if catalog_key in nl and len(catalog_key) > best_len:
-            best, best_len = catalog_name, len(catalog_key)
-    if best:
-        return best
-    # Catalog entry contains our name (e.g. "garlic" → "Garlic Cloves")
-    matches = [cn for ck, cn in lookup.items() if nl in ck]
+    for catalog_key, article_id in lookup.items():
+        if len(catalog_key) > 2 and catalog_key in nl and len(catalog_key) > best_len:
+            best_id, best_len = article_id, len(catalog_key)
+    if best_id:
+        return best_id
+    matches = [(ck, aid) for ck, aid in lookup.items() if nl in ck and len(nl) > 2]
     if matches:
-        return min(matches, key=len)   # prefer shortest / most specific
-    return name
+        return min(matches, key=lambda x: len(x[0]))[1]
+    return None
+
 
 
 async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = None) -> dict:
@@ -205,16 +204,17 @@ async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = Non
         errors:  list[str] = []
         for item in items:
             raw_name = item["item"]
-            name = _match_catalog(raw_name, catalog_lookup) if catalog_lookup else raw_name
-            if name != raw_name:
-                log.debug("Bring! catalog match: '%s' → '%s'", raw_name, name)
+            article_id = _match_catalog(raw_name, catalog_lookup) if catalog_lookup else None
+            send_name = article_id if article_id else raw_name
+            if article_id:
+                log.debug("Bring! matched: '%s' → '%s'", raw_name, article_id)
             spec = _format_spec(item)
             try:
-                await bring.save_item(target["listUuid"], name, spec)
-                pushed.append(name)
+                await bring.save_item(target["listUuid"], send_name, spec)
+                pushed.append(raw_name)
             except BringException as e:
-                log.warning("Bring! push failed for '%s': %s", name, e)
-                errors.append(f"{name}: {e}")
+                log.warning("Bring! push failed for '%s': %s", raw_name, e)
+                errors.append(f"{raw_name}: {e}")
 
         log.info(
             "Bring! push complete: list=%r pushed=%d errors=%d",
