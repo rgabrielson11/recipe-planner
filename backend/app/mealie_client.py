@@ -386,3 +386,52 @@ def set_recipe_categories(slug: str, category_names: list[str]) -> None:
         log.info("Set categories %s on '%s'", [c['name'] for c in new_cats], slug)
     except Exception as e:
         log.debug("set_recipe_categories skipped for '%s': %s", slug, e)
+
+
+# ── Meal plan ─────────────────────────────────────────────────────────────────
+
+def add_to_mealie_meal_plan(slug: str, date_str: str, entry_type: str = "dinner") -> None:
+    """
+    Add a recipe to Mealie's meal planner for the given date.
+    date_str should be ISO format YYYY-MM-DD (Monday of the planning week).
+    Best-effort — logs and returns quietly on failure.
+    """
+    _check_configured()
+    try:
+        # Get the recipe's Mealie UUID from its slug
+        detail = get_recipe(slug)
+        recipe_id = detail.get("id")
+        if not recipe_id:
+            log.warning("add_to_mealie_meal_plan: no id for slug=%s", slug)
+            return
+
+        # Check if an entry for this recipe+date already exists
+        existing = requests.get(
+            f"{MEALIE_BASE_URL}/api/groups/mealplans/",
+            headers=_headers(),
+            params={"start_date": date_str, "end_date": date_str},
+            timeout=_TIMEOUT,
+        )
+        if existing.ok:
+            entries = existing.json().get("items", [])
+            for e in entries:
+                if e.get("recipeId") == recipe_id:
+                    log.debug("Meal plan entry already exists for slug=%s date=%s", slug, date_str)
+                    return
+
+        payload = {
+            "date":      date_str,
+            "entryType": entry_type,
+            "recipeId":  recipe_id,
+            "title":     detail.get("name", slug),
+        }
+        r = requests.post(
+            f"{MEALIE_BASE_URL}/api/groups/mealplans/",
+            headers=_headers(),
+            json=payload,
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        log.info("Added '%s' to Mealie meal plan for %s", detail.get("name", slug), date_str)
+    except Exception as e:
+        log.debug("add_to_mealie_meal_plan failed for slug=%s: %s", slug, e)

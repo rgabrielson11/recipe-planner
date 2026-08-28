@@ -1,5 +1,28 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 85: add planned recipes to Mealie meal planner
+
+### New feature
+
+After confirming recipe selections, all recipes are now added to Mealie's
+built-in meal planner for the Monday of the planned week (`entryType: dinner`).
+
+- **Pool A** (already in Mealie) — added to meal plan immediately on confirm
+- **Pool B** (newly imported) — added to meal plan in the background import
+  task, after the recipe URL import completes
+
+Duplicate detection: before creating an entry, the endpoint checks whether
+the recipe is already on the meal plan for that date and skips if so.
+
+New function `mealie_client.add_to_mealie_meal_plan(slug, date_str)` uses
+`GET /api/groups/mealplans/?start_date=...` to check for duplicates, then
+`POST /api/groups/mealplans/` to create the entry. Both calls are best-effort
+— failure is logged at DEBUG and never blocks the shopping list flow.
+
+VERSION bumped to 10.85.
+
+---
+
 ## Phase 10 — Patch 84: fix unscaled shopping list when recipe not yet in Mealie
 
 ### Bug fix

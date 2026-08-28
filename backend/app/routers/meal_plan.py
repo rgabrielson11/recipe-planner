@@ -323,6 +323,14 @@ def confirm_selections(
     to_import   = [r for r in recipes if not r.mealie_slug]
     already_in  = [r for r in recipes if r.mealie_slug]
 
+    # Add already-in-Mealie recipes to the meal plan immediately (no import needed)
+    if mealie_client.is_configured():
+        for r in already_in:
+            try:
+                mealie_client.add_to_mealie_meal_plan(r.mealie_slug, str(payload.week_start_date))
+            except Exception as _e:
+                log.debug("Meal plan add failed for '%s': %s", r.title, _e)
+
     import_results: list[dict] = [
         {"title": r.title, "status": "already_in_mealie", "slug": r.mealie_slug}
         for r in already_in
@@ -357,14 +365,14 @@ def confirm_selections(
                             recipe.mealie_slug = existing_slug
                             bg_db.commit()
                             log.info("[BG] Already in Mealie: '%s' slug=%s", recipe.title, existing_slug)
-                            _apply_mealie_metadata(existing_slug, dinner_tag, recipe)
+                            _apply_mealie_metadata(existing_slug, dinner_tag, recipe, str(payload.week_start_date))
                             continue
 
                         slug = mealie_client.import_recipe_from_url(recipe.source_url)
                         recipe.mealie_slug = slug
                         bg_db.commit()
                         log.info("[BG] Imported and slug saved: '%s' → %s", recipe.title, slug)
-                        _apply_mealie_metadata(slug, dinner_tag, recipe)
+                        _apply_mealie_metadata(slug, dinner_tag, recipe, str(payload.week_start_date))
                     except Exception as e:
                         log.warning("[BG] Mealie import FAILED for '%s': %s", recipe.title, e)
             finally:
@@ -384,12 +392,19 @@ def confirm_selections(
     }
 
 
-def _apply_mealie_metadata(slug: str, dinner_tag: str, recipe: models.Recipe) -> None:
-    """Apply tag + categories to a newly imported Mealie recipe. Best-effort."""
+def _apply_mealie_metadata(slug: str, dinner_tag: str, recipe: models.Recipe,
+                           week_date: str = "") -> None:
+    """Apply tag + categories + meal plan to a newly imported Mealie recipe. Best-effort."""
     try:
         mealie_client.add_tag_to_recipe(slug, dinner_tag)
     except Exception as e:
         log.debug("Tag failed for '%s': %s", slug, e)
+
+    if week_date:
+        try:
+            mealie_client.add_to_mealie_meal_plan(slug, week_date)
+        except Exception as e:
+            log.debug("Meal plan add failed for '%s': %s", slug, e)
 
     # Set Mealie recipe categories: Dinner + protein group
     try:
