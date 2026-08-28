@@ -442,3 +442,98 @@ def add_to_mealie_meal_plan(slug: str, date_str: str, entry_type: str = "dinner"
         log.info("Added '%s' to Mealie meal plan for %s", detail.get("name", slug), date_str)
     except Exception as e:
         log.warning("add_to_mealie_meal_plan failed for slug=%s: %s", slug, e)
+
+
+def patch_recipe_ingredients(slug: str, ingredient_strings: list[str], base_servings: Optional[float] = None) -> None:
+    """
+    Re-parse ingredient strings from our recipe-scrapers data and PATCH the
+    Mealie recipe with properly structured quantity/unit/food fields.
+    This fixes the Mealie UI showing 0 quantity because its own scraper
+    couldn't parse the structured data from the source site.
+    """
+    _check_configured()
+    import re as _re
+
+    # Unit canonicalization for Mealie
+    _UNIT_MAP = {
+        "tsp": "teaspoon", "tbsp": "tablespoon", "tablespoons": "tablespoon",
+        "teaspoons": "teaspoon", "cups": "cup", "oz": "ounce", "ounces": "ounce",
+        "lbs": "pound", "lb": "pound", "pounds": "pound", "grams": "gram",
+        "g": "gram", "kg": "kilogram", "ml": "milliliter", "l": "liter",
+        "cloves": "clove", "slices": "slice", "pieces": "piece",
+        "cans": "can", "packages": "package",
+    }
+    _ING_RE = _re.compile(
+        r"^\s*(?P<qty>[\d¼½¾⅓⅔⅛⅜⅝⅞]+(?:[\.\/][\d]+)?)"
+        r"\s*(?P<unit>cups?|tbsp|tsp|tablespoons?|teaspoons?|lbs?|oz|g|kg|ml|l|"
+        r"ounces?|pounds?|grams?|cloves?|slices?|pieces?|cans?|packages?|"
+        r"units?|each|pinch(?:es)?|dash(?:es)?)?"
+        r"(?:\(s\))?\s+(?:of\s+)?(?P<name>.+)$",
+        _re.IGNORECASE,
+    )
+    _FRAC = {"¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 0.333, "⅔": 0.667,
+             "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875}
+
+    def _parse_qty(s: str) -> Optional[float]:
+        for ch, val in _FRAC.items():
+            if ch in s:
+                rest = s.replace(ch, "").strip()
+                try:
+                    return val + float(rest) if rest else val
+                except ValueError:
+                    return val
+        try:
+            if "/" in s:
+                n, d = s.split("/", 1)
+                return float(n) / float(d)
+            return float(s)
+        except (ValueError, ZeroDivisionError):
+            return None
+
+    mealie_ings = []
+    for raw in ingredient_strings:
+        if not raw or not raw.strip():
+            continue
+        cleaned = _re.sub(r"\(\s*[\d\.]+\s*(?:oz|g|kg|ml|l|lb|lbs)?\s*\)", "", raw).strip()
+        m = _ING_RE.match(cleaned)
+        qty = unit = name = None
+        if m:
+            qty = _parse_qty(m.group("qty"))
+            unit_raw = m.group("unit")
+            unit = _UNIT_MAP.get((unit_raw or "").lower(), unit_raw)
+            if unit and unit.lower() in ("unit", "units", "each"):
+                unit = None
+            raw_name = _re.sub(r"\(.*?\)", "", m.group("name")).split(",")[0].strip()
+            name = raw_name or cleaned
+        else:
+            name = cleaned
+
+        ing: dict = {
+            "quantity": qty,
+            "note":     raw,
+            "referenceId": None,
+        }
+        if unit:
+            ing["unit"] = {"name": unit}
+        if name:
+            ing["food"] = {"name": name.title()}
+        mealie_ings.append(ing)
+
+    if not mealie_ings:
+        return
+
+    try:
+        detail = get_recipe(slug)
+        detail["recipeIngredient"] = mealie_ings
+        if base_servings and base_servings > 0:
+            detail["recipeServings"] = base_servings
+        r = requests.patch(
+            f"{MEALIE_BASE_URL}/api/recipes/{slug}",
+            headers=_headers(),
+            json=detail,
+            timeout=_TIMEOUT,
+        )
+        r.raise_for_status()
+        log.info("Patched %d ingredients on Mealie recipe '%s'", len(mealie_ings), slug)
+    except Exception as e:
+        log.warning("patch_recipe_ingredients failed for slug=%s: %s", slug, e)

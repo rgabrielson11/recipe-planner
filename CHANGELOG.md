@@ -1,5 +1,32 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 89: patch Mealie ingredient structure after import
+
+### New feature
+
+When recipes are imported to Mealie via URL, Mealie's own scraper stores
+`quantity: 0.0` and dumps everything into the `note` field. The Mealie
+recipe view shows no quantities or units.
+
+Fix: after import, `patch_recipe_ingredients()` re-parses our
+`scraped_ingredients_json` strings and PATCHes the Mealie recipe with
+properly structured `quantity`, `unit.name`, and `food.name` fields.
+
+Example: `"1 teaspoon Italian Seasoning"` →
+`{quantity: 1.0, unit: {name: "teaspoon"}, food: {name: "Italian Seasoning"}}`.
+
+Handles Unicode fractions (¼ → 0.25, ½ → 0.5, ¾ → 0.75), unit aliases
+(tsp → teaspoon, oz → ounce, lb → pound), and strips size modifiers
+(parenthetical units like "(15 oz)").
+
+**Backfill endpoint:** `POST /api/meal-plan/mealie/patch-ingredients?household_id=`
+patches all existing Mealie recipes that have scraped data, fixing
+recipes imported before this patch.
+
+VERSION bumped to 10.89.
+
+---
+
 ## Phase 10 — Patch 88: fix Mealie meal plan endpoint
 
 ### Bug fix

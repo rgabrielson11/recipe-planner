@@ -406,6 +406,18 @@ def _apply_mealie_metadata(slug: str, dinner_tag: str, recipe: models.Recipe,
         except Exception as e:
             log.debug("Meal plan add failed for '%s': %s", slug, e)
 
+    # Push our properly-parsed ingredient data back to Mealie so the recipe
+    # view shows correct quantities/units instead of 0 from Mealie's scraper.
+    if recipe.scraped_ingredients_json:
+        try:
+            import json as _j
+            ing_strings = _j.loads(recipe.scraped_ingredients_json)
+            from app.shopping_list import _parse_servings_str
+            base_servings = _parse_servings_str(recipe.scraped_servings or "")
+            mealie_client.patch_recipe_ingredients(slug, ing_strings, base_servings)
+        except Exception as e:
+            log.debug("patch_recipe_ingredients failed for '%s': %s", slug, e)
+
     # Set Mealie recipe categories: Dinner + protein group
     try:
         protein = recipe_discovery._classify_protein(recipe.title, [])
@@ -800,3 +812,42 @@ def add_from_history(
     Returns import results in the same shape as confirm-selections.
     """
     return confirm_selections(payload, background_tasks, db)
+
+
+@router.post("/mealie/patch-ingredients")
+def backfill_mealie_ingredients(household_id: str, db: Session = Depends(get_db)):
+    """
+    Re-patch ingredient structure on all Mealie recipes for this household
+    that have scraped_ingredients_json. Fixes recipes imported before
+    patch_recipe_ingredients was added.
+    """
+    import json as _j
+    from app.shopping_list import _parse_servings_str
+
+    sels = (
+        db.query(models.WeeklySelection)
+        .join(models.Recipe)
+        .filter(
+            models.WeeklySelection.household_id == household_id,
+            models.Recipe.mealie_slug.isnot(None),
+            models.Recipe.scraped_ingredients_json.isnot(None),
+        )
+        .all()
+    )
+    seen = set()
+    patched = []
+    errors = []
+    for sel in sels:
+        r = sel.recipe
+        if r.mealie_slug in seen:
+            continue
+        seen.add(r.mealie_slug)
+        try:
+            ings = _j.loads(r.scraped_ingredients_json)
+            base = _parse_servings_str(r.scraped_servings or "")
+            mealie_client.patch_recipe_ingredients(r.mealie_slug, ings, base)
+            patched.append(r.title)
+        except Exception as e:
+            errors.append(f"{r.title}: {e}")
+
+    return {"patched": len(patched), "errors": errors, "recipes": patched}
