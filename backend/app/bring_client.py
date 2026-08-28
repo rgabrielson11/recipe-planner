@@ -116,7 +116,7 @@ def _match_catalog(name: str, lookup: dict[str, str]) -> Optional[str]:
 
 
 
-async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = None) -> dict:
+async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = None, use_ollama: bool = True) -> dict:
     """
     Push every BUY item (shopping_by_section) in a built shopping-list dict
     to a Bring! list. pantry_check / using_from_pantry are deliberately
@@ -233,8 +233,12 @@ async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = Non
         # Maps specialty/foreign names to common generic equivalents before
         # catalog lookup: "herbes de provence" → "mixed herbs", "arborio" → "rice"
         all_names = [item["item"] for item in items]
-        bring_names = _oc.normalize_for_bring(all_names)
-        log.info("Bring! Ollama pre-normalisation: %d items", len(bring_names))
+        if use_ollama:
+            bring_names = _oc.normalize_for_bring(all_names)
+            log.info("Bring! Ollama pre-normalisation: %d items", len(bring_names))
+        else:
+            bring_names = {n: n for n in all_names}
+            log.info("Bring! Ollama pre-normalisation disabled")
 
         errors:  list[str] = []
         for item in items:

@@ -44,6 +44,7 @@ def run_migrations():
         ("recipes", "scraped_rating",           "FLOAT"),     # Patch 13
         ("recipes", "scraped_reviews",          "INTEGER"),   # Patch 13
         ("preferences", "bring_list_name",      "TEXT"),      # Patch 16
+        ("preferences", "bring_ollama_normalize", "BOOLEAN DEFAULT 1"),  # Patch 82
         ("weekly_selections", "servings_override", "INTEGER"),   # Patch 69
     ]
     with engine.connect() as conn:

@@ -1266,6 +1266,18 @@ const SettingsPage=({hid})=>{
             }}>Show my Bring! lists</button>
           </div>
         </div>
+        <div>
+          <label style={{display:'flex',alignItems:'flex-start',gap:8,cursor:'pointer'}}>
+            <input type="checkbox" style={{marginTop:2}}
+              checked={prefs.bring_ollama_normalize!==false}
+              onChange={e=>setPrefs(p=>({...p,bring_ollama_normalize:e.target.checked}))}/>
+            <span>Use AI to map ingredient names when pushing to Bring!
+              <span style={{display:'block',fontSize:12,color:'var(--gray)',fontWeight:400,marginTop:2}}>
+                Maps specialty names to common equivalents (e.g. "herbes de provence" → "mixed herbs") for better grocery section categorisation. Disable if results feel too generic.
+              </span>
+            </span>
+          </label>
+        </div>
         <button className="btn-primary" style={{alignSelf:'start'}} onClick={savePrefs}>Save Preferences</button>
       </div></div>}
       {tab==='equipment'&&prefs&&<div className="card">

@@ -501,8 +501,12 @@ async def push_shopping_list_to_bring(
     ).first()
     list_name = prefs.bring_list_name if prefs else None
 
+    prefs_obj = db.query(models.Preference).filter(
+        models.Preference.household_id == household_id
+    ).first()
+    bring_ollama = (prefs_obj.bring_ollama_normalize if prefs_obj and prefs_obj.bring_ollama_normalize is not None else True)
     try:
-        push_result = await bring_client.push_shopping_list(result, list_name=list_name)
+        push_result = await bring_client.push_shopping_list(result, list_name=list_name, use_ollama=bring_ollama)
     except bring_client.BringError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

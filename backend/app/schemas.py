@@ -35,6 +35,7 @@ class PreferenceCreate(BaseModel):
     favorite_rating_threshold: int = 4
     mealie_dinner_tag: str = "dinner-planner"
     bring_list_name: Optional[str] = None   # Patch 16
+    bring_ollama_normalize: Optional[bool] = True   # Patch 82
     notes: Optional[str] = None
 
 
@@ -51,6 +52,7 @@ class PreferenceUpdate(BaseModel):
     favorite_rating_threshold: Optional[int] = None
     mealie_dinner_tag: Optional[str] = None
     bring_list_name: Optional[str] = None   # Patch 16
+    bring_ollama_normalize: Optional[bool] = True   # Patch 82
     notes: Optional[str] = None
 
 
@@ -70,6 +72,7 @@ class PreferenceOut(BaseModel):
     favorite_rating_threshold: int
     mealie_dinner_tag: str
     bring_list_name: Optional[str] = None   # Patch 16
+    bring_ollama_normalize: Optional[bool] = True   # Patch 82
     notes: Optional[str]
     created_at: datetime
     updated_at: datetime

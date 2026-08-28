@@ -1,5 +1,28 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 82: Bring! Ollama normalization toggle + import fix
+
+### New feature
+
+**Settings → Preferences: "Use AI to map ingredient names when pushing to Bring!"**
+
+Checkbox to enable/disable the Ollama pre-normalization pass before Bring!
+catalog matching. On by default. Disable if the AI is making ingredient names
+too generic (e.g. mapping "fresh rosemary" → "herbs" losing specificity).
+
+Stored as `bring_ollama_normalize BOOLEAN` on the Preference row (auto-migrated,
+defaults to `true`). The setting is read in `push_shopping_list_to_bring` and
+passed as `use_ollama` to `bring_client.push_shopping_list()`.
+
+### Bug fix
+
+Missing `from app import ollama_client as _oc` in `bring_client.py` caused
+`NameError: name '_oc' is not defined` on every Bring! push (Patch 59 omission).
+
+VERSION bumped to 10.82.
+
+---
+
 ## Phase 10 — Patch 81: Ollama pre-normalization for Bring! catalog matching
 
 ### New feature

@@ -45,6 +45,7 @@ class Preference(Base):
     favorite_rating_threshold = Column(Integer, nullable=False, default=4)
     mealie_dinner_tag         = Column(String, nullable=False, default="dinner-planner")
     bring_list_name           = Column(String, nullable=True)  # Patch 16: exact Bring! list name to push to
+    bring_ollama_normalize    = Column(Boolean, nullable=True, default=True)   # Patch 82: Ollama pre-normalization for Bring!
     notes                     = Column(String, nullable=True)
     created_at                = Column(DateTime, default=datetime.utcnow)
     updated_at                = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
