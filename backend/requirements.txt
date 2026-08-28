@@ -11,5 +11,5 @@ beautifulsoup4==4.12.3
 lxml==6.1.1
 lxml-html-clean==0.4.5
 pyyaml
-bring-api==0.5.7
+bring-api>=1.0.0
 aiohttp>=3.9

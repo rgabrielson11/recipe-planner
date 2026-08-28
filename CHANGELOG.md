@@ -1,5 +1,28 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 79: upgrade bring-api to v1.x — enables catalog loading
+
+### Bug fix
+
+`requirements.txt` pinned `bring-api==0.5.7`. The methods used for catalog
+loading (`reload_article_translations`, `reload_user_list_settings`) were
+added in v1.0.0 and don't exist in v0.5.7, causing `AttributeError` on
+every Bring! push and falling back to own-items for all entries.
+
+Upgraded to `bring-api>=1.0.0`. All existing methods (`login`, `load_lists`,
+`save_item`) are backward-compatible in v1.x. Requires a **container
+rebuild** to install the updated package.
+
+After rebuild the catalog loading sequence should succeed:
+1. `reload_user_list_settings()` — populates list locale settings
+2. `reload_article_translations()` — downloads locale catalog
+3. If empty, direct HTTP fetch of `articles.en-US.json` as fallback
+4. Items matched to article_ids → sent to Bring! → auto-categorised
+
+VERSION bumped to 10.79.
+
+---
+
 ## Phase 10 — Patch 78: fix Bring! catalog load — remove non-existent method
 
 ### Bug fix
