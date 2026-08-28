@@ -1,5 +1,24 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 80: fix bring-api v1.x dataclass API
+
+### Bug fix
+
+`load_lists()` in bring-api v1.x returns a `BringListResponse` dataclass,
+not a dict. Accessing `["lists"]` raised `TypeError: 'BringListResponse'
+object is not subscriptable`.
+
+Fixed all access patterns:
+- `resp["lists"]` → `resp.lists`
+- `l["name"]` → `l.name` (with hasattr fallback for compatibility)
+- `l["listUuid"]` → `l.listUuid`
+
+Also fixed `list_bring_lists()` helper which had the same issue.
+
+VERSION bumped to 10.80.
+
+---
+
 ## Phase 10 — Patch 79: upgrade bring-api to v1.x — enables catalog loading
 
 ### Bug fix

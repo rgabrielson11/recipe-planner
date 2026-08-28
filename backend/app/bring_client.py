@@ -150,7 +150,8 @@ async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = Non
             raise BringError(f"Bring! login failed — check BRING_EMAIL/BRING_PASSWORD: {e}") from e
 
         try:
-            lists = (await bring.load_lists())["lists"]
+            resp = await bring.load_lists()
+            lists = resp.lists  # BringListResponse dataclass in v1.x
         except BringException as e:
             raise BringError(f"Couldn't load Bring! lists: {e}") from e
 
@@ -161,20 +162,26 @@ async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = Non
 
         target = None
         if list_name:
+            def _lst_name(l): return l.name if hasattr(l,'name') else l.get("name","")
+            def _lst_uuid(l): return l.listUuid if hasattr(l,'listUuid') else l.get("listUuid","")
             target = next(
-                (l for l in lists if l["name"].strip().lower() == list_name.strip().lower()),
+                ({"name":_lst_name(l),"listUuid":_lst_uuid(l)} for l in lists
+                 if _lst_name(l).strip().lower() == list_name.strip().lower()),
                 None,
             )
             if not target:
-                available = ", ".join(l["name"] for l in lists)
+                available = ", ".join(_lst_name(l) for l in lists)
                 raise BringError(
                     f"No Bring! list named '{list_name}' — available: {available}. "
                     "Update 'Bring! list name' in Settings → Preferences to match one exactly."
                 )
         elif len(lists) == 1:
-            target = lists[0]
+            l = lists[0]
+            target = {"name": l.name if hasattr(l,'name') else l.get("name",""),
+                      "listUuid": l.listUuid if hasattr(l,'listUuid') else l.get("listUuid","")}
         else:
-            available = ", ".join(l["name"] for l in lists)
+            def _lst_name(l): return l.name if hasattr(l,'name') else l.get("name","")
+            available = ", ".join(_lst_name(l) for l in lists)
             raise BringError(
                 f"Your Bring! account has {len(lists)} lists ({available}) — set which one to "
                 "use in Settings → Preferences → 'Bring! list name'."
