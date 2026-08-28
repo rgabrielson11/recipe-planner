@@ -1,5 +1,31 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 75: confirm step servings redesign
+
+### Improvement
+
+**Confirm step recipe cards completely redesigned for servings clarity:**
+
+Each recipe now shows:
+- **Base servings** — the recipe's original yield (e.g. "Base: 4")  
+- **Target servings stepper** — large +/− buttons with the serving count
+  prominently displayed; defaults to household size, adjustable per recipe
+- **Scale badge** — green ×1.5 (scaling up) or amber ×0.8 (scaling down);
+  "×1 (as written)" when no scaling needed
+- Cook time, carbs, and shopping count in the subtitle row
+
+The scale factor is calculated live as `round(target / base, 1)` and shown
+inline so it's clear what the shopping list will receive. After locking in,
+the confirmed servings count shows next to each recipe in the import results
+panel.
+
+The header note explains: "Adjust servings per recipe — the shopping list
+will scale ingredients accordingly."
+
+VERSION bumped to 10.75.
+
+---
+
 ## Phase 10 — Patch 74: fix blank page — numPeople state undeclared
 
 ### Bug fix

@@ -865,25 +865,59 @@ const PlannerPage=({hid})=>{
       {step===5&&<div>
         <div className="card" style={{marginBottom:16}}>
           <h3 className="section-title">Confirm Your Selections</h3>
-          {suggestions.filter(s=>confirmed.includes(s.recipe_id)).map(r=>(
-            <div key={r.recipe_id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'1px solid var(--border)',flexWrap:'wrap'}}>
-              <span>🍽️</span>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:600}}>{r.title}</div>
-                <div style={{fontSize:12,color:'var(--gray)'}}>
-                  {r.total_time_minutes?`⏱ ${r.total_time_minutes}m · `:''}🛒 {r.missing_ingredients?.length||0} to buy
-                  {r.scraped_servings&&<span style={{marginLeft:6}}>· base: {r.scraped_servings}</span>}
+          <p style={{fontSize:12,color:'var(--gray)',marginBottom:12}}>
+            Adjust servings per recipe — the shopping list will scale ingredients accordingly.
+            Default is your household size ({numPeople} people).
+          </p>
+          {suggestions.filter(s=>confirmed.includes(s.recipe_id)).map(r=>{
+            const baseServings=parseInt(r.scraped_servings)||null;
+            const targetServings=servingOverrides[r.recipe_id]||numPeople;
+            const scale=baseServings?Math.round((targetServings/baseServings)*10)/10:null;
+            return(
+            <div key={r.recipe_id} style={{padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
+              <div style={{display:'flex',alignItems:'flex-start',gap:8,flexWrap:'wrap'}}>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:600,fontSize:15}}>{r.title}</div>
+                  <div style={{fontSize:12,color:'var(--gray)',marginTop:3,display:'flex',gap:10,flexWrap:'wrap'}}>
+                    {r.total_time_minutes&&<span>⏱ {r.total_time_minutes}m</span>}
+                    {r.carbs_per_serving!=null&&<span>🌾 {Math.round(r.carbs_per_serving)}g carbs</span>}
+                    <span>🛒 {r.missing_ingredients?.length||0} to buy</span>
+                  </div>
                 </div>
+                {!importResults&&(
+                  <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0,flexWrap:'wrap'}}>
+                    {baseServings&&<span style={{fontSize:12,color:'var(--gray)'}}>Base: {baseServings}</span>}
+                    <div style={{display:'flex',alignItems:'center',gap:4}}>
+                      <button className="btn-icon" style={{fontSize:16,padding:'0 4px'}}
+                        disabled={targetServings<=1}
+                        onClick={()=>setServingOverrides(s=>({...s,[r.recipe_id]:Math.max(1,(s[r.recipe_id]||numPeople)-1)}))}
+                      >−</button>
+                      <div style={{textAlign:'center',minWidth:44}}>
+                        <div style={{fontWeight:700,fontSize:18,lineHeight:1}}>{targetServings}</div>
+                        <div style={{fontSize:10,color:'var(--gray)',textTransform:'uppercase',letterSpacing:'.05em'}}>servings</div>
+                      </div>
+                      <button className="btn-icon" style={{fontSize:16,padding:'0 4px'}}
+                        onClick={()=>setServingOverrides(s=>({...s,[r.recipe_id]:(s[r.recipe_id]||numPeople)+1}))}
+                      >+</button>
+                    </div>
+                    {scale&&scale!==1&&(
+                      <span style={{fontSize:12,padding:'2px 8px',borderRadius:12,
+                        background:scale>1?'#dcfce7':'#fef9c3',
+                        color:scale>1?'#166534':'#854d0e',fontWeight:600}}>
+                        ×{scale}
+                      </span>
+                    )}
+                    {scale===1&&<span style={{fontSize:12,color:'var(--gray)'}}>×1 (as written)</span>}
+                  </div>
+                )}
+                {importResults&&(
+                  <span style={{fontSize:13,color:'var(--gray)'}}>
+                    {targetServings} servings{scale&&scale!==1?` (×${scale})`:''}
+                  </span>
+                )}
               </div>
-              {!importResults&&<label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,flexShrink:0}}>
-                <span style={{color:'var(--gray)'}}>Servings:</span>
-                <input type="number" min={1} max={20}
-                  value={servingOverrides[r.recipe_id]||numPeople}
-                  onChange={e=>setServingOverrides(s=>({...s,[r.recipe_id]:+e.target.value}))}
-                  style={{width:50,padding:'3px 6px',border:'1px solid var(--border)',borderRadius:4,textAlign:'center',fontSize:13}}/>
-              </label>}
             </div>
-          ))}
+          );})}
         </div>
 
         {/* Print All Recipes — appears after import */}
