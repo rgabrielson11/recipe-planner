@@ -27,6 +27,7 @@ from typing import Optional
 import aiohttp
 from bring_api.bring import Bring
 from bring_api.exceptions import BringException
+from app import ollama_client as _oc
 
 log = logging.getLogger(__name__)
 
