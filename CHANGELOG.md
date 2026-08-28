@@ -1,5 +1,27 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 83: tighten Bring! Ollama normalization prompt
+
+### Bug fix
+
+The Ollama pre-normalization was too aggressive — collapsing specific
+varieties into generic terms:
+- "snow peas" → "peas" (wrong — different product)
+- "roma tomatoes" → "tomatoes" (wrong — specific variety needed)
+- "cherry tomatoes" → "tomatoes" (wrong)
+- "arborio rice" → "rice" (wrong — specific for risotto)
+
+Updated prompt with explicit rules: KEEP variety distinctions (snow peas,
+roma tomatoes, cherry tomatoes, sweet potato, red onion, spring onion).
+Only simplify truly interchangeable verbose names: strip cooking modifiers
+("boneless skinless"), map foreign/regional names ("herbes de provence" →
+"mixed herbs", "pancetta" → "bacon"), remove grade qualifiers ("extra-virgin
+olive oil" → "olive oil"). When in doubt, keep the original name unchanged.
+
+VERSION bumped to 10.83.
+
+---
+
 ## Phase 10 — Patch 82: Bring! Ollama normalization toggle + import fix
 
 ### New feature

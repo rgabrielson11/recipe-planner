@@ -136,17 +136,28 @@ def normalize_for_bring(names: list[str]) -> dict[str, str]:
 
     items_json = json.dumps(names, ensure_ascii=False)
     prompt = f"""You are a grocery catalog matcher for the Bring! shopping app.
-Given ingredient names, return a JSON object mapping each to its most common
-generic grocery store name — the plain, simple term a shopper would look for
-in a store catalog.
+Given ingredient names, return a JSON object mapping each to the most catalog-
+friendly English name for that specific item.
 
-Rules:
-- Use the simplest, most common English term: "herbes de provence" → "mixed herbs"
-- Drop brand, regional, or specialty qualifiers: "arborio rice" → "rice"
-- Map foreign/specialty names to English equivalents: "pancetta" → "bacon"
-- Keep it to 1-3 words max: "boneless skinless chicken thigh" → "chicken thigh"  
-- If it's already generic and common, keep it: "onion" → "onion"
-- Never output cooking instructions, quantities, or descriptors
+Rules — KEEP specific varieties and types:
+- "snow peas" → "snow peas" (NOT "peas" — different product)
+- "roma tomatoes" → "roma tomatoes" (NOT "tomatoes" — specific variety)
+- "cherry tomatoes" → "cherry tomatoes" (keep the type)
+- "chicken thigh" → "chicken thigh" (NOT "chicken")
+- "sweet potato" → "sweet potato" (NOT "potato")
+- "red onion" → "red onion" (NOT "onion" — different flavor)
+- "spring onion" → "spring onion" (different from onion)
+
+Rules — simplify ONLY truly interchangeable verbose names:
+- "boneless skinless chicken breast" → "chicken breast" (modifiers add nothing)
+- "extra-virgin olive oil" → "olive oil" (grade not a catalog item)
+- "herbes de provence" → "mixed herbs" (foreign name for common herb blend)
+- "pancetta" → "bacon" (equivalent substitute)
+- "arborio rice" → "arborio rice" (keep — it IS a specific type needed for risotto)
+- "demi-baguette" → "baguette" (size modifier not catalog-relevant)
+- "parmigiano-reggiano" → "parmesan" (brand/regional name → common name)
+
+When in doubt, keep the original name unchanged.
 - Output ONLY a valid JSON object, no markdown, no explanation.
 
 Input: {items_json}
