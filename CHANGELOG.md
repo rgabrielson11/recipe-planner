@@ -1,5 +1,27 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 78: fix Bring! catalog load — remove non-existent method
+
+### Bug fix
+
+Log revealed: `'Bring' object has no attribute 'set_list_article_language'`
+— the method call in the catalog loading try block caused an exception that
+was caught and suppressed, leaving `catalog_lookup` empty and all items as
+"own items".
+
+Fix:
+1. Removed the `set_list_article_language()` call (doesn't exist in this
+   version of bring-api).
+2. Added direct en-US fallback: if `reload_article_translations()` returns
+   nothing (e.g. list locale is de-CH which the library skips), fetches
+   `articles.en-US.json` directly using the authenticated Bring! session
+   headers.
+3. Catalog sample logged at INFO so article_id format is visible in Logs.
+
+VERSION bumped to 10.78.
+
+---
+
 ## Phase 10 — Patch 77: Bring! catalog diagnostic logging
 
 ### Diagnostic

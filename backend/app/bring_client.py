@@ -186,21 +186,38 @@ async def push_shopping_list(shopping_list: dict, list_name: Optional[str] = Non
         # to en-US on the target list to ensure the English catalog is loaded.
         catalog_lookup: dict[str, str] = {}
         try:
-            # Set list language to en-US so items match the English catalog
-            await bring.set_list_article_language(target["listUuid"], "en-US")
             await bring.reload_user_list_settings()
             await bring.reload_article_translations()
             raw_translations = getattr(bring, "_Bring__translations", {})
             catalog_lookup = _build_catalog_lookup(raw_translations)
-            log.info("Bring! catalog loaded: %d entries across %d locale(s)",
-                     len(catalog_lookup), len(raw_translations))
+
+            # If translations are empty (e.g. list is set to de-CH default locale
+            # which the library skips), directly inject en-US translations via HTTP
             if not catalog_lookup:
-                log.warning("Bring! catalog empty — user_locale=%s, translation locales=%s",
-                            getattr(bring, 'user_locale', '?'), list(raw_translations.keys()))
-            else:
-                # Log sample entries so we can see the article_id format
-                sample = list(catalog_lookup.items())[:8]
+                log.info("Bring! catalog empty after reload — fetching en-US directly")
+                try:
+                    import aiohttp as _aio
+                    async with _aio.ClientSession() as _s:
+                        async with _s.get(
+                            "https://web.getbring.com/locale/articles.en-US.json",
+                            headers=bring.headers,
+                        ) as _r:
+                            if _r.status == 200:
+                                en_dict = await _r.json(content_type=None)
+                                catalog_lookup = _build_catalog_lookup({"en-US": en_dict})
+                                log.info("Bring! en-US catalog fetched directly: %d entries",
+                                         len(catalog_lookup))
+                            else:
+                                log.warning("Bring! en-US fetch failed: HTTP %s", _r.status)
+                except Exception as _e:
+                    log.warning("Bring! en-US direct fetch failed: %s", _e)
+
+            log.info("Bring! catalog ready: %d entries", len(catalog_lookup))
+            if catalog_lookup:
+                sample = list(catalog_lookup.items())[:6]
                 log.info("Bring! catalog sample (name→article_id): %s", sample)
+            else:
+                log.warning("Bring! catalog still empty — all items will be own items")
         except Exception as e:
             log.warning("Could not load Bring! catalog — items may be uncategorized: %s", e)
 
