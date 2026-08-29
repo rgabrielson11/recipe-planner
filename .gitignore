@@ -32,3 +32,4 @@ data/db/
 # ── OS ───────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+backend/app/data/recipe_sources.yaml

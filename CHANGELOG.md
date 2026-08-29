@@ -1,5 +1,42 @@
 # Recipe Planner — Changelog
 
+## Phase 11 — Patch 1: recipe_sources.yaml removed from git tracking
+
+### Bug fix
+
+`recipe_sources.yaml` was tracked in git, meaning every `git pull` reset
+it to the repo defaults (HelloFresh + Home Chef only), silently wiping any
+custom sources added via the UI (Just A Pinch, Chopped, etc.).
+
+Fixes:
+- `backend/app/data/recipe_sources.yaml` added to `.gitignore`
+- Removed from git tracking (`git rm --cached`) — file stays on disk
+- `entrypoint.sh` updated: `recipe_sources.yaml` moved from code-owned
+  (always overwrite) to user-owned (copy only if missing/empty)
+
+Future `git pull` operations will never touch the live sources config.
+Custom sources now survive restarts and updates permanently.
+
+VERSION bumped to 11.0 — beginning Phase 11.
+
+---
+
+## Phase 10 — Patch 95: fix delete-source-stubs accepts domain or name
+
+### Bug fix
+
+The Database page delete button passes the domain (`justapinch.com`) as
+`source_name`, but `DELETE /api/config/source-stubs` only matched against
+the source's configured name (`Just A Pinch`), returning 404.
+
+Fixed: the endpoint now accepts either the configured name OR a bare domain.
+When the name doesn't match a configured source, it treats the value as a
+domain string and deletes stubs whose `source_url` contains that domain.
+
+VERSION bumped to 10.95.
+
+---
+
 ## Phase 10 — Patch 94: fix recipe_sources.yaml overwrite on container restart
 
 ### Bug fix
