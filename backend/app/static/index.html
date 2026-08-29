@@ -590,7 +590,7 @@ const PlannerPage=({hid})=>{
       const r=await get(`/meal-plan/suggest?household_id=${hid}&week_start_date=${week}&num=${n}`);
       clearInterval(poll);setProgress(100);setProgressLabel('Done!');
       setTimeout(()=>{setProgress(0);setProgressLabel('');},800);
-      setSug(r.suggestions||[]);toast(`${r.suggestions?.length||0} suggestions loaded`);setStep(4);
+      setSug(r.suggestions||[]);toast(`${r.suggestions?.length||0} suggestions loaded`);setStep(3);
     }catch(e){clearInterval(poll);setProgress(0);setProgressLabel('');toast(e.message,'error');}
     finally{setLoading(false);}
   };
@@ -613,7 +613,7 @@ const PlannerPage=({hid})=>{
     setLoading(true);
     try{
       const r=await post('/meal-plan/selections',{household_id:hid,week_start_date:week,recipe_ids:confirmed,servings_overrides:servingOverrides});
-      setImportResults(r.mealie_imports||[]);toast(`${confirmed.length} meals confirmed — importing to Mealie in background`);setStep(5);
+      setImportResults(r.mealie_imports||[]);toast(`${confirmed.length} meals confirmed — importing to Mealie in background`);setStep(4);
     }catch(e){toast(e.message,'error');}
     finally{setLoading(false);}
   };
@@ -632,7 +632,7 @@ const PlannerPage=({hid})=>{
     setLoading(true);
     try{
       const r=await get(`/meal-plan/shopping-list?household_id=${hid}&week_start_date=${week}`);
-      setSL(r);setExtraBuyItems([]);setStep(6);
+      setSL(r);setExtraBuyItems([]);setStep(5);
     }catch(e){toast(e.message,'error');}
     finally{setLoading(false);}
   };
@@ -665,92 +665,11 @@ const PlannerPage=({hid})=>{
             })}
           </div>
         </div>
-        <button className="btn-primary" onClick={async()=>{
-          setFeedbackLoading(true);
-          try{
-            const r=await get(`/meal-plan/pending-feedback?household_id=${hid}&week_start_date=${week}`);
-            setFeedback(r||[]);
-            if(!r||r.length===0){setFeedbackLoading(false);setStep(2);return;}
-          }catch(e){setFeedback([]);setStep(2);return;}
-          finally{setFeedbackLoading(false);}
-          setStep(1);
-        }}>Continue →</button>
+        <button className="btn-primary" onClick={()=>setStep(1)}>Continue →</button>
       </div>}
 
-      {/* Step 1: Last Week Feedback */}
+      {/* Step 1: Pantry */}
       {step===1&&<div>
-        <div style={{marginBottom:16}}>
-          <h2 style={{fontSize:18,fontWeight:700,margin:'0 0 4px'}}>How did last week's meals go?</h2>
-          <p style={{fontSize:13,color:'var(--gray)',margin:0}}>
-            All meals not yet rated — rate, block, or re-queue to keep your recommendations fresh
-          </p>
-        </div>
-        {feedbackLoading&&<div className="spinner"/>}
-        {!feedbackLoading&&feedback.length===0&&(
-          <div className="card" style={{textAlign:'center',padding:40,color:'var(--gray)'}}>
-            <div style={{fontSize:40,marginBottom:8}}>📭</div>
-            <p>No meals recorded for last week — nothing to review.</p>
-          </div>
-        )}
-        {feedback.map(entry=>(
-          <div key={entry.entry_id} className="card" style={{marginBottom:12}}>
-            <div style={{display:'flex',alignItems:'flex-start',gap:10,flexWrap:'wrap'}}>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:600,fontSize:15}}>{entry.title}</div>
-                <div style={{fontSize:12,color:'var(--gray)'}}>
-                  {entry.week_start_date&&<span style={{marginRight:8}}>📅 {fmt(entry.week_start_date)}</span>}
-                  {entry.source_url&&<a href={entry.source_url} target="_blank" rel="noopener" style={{color:'var(--gray)'}}>🔗 Source</a>}
-                </div>
-              </div>
-              {feedbackDone[entry.entry_id]&&(
-                <span className="badge badge-green">✓ {feedbackDone[entry.entry_id]}</span>
-              )}
-            </div>
-            {!feedbackDone[entry.entry_id]&&(
-              <div style={{marginTop:10,display:'flex',flexWrap:'wrap',gap:8,alignItems:'center'}}>
-                {/* Star rating */}
-                <div style={{display:'flex',gap:2}}>
-                  {[1,2,3,4,5].map(n=>(
-                    <button key={n} className="btn-icon"
-                      style={{fontSize:20,opacity:(ratings[entry.entry_id]||0)>=n?1:.3}}
-                      onClick={async()=>{
-                        setRatings(r=>({...r,[entry.entry_id]:n}));
-                        try{
-                          await post(`/meal-plan/entries/${entry.entry_id}/review`,{rating:n});
-                          setFeedbackDone(d=>({...d,[entry.entry_id]:`Rated ${n}★`}));
-                          toast(`${entry.title} — ${n}★`);
-                        }catch(e){toast(e.message,'error');}
-                      }}>⭐</button>
-                  ))}
-                </div>
-                <button className="btn-secondary btn-sm" onClick={async()=>{
-                  try{
-                    await post(`/recipes/${entry.recipe_id}/reject`,{household_id:hid,reason_category:'dislike'});
-                    toast(`${entry.title} blocked`);
-                    setTimeout(()=>setFeedback(f=>f.filter(e=>e.entry_id!==entry.entry_id)),400);
-                  }catch(e){toast(e.message,'error');}
-                }}>🚫 Block</button>
-                <button className="btn-secondary btn-sm" onClick={async()=>{
-                  try{
-                    await post(`/meal-plan/history/add`,{household_id:hid,week_start_date:week,recipe_ids:[entry.recipe_id]});
-                    toast(`${entry.title} added to this week`);
-                    setTimeout(()=>setFeedback(f=>f.filter(e=>e.entry_id!==entry.entry_id)),400);
-                  }catch(e){toast(e.message,'error');}
-                }}>🔄 Make again this week</button>
-              </div>
-            )}
-          </div>
-        ))}
-        <div style={{marginTop:16,display:'flex',gap:8}}>
-          <button className="btn-secondary" onClick={()=>setStep(0)}>← Back</button>
-          <button className="btn-primary" onClick={()=>setStep(2)}>
-            {feedback.length===0?'Continue →':'Continue to Pantry →'}
-          </button>
-        </div>
-      </div>}
-
-      {/* Step 2: Pantry */}
-      {step===2&&<div>
         <div className="card" style={{marginBottom:16}}>
           <h3 className="section-title">Pantry Status</h3>
           {expired.length>0&&<div className="alert alert-warning">⚠️ {expired.length} expired: {expired.map(p=>p.name).join(', ')}</div>}
@@ -759,11 +678,11 @@ const PlannerPage=({hid})=>{
             <div className="stat-card" style={{flex:1}}><div className="stat-val" style={{color:'var(--red)'}}>{expired.length}</div><div className="stat-label">Expired</div></div>
           </div>
         </div>
-        <button className="btn-primary" onClick={()=>setStep(3)}>Continue →</button>
+        <button className="btn-primary" onClick={()=>setStep(2)}>Continue →</button>
       </div>}
 
-      {/* Step 3: Intent */}
-      {step===3&&<div>
+      {/* Step 2: Intent */}
+      {step===2&&<div>
         <div className="card" style={{marginBottom:16}}>
           <h3 className="section-title">What's on the menu this week?</h3>
           <div style={{display:'grid',gap:14}}>
@@ -798,7 +717,7 @@ const PlannerPage=({hid})=>{
       </div>}
 
       {/* Step 2 */}
-      {step===4&&<div>
+      {step===3&&<div>
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
           <h3 className="section-title" style={{margin:0,flex:1}}>{suggestions.length} Suggestions — {confirmed.length} selected</h3>
           <input placeholder="🔍 Search recipes…" value={sugSearch}
@@ -856,13 +775,13 @@ const PlannerPage=({hid})=>{
           <strong>✓ Selected ({confirmed.length}):</strong>{' '}
           {suggestions.filter(s=>confirmed.includes(s.recipe_id)).map(s=>s.title).join(', ')}
           <div style={{marginTop:12}}>
-            <button className="btn-success" onClick={()=>setStep(5)}>Confirm {confirmed.length} Selection{confirmed.length!==1?'s':''} →</button>
+            <button className="btn-success" onClick={()=>setStep(4)}>Confirm {confirmed.length} Selection{confirmed.length!==1?'s':''} →</button>
           </div>
         </div>}
       </div>}
 
       {/* Step 3 */}
-      {step===5&&<div>
+      {step===4&&<div>
         <div className="card" style={{marginBottom:16}}>
           <h3 className="section-title">Confirm Your Selections</h3>
           <p style={{fontSize:12,color:'var(--gray)',marginBottom:12}}>
@@ -993,7 +912,7 @@ const PlannerPage=({hid})=>{
       </div>}
 
       {/* Step 4: Shopping List */}
-      {step===6&&<div>
+      {step===5&&<div>
         {!shoppingList?(loading?<div className="spinner"/>:<button className="btn-primary" onClick={loadShoppingList}>🛒 Load Shopping List</button>):<>
           {(shoppingList.warnings||[]).map((w,i)=><div key={i} className="alert alert-warning">⚠️ {w}</div>)}
 
@@ -1356,12 +1275,14 @@ const SourcesPage=()=>{
   const [scrapeStatus,setScrapeStatus]=useState(null);
   const [scraping,setScraping]=useState(false);
   const [scrapingSource,setScrapingSource]=useState(null);
+  const [stubCounts,setStubCounts]=useState({});
   const toast=useToast();
 
   const load=async()=>{
     setLoading(true);setError(null);
     try{
-      const [s,d,st]=await Promise.all([get('/config/sources'),get('/config/discovery'),get('/config/scrape-status').catch(()=>null)]);      setSources(Array.isArray(s)?s:[]); setDisc(d); setScrapeStatus(st);
+      const [s,d,st,sc]=await Promise.all([get('/config/sources'),get('/config/discovery'),get('/config/scrape-status').catch(()=>null),get('/config/source-stub-counts').catch(()=>({}))]);
+      setSources(Array.isArray(s)?s:[]); setDisc(d); setScrapeStatus(st); setStubCounts(sc||{});
     }catch(e){setError(e.message);}
     finally{setLoading(false);}
   };
@@ -1470,7 +1391,7 @@ const SourcesPage=()=>{
             <div key={src.name} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
               <label className="toggle" title="Disable"><input type="checkbox" checked={true} onChange={()=>toggleEnabled(src)}/><span className="toggle-slider"/></label>
               <div style={{flex:1}}>
-                <div style={{fontWeight:600,fontSize:14}}>{src.name}</div>
+                <div style={{fontWeight:600,fontSize:14}}>{src.name}{stubCounts[src.name]!=null&&<span className="badge badge-blue" style={{marginLeft:8,fontWeight:400,fontSize:11}}>{stubCounts[src.name]} stubs</span>}</div>
                 <div style={{fontSize:12,color:'var(--gray)'}}>
                   {(src.category_urls||[]).length} page URL{(src.category_urls||[]).length!==1?'s':''}
                   {src.notes&&<> · <em>{String(src.notes).slice(0,70)}{String(src.notes).length>70?'…':''}</em></>}
@@ -1704,6 +1625,7 @@ const DatabasePage=()=>{
                 <th style={{textAlign:'left',padding:'6px 0',color:'var(--gray)',fontWeight:500}}>Source</th>
                 <th style={{textAlign:'right',padding:'6px 0',color:'var(--gray)',fontWeight:500}}>Stubs</th>
                 <th style={{textAlign:'right',padding:'6px 0',color:'var(--gray)',fontWeight:500}}>Share</th>
+                <th style={{textAlign:'right',padding:'6px 0',color:'var(--gray)',fontWeight:500}}></th>
               </tr></thead>
               <tbody>
                 {Object.entries(stats.stubs_by_source).map(([src,cnt])=>(
@@ -1712,6 +1634,14 @@ const DatabasePage=()=>{
                     <td style={{textAlign:'right',fontWeight:600,padding:'7px 0'}}>{cnt}</td>
                     <td style={{textAlign:'right',color:'var(--gray)',padding:'7px 0'}}>
                       {stats.total_stubs>0?Math.round(cnt/stats.total_stubs*100)+'%':'—'}
+                    </td>
+                    <td style={{padding:'7px 0',textAlign:'right'}}>
+                      <button className="btn-icon" style={{color:'#dc2626',fontSize:12}} title={`Delete all stubs from ${src}`}
+                        onClick={()=>{if(window.confirm(`Delete all ${cnt} stubs from ${src}? Cannot be undone.`)){
+                          del(`/config/source-stubs?source_name=${encodeURIComponent(src)}`)
+                            .then(r=>{toast(`Deleted ${r.deleted} stubs`);load();})
+                            .catch(e=>toast(e.message,'error'));
+                        }}}>🗑️</button>
                     </td>
                   </tr>
                 ))}
@@ -1925,6 +1855,14 @@ const HistoryPage=({hid})=>{
                         toast(`${r.title} added to this week`);
                       }catch(e){toast(e.message,'error');}
                     }}>+ This week</button>
+                  <button className="btn-secondary btn-sm" style={{color:'#dc2626'}}
+                    onClick={async()=>{
+                      try{
+                        await del(`/meal-plan/selections/${r.recipe_id}?household_id=${hid}&week_start_date=${w.week_start_date}`);
+                        setHistoryDone(d=>({...d,[r.recipe_id]:"Didn't make"}));
+                        toast(`${r.title} removed from plan`);
+                      }catch(e){toast(e.message,'error');}
+                    }}>✕ Didn't make</button>
                 </div>
               }
             </div>

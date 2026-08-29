@@ -446,87 +446,88 @@ def add_to_mealie_meal_plan(slug: str, date_str: str, entry_type: str = "dinner"
 
 def patch_recipe_ingredients(slug: str, ingredient_strings: list[str], base_servings: Optional[float] = None) -> None:
     """
-    Re-parse ingredient strings from our recipe-scrapers data and PATCH the
-    Mealie recipe with properly structured quantity/unit/food fields.
-    This fixes the Mealie UI showing 0 quantity because its own scraper
-    couldn't parse the structured data from the source site.
+    Re-parse our scraped ingredient strings and update the Mealie recipe's
+    ingredient quantities/units in-place, preserving Mealie's food references.
+    Only updates quantity=0 or null ingredients — leaves correctly parsed ones alone.
     """
     _check_configured()
     import re as _re
 
-    # Unit canonicalization for Mealie
+    _FRAC = {"¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 1/3, "⅔": 2/3,
+             "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875}
     _UNIT_MAP = {
         "tsp": "teaspoon", "tbsp": "tablespoon", "tablespoons": "tablespoon",
         "teaspoons": "teaspoon", "cups": "cup", "oz": "ounce", "ounces": "ounce",
-        "lbs": "pound", "lb": "pound", "pounds": "pound", "grams": "gram",
-        "g": "gram", "kg": "kilogram", "ml": "milliliter", "l": "liter",
-        "cloves": "clove", "slices": "slice", "pieces": "piece",
-        "cans": "can", "packages": "package",
+        "lbs": "pound", "lb": "pound", "pounds": "pound", "g": "gram",
+        "grams": "gram", "kg": "kilogram", "ml": "milliliter", "l": "liter",
+        "cloves": "clove",
     }
     _ING_RE = _re.compile(
-        r"^\s*(?P<qty>[\d¼½¾⅓⅔⅛⅜⅝⅞]+(?:[\.\/][\d]+)?)"
+        r"^\s*(?P<qty>[\d¼½¾⅓⅔⅛⅜⅝⅞]+(?:[\.\/]\d+)?)"
         r"\s*(?P<unit>cups?|tbsp|tsp|tablespoons?|teaspoons?|lbs?|oz|g|kg|ml|l|"
-        r"ounces?|pounds?|grams?|cloves?|slices?|pieces?|cans?|packages?|"
-        r"units?|each|pinch(?:es)?|dash(?:es)?)?"
-        r"(?:\(s\))?\s+(?:of\s+)?(?P<name>.+)$",
+        r"ounces?|pounds?|grams?|cloves?)?"
+        r"(?:\(s\))?\s",
         _re.IGNORECASE,
     )
-    _FRAC = {"¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 0.333, "⅔": 0.667,
-             "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875}
 
-    def _parse_qty(s: str) -> Optional[float]:
-        for ch, val in _FRAC.items():
+    def _qty(s: str) -> Optional[float]:
+        for ch, v in _FRAC.items():
             if ch in s:
                 rest = s.replace(ch, "").strip()
-                try:
-                    return val + float(rest) if rest else val
-                except ValueError:
-                    return val
+                try: return v + float(rest) if rest else v
+                except ValueError: return v
         try:
             if "/" in s:
                 n, d = s.split("/", 1)
-                return float(n) / float(d)
-            return float(s)
+                return float(n.strip()) / float(d.strip())
+            return float(s.strip())
         except (ValueError, ZeroDivisionError):
             return None
 
-    mealie_ings = []
+    # Build a lookup from our parsed strings: index → (qty, unit)
+    parsed: list[tuple] = []
     for raw in ingredient_strings:
-        if not raw or not raw.strip():
-            continue
-        cleaned = _re.sub(r"\(\s*[\d\.]+\s*(?:oz|g|kg|ml|l|lb|lbs)?\s*\)", "", raw).strip()
-        m = _ING_RE.match(cleaned)
-        qty = unit = name = None
+        m = _ING_RE.match(raw.strip())
         if m:
-            qty = _parse_qty(m.group("qty"))
-            unit_raw = m.group("unit")
-            unit = _UNIT_MAP.get((unit_raw or "").lower(), unit_raw)
-            if unit and unit.lower() in ("unit", "units", "each"):
-                unit = None
-            raw_name = _re.sub(r"\(.*?\)", "", m.group("name")).split(",")[0].strip()
-            name = raw_name or cleaned
+            q = _qty(m.group("qty"))
+            u_raw = m.group("unit")
+            u = _UNIT_MAP.get((u_raw or "").lower(), u_raw)
+            if u and u.lower() in ("unit", "units", "each"):
+                u = None
+            parsed.append((q, u))
         else:
-            name = cleaned
-
-        ing: dict = {
-            "quantity": qty,
-            "note":     raw,
-            "referenceId": None,
-        }
-        if unit:
-            ing["unit"] = {"name": unit}
-        if name:
-            ing["food"] = {"name": name.title()}
-        mealie_ings.append(ing)
-
-    if not mealie_ings:
-        return
+            parsed.append((None, None))
 
     try:
         detail = get_recipe(slug)
-        detail["recipeIngredient"] = mealie_ings
-        if base_servings and base_servings > 0:
+        mealie_ings = detail.get("recipeIngredient", [])
+        changed = 0
+
+        for i, ing in enumerate(mealie_ings):
+            if i >= len(parsed):
+                break
+            q, u = parsed[i]
+            if q is None:
+                continue
+
+            cur_qty = ing.get("quantity")
+            # Only update if Mealie has 0 or null quantity
+            if cur_qty and cur_qty != 0.0:
+                continue
+
+            ing["quantity"] = q
+            # Only update unit if Mealie has none and we parsed one
+            if u and ing.get("unit") is None:
+                ing["unit"] = {"name": u}
+            changed += 1
+
+        if changed == 0:
+            log.info("patch_recipe_ingredients: all quantities already set for '%s'", slug)
+            return
+
+        if base_servings and base_servings > 0 and not detail.get("recipeServings"):
             detail["recipeServings"] = base_servings
+
         r = requests.patch(
             f"{MEALIE_BASE_URL}/api/recipes/{slug}",
             headers=_headers(),
@@ -534,6 +535,8 @@ def patch_recipe_ingredients(slug: str, ingredient_strings: list[str], base_serv
             timeout=_TIMEOUT,
         )
         r.raise_for_status()
-        log.info("Patched %d ingredients on Mealie recipe '%s'", len(mealie_ings), slug)
+        log.info("Patched %d ingredient quantities on Mealie recipe '%s'", changed, slug)
     except Exception as e:
         log.warning("patch_recipe_ingredients failed for slug=%s: %s", slug, e)
+
+

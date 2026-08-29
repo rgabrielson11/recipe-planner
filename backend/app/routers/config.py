@@ -383,6 +383,62 @@ def get_version():
     }
 
 
+
+@router.get("/source-stub-counts")
+def get_source_stub_counts(db: Session = Depends(get_db)):
+    """Return stub count per source name for the Sources page."""
+    from urllib.parse import urlparse
+    sources = config_files.get_recipe_sources().get("sources", [])
+    result = {}
+    all_stubs = db.query(models.Recipe).filter(
+        models.Recipe.source_url.isnot(None)
+    ).all()
+    for src in sources:
+        name = src.get("name", "")
+        cat_urls = src.get("category_urls", [])
+        domains = set()
+        for cu in cat_urls:
+            try:
+                domains.add(urlparse(cu).netloc)
+            except Exception:
+                pass
+        count = sum(
+            1 for s in all_stubs
+            if s.source_url and not s.source_url.startswith("mealie:")
+            and urlparse(s.source_url).netloc in domains
+        )
+        result[name] = count
+    return result
+
+
+@router.delete("/source-stubs")
+def delete_source_stubs(source_name: str, db: Session = Depends(get_db)):
+    """Delete all recipe stubs from a named source."""
+    from urllib.parse import urlparse
+    sources = config_files.get_recipe_sources().get("sources", [])
+    src = next((s for s in sources if s.get("name") == source_name), None)
+    if not src:
+        raise HTTPException(status_code=404, detail=f"Source '{source_name}' not found")
+    domains = set()
+    for cu in src.get("category_urls", []):
+        try:
+            domains.add(urlparse(cu).netloc)
+        except Exception:
+            pass
+    stubs = db.query(models.Recipe).filter(
+        models.Recipe.source_url.isnot(None),
+        models.Recipe.mealie_slug.is_(None),
+    ).all()
+    to_delete = [s for s in stubs
+                 if not s.source_url.startswith("mealie:")
+                 and urlparse(s.source_url).netloc in domains]
+    count = len(to_delete)
+    for s in to_delete:
+        db.delete(s)
+    db.commit()
+    log.info("Deleted %d stubs for source '%s'", count, source_name)
+    return {"deleted": count, "source": source_name}
+
 # ── Protein categories ────────────────────────────────────────────────────────
 
 @router.get("/protein-categories")

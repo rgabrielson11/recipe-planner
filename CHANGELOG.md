@@ -1,5 +1,40 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 91: six queued improvements
+
+### 1. Single-source scrape — Phase 2 now scoped to source
+`collect_and_scrape(source_name=...)` already filtered Phase 1 discovery
+but Phase 2 stale-stub re-scrape iterated all stubs. Now filters to only
+stubs whose URL domain matches the source's category URLs.
+
+### 2. Remove Last Week Feedback from planning flow
+Feedback step (step 1) removed from the planner. Continue on Select Week
+now goes directly to Pantry Review. Steps renumbered: Pantry=1, Intent=2,
+Suggestions=3, Confirm=4, Shopping List=5. Feedback remains on Past Meals.
+
+### 3. Stub count per source on Sources page
+Each source card shows a "N stubs" blue badge. Loaded via
+`GET /config/source-stub-counts` alongside sources on page mount.
+
+### 4. Delete stubs by source on Database page
+Each row in the stubs-by-source table gets a 🗑️ button.
+Calls `DELETE /config/source-stubs?source_name=X` with confirm dialog.
+
+### 5. "Didn't make" on Past Meals
+Each planned recipe in the history weeks shows "✕ Didn't make" button.
+Calls `DELETE /meal-plan/selections/{recipe_id}?household_id=&week_start_date=`
+which removes `WeeklySelection` and `MealPlanEntry` without blocking the recipe.
+
+### 6. Mealie ingredient PATCH — in-place quantity update
+`patch_recipe_ingredients` rewritten to update `quantity` in-place on
+Mealie's existing ingredient objects, preserving food UUIDs/references.
+Only updates ingredients with `quantity=0` or `null`. Prevents 500 errors
+from sending food objects without Mealie UUIDs.
+
+VERSION bumped to 10.91.
+
+---
+
 ## Phase 10 — Patch 90: fix recipe search page blank — searchServings in wrong component
 
 ### Bug fix

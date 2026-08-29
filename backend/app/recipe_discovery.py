@@ -862,8 +862,19 @@ def collect_and_scrape(
         # them as stale here backfills rating data within one scrape budget
         # instead of waiting a full stub_rescrape_days cycle.
         cutoff = datetime.utcnow() - timedelta(days=rescrape_days)
+        # When scraping a single source, restrict stale re-scrape to that source's URLs
+        _stale_pool = all_stubs
+        if source_name and sources:
+            import urllib.parse as _up
+            _src_domains = set()
+            for _s in sources:
+                for _cu in (_s.get("category_urls") or []):
+                    _src_domains.add(_up.urlparse(_cu).netloc)
+            if _src_domains:
+                _stale_pool = [s for s in all_stubs
+                               if _up.urlparse(s.source_url).netloc in _src_domains]
         stale = [
-            s for s in all_stubs
+            s for s in _stale_pool
             if not s.last_scraped_at or s.last_scraped_at < cutoff
             or not s.scraped_tokens_json or s.scraped_rating is None
         ]

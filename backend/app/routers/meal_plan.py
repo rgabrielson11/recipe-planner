@@ -851,3 +851,33 @@ def backfill_mealie_ingredients(household_id: str, db: Session = Depends(get_db)
             errors.append(f"{r.title}: {e}")
 
     return {"patched": len(patched), "errors": errors, "recipes": patched}
+
+
+@router.delete("/selections/{recipe_id}")
+def didnt_make(recipe_id: str, household_id: str, week_start_date: str, db: Session = Depends(get_db)):
+    """
+    Remove a recipe from this week's plan without blocking it.
+    "Didn't make" — removes WeeklySelection and MealPlanEntry for the recipe+week
+    so it can naturally resurface as a suggestion in future weeks.
+    """
+    from datetime import date as _date
+    try:
+        week = _date.fromisoformat(week_start_date)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid week_start_date")
+
+    deleted_sel = db.query(models.WeeklySelection).filter(
+        models.WeeklySelection.household_id == household_id,
+        models.WeeklySelection.recipe_id == recipe_id,
+        models.WeeklySelection.week_start_date == week,
+    ).delete(synchronize_session=False)
+
+    deleted_entry = db.query(models.MealPlanEntry).filter(
+        models.MealPlanEntry.household_id == household_id,
+        models.MealPlanEntry.recipe_id == recipe_id,
+        models.MealPlanEntry.week_start_date == week,
+    ).delete(synchronize_session=False)
+
+    db.commit()
+    log.info("Didn't make: removed recipe %s for household %s week %s", recipe_id, household_id, week)
+    return {"removed": recipe_id, "selections": deleted_sel, "entries": deleted_entry}
