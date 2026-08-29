@@ -9,10 +9,10 @@
 # Two tiers of YAML:
 #
 #   CODE-OWNED  (always overwritten from image if changed)
-#     recipe_sources.yaml — discovery sources, scrape budget, non-dinner
-#                           filter, background job settings.
+#     protein_categories.yaml  — protein groups (synced; user edits via UI)
 #
 #   USER-OWNED  (copied from image only if missing OR empty)
+#     recipe_sources.yaml      — discovery sources added/edited via UI
 #     pantry_staples.yaml      — household always-on-hand list
 #     package_sizes.yaml       — retail package sizes for shopping rounding
 #     rejection_reasons.yaml   — rejection vocabulary and permanence flags
@@ -26,7 +26,7 @@ echo "[entrypoint] Syncing YAML configs..."
 mkdir -p "$DATA"
 
 # ── Code-owned: always update from image if content differs ──────────────────
-for f in recipe_sources.yaml protein_categories.yaml; do
+for f in protein_categories.yaml; do
     if [ -f "$DEFAULTS/$f" ]; then
         if [ -f "$DATA/$f" ] && diff -q "$DEFAULTS/$f" "$DATA/$f" > /dev/null 2>&1; then
             echo "[entrypoint] $f is already up to date"
@@ -38,7 +38,7 @@ for f in recipe_sources.yaml protein_categories.yaml; do
 done
 
 # ── User-owned: copy if missing OR empty (empty = broken from failed init) ────
-for f in pantry_staples.yaml package_sizes.yaml rejection_reasons.yaml cooking_vocabulary.yaml; do
+for f in recipe_sources.yaml pantry_staples.yaml package_sizes.yaml rejection_reasons.yaml cooking_vocabulary.yaml; do
     if [ -f "$DEFAULTS/$f" ]; then
         # -s = file exists and has size > 0
         if [ ! -s "$DATA/$f" ]; then

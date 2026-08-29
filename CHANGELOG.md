@@ -1,5 +1,25 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 94: fix recipe_sources.yaml overwrite on container restart
+
+### Bug fix
+
+`recipe_sources.yaml` was classified as **code-owned** in `entrypoint.sh`,
+meaning the container overwrote it with image defaults (HelloFresh + Home Chef
+only) on every restart where the file differed. Any sources added via the UI
+(Just A Pinch, Chopped, etc.) were silently lost.
+
+Fixed: `recipe_sources.yaml` moved to the **user-owned** tier — the entrypoint
+now only copies it from image defaults when the file is missing or empty, never
+overwriting a customised version. `protein_categories.yaml` remains code-owned
+(it has a UI-based editing flow that survives the sync).
+
+**Requires a container rebuild** to deploy the updated entrypoint.sh.
+
+VERSION bumped to 10.94.
+
+---
+
 ## Phase 10 — Patch 93: blocked section cleanup; recipe search full card
 
 ### Changes
