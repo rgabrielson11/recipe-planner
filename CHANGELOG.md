@@ -1,5 +1,29 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 93: blocked section cleanup; recipe search full card
+
+### Changes
+
+**Past Meals — blocked section: Unblock only**
+The blocked recipes card now shows only ✅ Unblock. Removed the
+"+ This week" and "✕ Didn't make" buttons which don't make sense
+for permanently blocked recipes.
+
+**Recipe Search — full card parity with suggestions page**
+Search result cards now expand/collapse like suggestion cards. Expanded view shows:
+- 🔗 View original source link
+- 🥘 View in Mealie link (when recipe is in Mealie)
+- Servings input + **+ Add to plan** button (when not already in plan)
+- ✓ In this week's plan badge (when already planned)
+- 🚫 Block / ✅ Unblock toggle
+- Protein badge, cook time, carbs, servings in header row
+
+Prefs (for Mealie URL) and current week's plan loaded on page mount.
+
+VERSION bumped to 10.93.
+
+---
+
 ## Phase 10 — Patch 92: fix STEPS array + Didn't make placement
 
 ### Bug fixes

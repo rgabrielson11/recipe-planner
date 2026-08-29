@@ -1841,37 +1841,19 @@ const HistoryPage=({hid})=>{
               </div>
               {historyDone[r.recipe_id]
                 ?<span className="badge badge-green">✓ {historyDone[r.recipe_id]}</span>
-                :<div style={{display:'flex',gap:6}}>
-                  <button className="btn-secondary btn-sm" disabled={unblocking[r.recipe_id]}
-                    onClick={async()=>{
-                      setUnblocking(u=>({...u,[r.recipe_id]:true}));
-                      try{
-                        await del(`/recipes/${r.recipe_id}/reject?household_id=${hid}`);
-                        setHistoryDone(d=>({...d,[r.recipe_id]:'Unblocked'}));
-                        setBlocked(b=>b.filter(x=>x.recipe_id!==r.recipe_id));
-                        toast(`${r.title} unblocked`);
-                      }catch(e){toast(e.message,'error');}
-                      finally{setUnblocking(u=>({...u,[r.recipe_id]:false}));}
-                    }}>
-                    {unblocking[r.recipe_id]?'Unblocking…':'✅ Unblock'}
-                  </button>
-                  <button className="btn-secondary btn-sm"
-                    onClick={async()=>{
-                      try{
-                        await post(`/meal-plan/history/add`,{household_id:hid,week_start_date:weekMonday(),recipe_ids:[r.recipe_id]});
-                        setHistoryDone(d=>({...d,[r.recipe_id]:'Added to this week'}));
-                        toast(`${r.title} added to this week`);
-                      }catch(e){toast(e.message,'error');}
-                    }}>+ This week</button>
-                  <button className="btn-secondary btn-sm" style={{color:'#dc2626'}}
-                    onClick={async()=>{
-                      try{
-                        await del(`/meal-plan/selections/${r.recipe_id}?household_id=${hid}&week_start_date=${w.week_start_date}`);
-                        setHistoryDone(d=>({...d,[r.recipe_id]:"Didn't make"}));
-                        toast(`${r.title} removed from plan`);
-                      }catch(e){toast(e.message,'error');}
-                    }}>✕ Didn't make</button>
-                </div>
+                :<button className="btn-secondary btn-sm" disabled={unblocking[r.recipe_id]}
+                  onClick={async()=>{
+                    setUnblocking(u=>({...u,[r.recipe_id]:true}));
+                    try{
+                      await del(`/recipes/${r.recipe_id}/reject?household_id=${hid}`);
+                      setHistoryDone(d=>({...d,[r.recipe_id]:'Unblocked'}));
+                      setBlocked(b=>b.filter(x=>x.recipe_id!==r.recipe_id));
+                      toast(`${r.title} unblocked`);
+                    }catch(e){toast(e.message,'error');}
+                    finally{setUnblocking(u=>({...u,[r.recipe_id]:false}));}
+                  }}>
+                  {unblocking[r.recipe_id]?'Unblocking…':'✅ Unblock'}
+                </button>
               }
             </div>
           ))}
@@ -1888,12 +1870,16 @@ const RecipeSearchPage=({hid})=>{
   const [adding,setAdding]=useState({});
   const [done,setDone]=useState({});
   const [inPlan,setInPlan]=useState(new Set());
+  const [prefs,setPrefs]=useState(null);
+  const [mealieUrl,setMealieUrl]=useState('');
   const [unblocking,setUnblocking]=useState({});
   const [searchServings,setSearchServings]=useState({});
   const toast=useToast();
   const week=weekMonday();
 
   useEffect(()=>{
+    get(`/preferences/${hid}`).then(p=>setPrefs(p)).catch(()=>{});
+    get('/config/mealie-url').then(d=>setMealieUrl(d?.mealie_base_url||'')).catch(()=>{});
     get(`/meal-plan/selections?household_id=${hid}&week_start_date=${week}`)
       .then(rows=>setInPlan(new Set((rows||[]).map(r=>r.recipe_id))))
       .catch(()=>{});
@@ -1961,49 +1947,75 @@ const RecipeSearchPage=({hid})=>{
         </div>
       )}
 
-      {results&&results.results.map(r=>(
-        <div key={r.recipe_id} className="card" style={{marginBottom:10,
+      {results&&results.results.map(r=>{
+        const [srOpen,setSrOpen]=React.useState(false);
+        const [srIngPop,setSrIngPop]=React.useState(null);
+        return(
+        <div key={r.recipe_id} className="recipe-card" style={{marginBottom:10,
           opacity:r.is_blocked?0.6:1,
           borderLeft:r.is_blocked?'3px solid #dc2626':r.rating?'3px solid var(--green)':''}}>
-          <div style={{display:'flex',alignItems:'flex-start',gap:10,flexWrap:'wrap'}}>
+          {/* Header row — always visible */}
+          <div className="recipe-card-hdr" onClick={()=>setSrOpen(o=>!o)}
+            style={{background:inPlan.has(r.recipe_id)?'#f0fdf4':''}}>
             <div style={{flex:1}}>
-              <div style={{fontWeight:600,fontSize:15}}>{r.title}</div>
-              <div style={{fontSize:12,color:'var(--gray)',marginTop:3,display:'flex',gap:10,flexWrap:'wrap'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                <span style={{fontWeight:700,fontSize:15}}>{r.title}</span>
+                {inPlan.has(r.recipe_id)&&<span className="badge badge-green">✓ In plan</span>}
+                {r.is_blocked&&<span className="badge badge-red">🚫 Blocked</span>}
+                {r.rating&&<span className="badge badge-amber">{'⭐'.repeat(r.rating)}</span>}
+              </div>
+              <div style={{display:'flex',gap:10,marginTop:4,flexWrap:'wrap',fontSize:12,color:'var(--gray)'}}>
                 {r.total_time_minutes&&<span>⏱ {r.total_time_minutes}m</span>}
                 {r.scraped_servings&&<span>🍽 {r.scraped_servings}</span>}
-                {r.carbs_per_serving!=null&&<span>🌾 {Math.round(r.carbs_per_serving)}g carbs</span>}
+                <span>🌾 {r.carbs_per_serving!=null?Math.round(r.carbs_per_serving)+'g':'NA'} carbs</span>
                 {r.protein_category&&r.protein_category!=='other'&&<span className="badge badge-blue" style={{fontSize:11}}>{r.protein_category}</span>}
                 {r.mealie_slug&&<span className="badge badge-green" style={{fontSize:11}}>In Mealie</span>}
-                {r.is_blocked&&<span className="badge badge-red" style={{fontSize:11}}>Blocked</span>}
-                {r.rating&&<span>{'⭐'.repeat(r.rating)}</span>}
-                {r.source_url&&<a href={r.source_url} target="_blank" rel="noopener" style={{color:'var(--gray)'}}>🔗 Source</a>}
               </div>
             </div>
-            {(inPlan.has(r.recipe_id)||done[r.recipe_id])
-              ?<span className="badge badge-green">
-                  {done[r.recipe_id]||"✓ In this week's plan"}
-                </span>
-              :<div style={{display:'flex',gap:6,flexShrink:0}}>
-                {r.scraped_servings&&<label style={{display:'flex',alignItems:'center',gap:4,fontSize:12}}>
-                  <span style={{color:'var(--gray)'}}>Servings:</span>
-                  <input type="number" min={1} max={20}
-                    value={searchServings[r.recipe_id]||(parseInt(r.scraped_servings)||4)}
-                    onChange={e=>setSearchServings(s=>({...s,[r.recipe_id]:+e.target.value}))}
-                    style={{width:44,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:4,textAlign:'center',fontSize:12}}/>
-                </label>}
-                <button className="btn-primary btn-sm" disabled={adding[r.recipe_id]}
-                  onClick={()=>addToWeek(r)}>
-                  {adding[r.recipe_id]?'Adding…':'+ Add to plan'}
-                </button>
-                {!r.is_blocked&&(
-                  <button className="btn-icon" title="Block recipe"
-                    onClick={()=>block(r)}>🚫</button>
-                )}
-              </div>
-            }
+            <span style={{fontSize:18,color:'var(--gray)'}}>{srOpen?'▲':'▼'}</span>
           </div>
+          {/* Expanded body */}
+          {srOpen&&(
+            <div className="recipe-card-body">
+              <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap',alignItems:'center'}}>
+                {r.source_url&&safeHref(r.source_url)&&<a href={r.source_url} target="_blank" rel="noopener" style={{fontSize:13}}>🔗 View original →</a>}
+                {r.mealie_slug&&prefs?.mealie_url&&<a href={`${prefs.mealie_url}/recipe/${r.mealie_slug}`} target="_blank" rel="noopener" style={{fontSize:13}}>🥘 View in Mealie →</a>}
+              </div>
+              {/* Actions */}
+              <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:8}}>
+                {done[r.recipe_id]
+                  ?<span className="badge badge-green">✓ {done[r.recipe_id]}</span>
+                  :<>
+                    {!inPlan.has(r.recipe_id)&&<>
+                      {r.scraped_servings&&<label style={{display:'flex',alignItems:'center',gap:4,fontSize:12}}>
+                        <span style={{color:'var(--gray)'}}>Servings:</span>
+                        <input type="number" min={1} max={20}
+                          value={searchServings[r.recipe_id]||(parseInt(r.scraped_servings)||4)}
+                          onChange={e=>setSearchServings(s=>({...s,[r.recipe_id]:+e.target.value}))}
+                          style={{width:44,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:4,textAlign:'center',fontSize:12}}/>
+                      </label>}
+                      <button className="btn-primary btn-sm" disabled={adding[r.recipe_id]}
+                        onClick={()=>addToWeek(r)}>
+                        {adding[r.recipe_id]?'Adding…':'+ Add to plan'}
+                      </button>
+                    </>}
+                    {inPlan.has(r.recipe_id)&&<span className="badge badge-green">✓ In this week's plan</span>}
+                    {!r.is_blocked&&<button className="btn-secondary btn-sm" onClick={()=>block(r)}>🚫 Block</button>}
+                    {r.is_blocked&&<button className="btn-secondary btn-sm" onClick={async()=>{
+                      try{
+                        await del(`/recipes/${r.recipe_id}/reject?household_id=${hid}`);
+                        toast(`${r.title} unblocked`);
+                        setResults(prev=>({...prev,results:prev.results.map(x=>x.recipe_id===r.recipe_id?{...x,is_blocked:false}:x)}));
+                      }catch(e){toast(e.message,'error');}
+                    }}>✅ Unblock</button>}
+                  </>
+                }
+              </div>
+            </div>
+          )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
