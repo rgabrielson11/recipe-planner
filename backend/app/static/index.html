@@ -516,7 +516,7 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,onRemove,confirmed,rejected,
 };
 
 // ── Weekly Planner ────────────────────────────────────────────────────────────
-const STEPS=['Select Week','Last Week','Pantry Review','Week Intent','Suggestions','Confirm','Shopping List'];
+const STEPS=['Select Week','Pantry Review','Week Intent','Suggestions','Confirm','Shopping List'];
 
 const PlannerPage=({hid})=>{
   const [step,setStep]=useState(0);
@@ -1812,6 +1812,14 @@ const HistoryPage=({hid})=>{
                           {adding[r.recipe_id]?'Adding…':'+ This week'}
                         </button>
                     }
+                    {!historyDone[r.recipe_id]&&<button className="btn-secondary btn-sm" style={{color:'#dc2626'}}
+                      onClick={async()=>{
+                        try{
+                          await del(`/meal-plan/selections/${r.recipe_id}?household_id=${hid}&week_start_date=${w.week_start_date}`);
+                          setHistoryDone(d=>({...d,[r.recipe_id]:"Didn't make"}));
+                          toast(`${r.title} removed from plan`);
+                        }catch(e){toast(e.message,'error');}
+                      }}>✕ Didn't make</button>}
                   </>
                 )}
               </div>

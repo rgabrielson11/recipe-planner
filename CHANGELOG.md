@@ -1,5 +1,21 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 92: fix STEPS array + Didn't make placement
+
+### Bug fixes
+
+**STEPS array still had 'Last Week'** — the write was aborted by an assertion
+error in the previous patch, leaving the nav bar showing the wrong step labels.
+Fixed: STEPS is now `['Select Week','Pantry Review','Week Intent','Suggestions','Confirm','Shopping List']`.
+
+**"Didn't make" was in blocked section, not weekly rows** — the button landed
+inside the blocked recipes card instead of each planned recipe row. Fixed:
+"✕ Didn't make" now appears in every weekly recipe row alongside Rate/Block/+ This week.
+
+VERSION bumped to 10.92.
+
+---
+
 ## Phase 10 — Patch 91: six queued improvements
 
 ### 1. Single-source scrape — Phase 2 now scoped to source
