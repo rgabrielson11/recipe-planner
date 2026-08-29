@@ -417,14 +417,15 @@ def delete_source_stubs(source_name: str, db: Session = Depends(get_db)):
     from urllib.parse import urlparse
     sources = config_files.get_recipe_sources().get("sources", [])
     src = next((s for s in sources if s.get("name") == source_name), None)
-    if not src:
-        raise HTTPException(status_code=404, detail=f"Source '{source_name}' not found")
     domains = set()
-    for cu in src.get("category_urls", []):
-        try:
-            domains.add(urlparse(cu).netloc)
-        except Exception:
-            pass
+    if src:
+        for cu in src.get("category_urls", []):
+            try: domains.add(urlparse(cu).netloc)
+            except Exception: pass
+    else:
+        bare = source_name.lstrip("www.")
+        domains.add(bare)
+        domains.add("www." + bare)
     stubs = db.query(models.Recipe).filter(
         models.Recipe.source_url.isnot(None),
         models.Recipe.mealie_slug.is_(None),
