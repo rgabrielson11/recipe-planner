@@ -1,5 +1,17 @@
 # Recipe Planner — Changelog
 
+## Phase 10 — Patch 90: fix recipe search page blank — searchServings in wrong component
+
+### Bug fix
+
+`searchServings` state was declared inside `HistoryPage` but used inside
+`RecipeSearchPage`, causing `ReferenceError: searchServings is not defined`
+and a blank search page. Moved to `RecipeSearchPage` where it belongs.
+
+VERSION bumped to 10.90.
+
+---
+
 ## Phase 10 — Patch 89: patch Mealie ingredient structure after import
 
 ### New feature
