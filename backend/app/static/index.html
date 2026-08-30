@@ -1639,7 +1639,7 @@ const DatabasePage=()=>{
                       <button className="btn-icon" style={{color:'#dc2626',fontSize:12}} title={`Delete all stubs from ${src}`}
                         onClick={()=>{if(window.confirm(`Delete all ${cnt} stubs from ${src}? Cannot be undone.`)){
                           del(`/config/source-stubs?source_name=${encodeURIComponent(src)}`)
-                            .then(r=>{toast(`Deleted ${r.deleted} stubs`);load();})
+                            .then(r=>{toast(`Deleted ${r.deleted} stubs from ${src}`);loadStats();})
                             .catch(e=>toast(e.message,'error'));
                         }}}>🗑️</button>
                     </td>

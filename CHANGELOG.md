@@ -1,5 +1,33 @@
 # Recipe Planner — Changelog
 
+## Phase 11 — Patch 2: gitignore all user YAML files; fix delete-stubs load error
+
+### Bug fixes
+
+**"load is not defined" on stub delete**
+The delete-stubs button in the Database page called `load()` on success,
+but DatabasePage uses `loadStats()` as its refresh function. Fixed to call
+`loadStats()`, which correctly refreshes the stubs-by-source table after
+deletion.
+
+**Gitignore all user-owned YAML data files**
+Following the `recipe_sources.yaml` fix (Patch 11.0), the remaining
+user-owned data files were still git-tracked, meaning `git pull` could
+reset them to repo defaults. Added to `.gitignore` and removed from
+tracking:
+- `backend/app/data/pantry_staples.yaml`
+- `backend/app/data/package_sizes.yaml`
+- `backend/app/data/rejection_reasons.yaml`
+- `backend/app/data/cooking_vocabulary.yaml`
+
+All four files remain on disk and the entrypoint continues to copy
+defaults when files are missing. Only `protein_categories.yaml` remains
+code-owned (synced from image because it has a UI editing flow).
+
+VERSION bumped to 11.1.
+
+---
+
 ## Phase 11 — Patch 1: recipe_sources.yaml removed from git tracking
 
 ### Bug fix
