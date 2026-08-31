@@ -1,5 +1,26 @@
 # Recipe Planner — Changelog
 
+## Phase 11 — Patch 5: restore pantry_staples.yaml; merge-safe entrypoint
+
+### Bug fix
+
+Patch 074 (gitignore) deleted `pantry_staples.yaml` from the repo via
+`git rm --cached`, which generates a deletion in the patch diff. Applying
+the patch removed the file from disk; container restart then restored image
+defaults.
+
+Fixes:
+- `pantry_staples.yaml` restored to git tracking with a comprehensive
+  60-item default list (oils, vinegars, dairy, spices, canned goods, dry goods)
+- Removed from `.gitignore` — tracked in git so patches can update the defaults
+- `entrypoint.sh` updated to **merge** pantry staples rather than copy-if-missing:
+  on each container start, any default staple not already in the live file is
+  appended. Custom additions and deletions are never overwritten.
+
+VERSION bumped to 11.4.
+
+---
+
 ## Phase 11 — Patch 4: Bring! enable toggle; generic AI normalisation; no list clearing
 
 ### Changes

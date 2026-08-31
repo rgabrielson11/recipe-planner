@@ -34,7 +34,6 @@ data/db/
 Thumbs.db
 backend/app/data/recipe_sources.yaml
 
-backend/app/data/pantry_staples.yaml
 backend/app/data/package_sizes.yaml
 backend/app/data/rejection_reasons.yaml
 backend/app/data/cooking_vocabulary.yaml

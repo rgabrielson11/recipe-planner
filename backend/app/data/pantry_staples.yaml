@@ -1,0 +1,77 @@
+# Pantry staples
+#
+# Ingredients assumed to ALWAYS be on hand. Never added to a shopping list.
+# Edit via Settings → Pantry → Staples, or POST/DELETE /pantry/staples.
+
+staples:
+  # Salt & pepper
+  - salt
+  - kosher salt
+  - sea salt
+  - black pepper
+  - white pepper
+  - black peppercorns
+  # Oils & fats
+  - olive oil
+  - vegetable oil
+  - canola oil
+  - neutral oil
+  - sesame oil
+  - butter
+  - nonstick spray
+  - cooking spray
+  # Vinegars & acids
+  - apple cider vinegar
+  - white vinegar
+  - red wine vinegar
+  - lemon juice
+  - lime juice
+  # Sweeteners
+  - sugar
+  - white sugar
+  - brown sugar
+  - honey
+  # Condiments & sauces
+  - soy sauce
+  - worcestershire sauce
+  - hot sauce
+  - dijon mustard
+  - yellow mustard
+  - tomato paste
+  # Canned goods
+  - canned tomatoes
+  - chicken broth
+  - chicken stock
+  - beef broth
+  - beef stock
+  - vegetable broth
+  # Dairy & eggs
+  - eggs
+  - milk
+  - heavy cream
+  - parmesan cheese
+  # Dry goods
+  - all-purpose flour
+  - cornstarch
+  - bread crumbs
+  - panko
+  - pasta
+  - rice
+  - baking soda
+  - baking powder
+  # Herbs & spices
+  - garlic powder
+  - onion powder
+  - paprika
+  - cumin
+  - chili powder
+  - dried oregano
+  - dried thyme
+  - dried rosemary
+  - dried basil
+  - bay leaves
+  - red pepper flakes
+  - turmeric
+  - cinnamon
+  - nutmeg
+  - water
