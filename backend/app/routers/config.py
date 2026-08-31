@@ -422,7 +422,6 @@ def delete_source_stubs(source_name: str, db: Session = Depends(get_db)):
 
     # Try matching by configured name first, then by domain
     src = next((s for s in sources if s.get("name") == source_name), None)
-<<<<<<< HEAD
     domains = set()
     if src:
         for cu in src.get("category_urls", []):
@@ -432,26 +431,6 @@ def delete_source_stubs(source_name: str, db: Session = Depends(get_db)):
         bare = source_name.lstrip("www.")
         domains.add(bare)
         domains.add("www." + bare)
-=======
-
-    domains: set[str] = set()
-    if src:
-        for cu in src.get("category_urls", []):
-            try:
-                domains.add(urlparse(cu).netloc)
-            except Exception:
-                pass
-    else:
-        # Treat source_name as a bare domain (e.g. 'justapinch.com')
-        # and delete stubs whose URL netloc matches
-        domains.add(source_name.lstrip("www."))
-        domains.add("www." + source_name.lstrip("www."))
-        if not any(db.query(models.Recipe).filter(
-            models.Recipe.source_url.contains(source_name)
-        ).first() for _ in [1]):
-            raise HTTPException(status_code=404,
-                detail=f"No stubs found for '{source_name}'")
->>>>>>> 7119aaecf1fb2a0490d53d49aecbbd7def474f07
     stubs = db.query(models.Recipe).filter(
         models.Recipe.source_url.isnot(None),
         models.Recipe.mealie_slug.is_(None),
