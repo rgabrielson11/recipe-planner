@@ -881,3 +881,67 @@ def didnt_make(recipe_id: str, household_id: str, week_start_date: str, db: Sess
     db.commit()
     log.info("Didn't make: removed recipe %s for household %s week %s", recipe_id, household_id, week)
     return {"removed": recipe_id, "selections": deleted_sel, "entries": deleted_entry}
+
+
+@router.post("/shopping-list/push")
+async def push_shopping_list(
+    household_id: str,
+    week_start_date: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Push the shopping list to all configured destinations (Bring!, HA, or both)
+    based on the household preferences. Returns a summary of what was pushed where.
+    """
+    from app import bring_client as _bring
+    from app import ha_client as _ha
+    from datetime import date as _date
+
+    prefs = db.query(models.Preference).filter(
+        models.Preference.household_id == household_id
+    ).first()
+
+    # Build the shopping list once
+    result = sl.build_shopping_list(household_id, _date.fromisoformat(week_start_date), db)
+
+    destinations = []
+    results = {}
+
+    # ── Bring! ──────────────────────────────────────────────────────────────
+    bring_configured = _bring.BRING_EMAIL and _bring.BRING_PASSWORD
+    if bring_configured:
+        list_name  = prefs.bring_list_name if prefs else None
+        use_ollama = (prefs.bring_ollama_normalize if prefs and prefs.bring_ollama_normalize is not None else True)
+        try:
+            r = await _bring.push_shopping_list(result, list_name=list_name, use_ollama=use_ollama)
+            results["bring"] = {"status": "ok", "pushed": r.get("pushed", 0), "list": r.get("list_name")}
+            destinations.append(f"Bring! ({r.get('list_name', 'Groceries')})")
+            log.info("Pushed to Bring!: household=%s pushed=%d", household_id, r.get("pushed", 0))
+        except Exception as e:
+            results["bring"] = {"status": "error", "detail": str(e)}
+            log.warning("Bring! push failed: %s", e)
+
+    # ── Home Assistant ───────────────────────────────────────────────────────
+    ha_enabled = prefs.ha_shopping_enabled if prefs else False
+    entity_id  = prefs.ha_shopping_list_entity if prefs else None
+    if _ha.is_configured() and ha_enabled and entity_id:
+        try:
+            r = _ha.push_shopping_list(result, entity_id)
+            results["ha"] = {"status": "ok", "pushed": r.get("pushed", 0), "entity_id": entity_id}
+            destinations.append(f"Home Assistant ({entity_id})")
+            log.info("Pushed to HA: household=%s entity=%s pushed=%d", household_id, entity_id, r.get("pushed", 0))
+        except Exception as e:
+            results["ha"] = {"status": "error", "detail": str(e)}
+            log.warning("HA push failed: %s", e)
+
+    if not results:
+        raise HTTPException(
+            status_code=400,
+            detail="No shopping list destinations configured. Set up Bring! or Home Assistant in Settings → Preferences."
+        )
+
+    return {
+        "destinations": destinations,
+        "results": results,
+        "pushed_to": len([r for r in results.values() if r.get("status") == "ok"]),
+    }

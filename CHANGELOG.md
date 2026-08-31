@@ -1,5 +1,44 @@
 # Recipe Planner — Changelog
 
+## Phase 11 — Patch 3: Home Assistant shopping list integration
+
+### New feature
+
+**Single "🛒 Push Shopping List" button**
+
+The separate "Push to Bring!" button is replaced with a single unified
+button that routes to whichever destinations are configured — Bring!,
+Home Assistant, or both simultaneously.
+
+**Home Assistant todo list integration**
+
+Settings → Preferences → "Home Assistant Shopping List" section:
+- Toggle to enable HA push
+- Text field for the HA todo entity ID (e.g. `todo.shopping_list`)
+- "Show HA lists" button — fetches all `todo.*` entities from HA and
+  displays their friendly names + entity IDs so you can copy the right one
+
+The HA list is cleared then refilled on each push. Bring! and HA can both
+be active; the push button sends to all enabled destinations in one click.
+
+**New backend files/endpoints:**
+- `backend/app/ha_client.py` — HA REST API client
+- `GET /api/config/ha-lists` — lists available HA todo entities
+- `POST /api/meal-plan/shopping-list/push` — combined push endpoint
+  (replaces `/push-to-bring`; checks prefs and pushes to Bring! and/or HA)
+
+New preference fields (auto-migrated):
+- `ha_shopping_enabled` BOOLEAN DEFAULT 0
+- `ha_shopping_list_entity` TEXT
+
+New container env vars required for HA:
+- `HA_BASE_URL` — e.g. `http://192.168.111.x:8123`
+- `HA_API_TOKEN` — long-lived HA access token
+
+VERSION bumped to 11.2.
+
+---
+
 ## Phase 11 — Patch 2: gitignore all user YAML files; fix delete-stubs load error
 
 ### Bug fixes

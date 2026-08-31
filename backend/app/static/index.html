@@ -549,13 +549,14 @@ const PlannerPage=({hid})=>{
   const [scrapeActive,setScrapeActive]=useState(false);
   const toast=useToast();
 
-  const pushToBring=async()=>{
+  const pushShopping=async()=>{
     setPushingBring(true);
     try{
-      const r=await post(`/meal-plan/shopping-list/push-to-bring?household_id=${hid}&week_start_date=${week}`,{});
-      if(r.message){toast(r.message,'warning');}
-      else if((r.errors||[]).length){toast(`Pushed ${r.pushed.length} to "${r.list_name}", ${r.errors.length} failed — see logs`,'warning');}
-      else{toast(`Pushed ${r.pushed.length} item${r.pushed.length!==1?'s':''} to Bring! list "${r.list_name}"`,'success');}
+      const r=await post(`/meal-plan/shopping-list/push?household_id=${hid}&week_start_date=${week}`,{});
+      const dest=r.destinations?.join(' & ')||'shopping list';
+      const errs=Object.values(r.results||{}).filter(x=>x.status==='error');
+      if(errs.length) toast(`Push errors: ${errs.map(x=>x.detail).join('; ')}`,'error');
+      else toast(`✓ Pushed to ${dest}`,'success');
     }catch(e){toast(e.message,'error');}
     finally{setPushingBring(false);}
   };
@@ -1022,8 +1023,8 @@ const PlannerPage=({hid})=>{
                 </body></html>`);
               w.document.close();
             }}>&#x1F5A8;&#xFE0F; Print / Save PDF</button>
-            <button className="btn-secondary" onClick={pushToBring} disabled={pushingBring}>
-              {pushingBring?'Pushing...':'📤 Push to Bring!'}
+            <button className="btn-secondary" onClick={pushShopping} disabled={pushingBring}>
+              {pushingBring?'Pushing…':'🛒 Push Shopping List'}
             </button>
           </div>
         </>}
@@ -1192,11 +1193,44 @@ const SettingsPage=({hid})=>{
               onChange={e=>setPrefs(p=>({...p,bring_ollama_normalize:e.target.checked}))}/>
             <span>Use AI to map ingredient names when pushing to Bring!
               <span style={{display:'block',fontSize:12,color:'var(--gray)',fontWeight:400,marginTop:2}}>
-                Maps specialty names to common equivalents (e.g. "herbes de provence" → "mixed herbs") for better grocery section categorisation. Disable if results feel too generic.
+                Maps specialty names to common equivalents for better grocery categorisation. Disable if results feel too generic.
               </span>
             </span>
           </label>
         </div>
+        <hr style={{border:'none',borderTop:'1px solid var(--border)',margin:'12px 0'}}/>
+        <div style={{fontWeight:600,marginBottom:8}}>Home Assistant Shopping List</div>
+        <div>
+          <label style={{display:'flex',alignItems:'flex-start',gap:8,cursor:'pointer'}}>
+            <input type="checkbox" style={{marginTop:2}}
+              checked={!!prefs.ha_shopping_enabled}
+              onChange={e=>setPrefs(p=>({...p,ha_shopping_enabled:e.target.checked}))}/>
+            <span>Push shopping list to Home Assistant todo list
+              <span style={{display:'block',fontSize:12,color:'var(--gray)',fontWeight:400,marginTop:2}}>
+                Adds buy items to a HA todo entity. Requires HA_BASE_URL + HA_API_TOKEN in container environment.
+              </span>
+            </span>
+          </label>
+        </div>
+        {prefs.ha_shopping_enabled&&<div style={{marginTop:8}}>
+          <label>HA todo list entity</label>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+            <input style={{maxWidth:300}} value={prefs.ha_shopping_list_entity||''}
+              onChange={e=>setPrefs(p=>({...p,ha_shopping_list_entity:e.target.value||null}))}
+              placeholder="e.g. todo.shopping_list"/>
+            <button className="btn-secondary btn-sm" onClick={async()=>{
+              try{
+                const r=await get('/config/ha-lists');
+                if(!r.configured){toast('HA not configured — set HA_BASE_URL and HA_API_TOKEN in container env','warning');return;}
+                if(!r.lists?.length){toast('No todo lists found in HA','warning');return;}
+                r.lists.forEach(l=>toast(`${l.friendly_name}: ${l.entity_id}`));
+              }catch(e){toast(e.message,'error');}
+            }}>Show HA lists</button>
+          </div>
+          <div style={{fontSize:12,color:'var(--gray)',marginTop:4}}>
+            The list is cleared then refilled each push. Bring! and HA can both be active simultaneously.
+          </div>
+        </div>}
         <button className="btn-primary" style={{alignSelf:'start'}} onClick={savePrefs}>Save Preferences</button>
       </div></div>}
       {tab==='equipment'&&prefs&&<div className="card">

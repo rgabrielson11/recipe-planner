@@ -466,3 +466,18 @@ def save_protein_categories(payload: dict):
     cats = payload.get("categories", [])
     config_files.save_protein_categories(cats)
     return {"categories": cats}
+
+
+# ── Home Assistant ─────────────────────────────────────────────────────────────
+
+@router.get("/ha-lists")
+def get_ha_lists():
+    """Return available HA todo list entities for the settings picker."""
+    from app import ha_client
+    if not ha_client.is_configured():
+        return {"lists": [], "configured": False}
+    try:
+        lists = ha_client.get_todo_lists()
+        return {"lists": lists, "configured": True}
+    except ha_client.HAError as e:
+        raise HTTPException(status_code=502, detail=str(e))

@@ -46,6 +46,8 @@ class Preference(Base):
     mealie_dinner_tag         = Column(String, nullable=False, default="dinner-planner")
     bring_list_name           = Column(String, nullable=True)  # Patch 16: exact Bring! list name to push to
     bring_ollama_normalize    = Column(Boolean, nullable=True, default=True)   # Patch 82: Ollama pre-normalization for Bring!
+    ha_shopping_enabled      = Column(Boolean, nullable=True, default=False)  # Phase 11: push shopping list to HA
+    ha_shopping_list_entity  = Column(String,  nullable=True)                   # Phase 11: HA todo entity_id
     notes                     = Column(String, nullable=True)
     created_at                = Column(DateTime, default=datetime.utcnow)
     updated_at                = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

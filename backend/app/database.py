@@ -45,6 +45,8 @@ def run_migrations():
         ("recipes", "scraped_reviews",          "INTEGER"),   # Patch 13
         ("preferences", "bring_list_name",      "TEXT"),      # Patch 16
         ("preferences", "bring_ollama_normalize", "BOOLEAN DEFAULT 1"),  # Patch 82
+        ("preferences", "ha_shopping_enabled",      "BOOLEAN DEFAULT 0"),  # Phase 11
+        ("preferences", "ha_shopping_list_entity",  "TEXT"),                  # Phase 11
         ("weekly_selections", "servings_override", "INTEGER"),   # Patch 69
     ]
     with engine.connect() as conn:
