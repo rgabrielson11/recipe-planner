@@ -33,3 +33,10 @@ data/db/
 .DS_Store
 Thumbs.db
 backend/app/data/recipe_sources.yaml
+<<<<<<< HEAD
+=======
+
+backend/app/data/package_sizes.yaml
+backend/app/data/rejection_reasons.yaml
+backend/app/data/cooking_vocabulary.yaml
+>>>>>>> 7119aaecf1fb2a0490d53d49aecbbd7def474f07

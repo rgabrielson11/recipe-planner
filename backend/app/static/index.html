@@ -549,13 +549,14 @@ const PlannerPage=({hid})=>{
   const [scrapeActive,setScrapeActive]=useState(false);
   const toast=useToast();
 
-  const pushToBring=async()=>{
+  const pushShopping=async()=>{
     setPushingBring(true);
     try{
-      const r=await post(`/meal-plan/shopping-list/push-to-bring?household_id=${hid}&week_start_date=${week}`,{});
-      if(r.message){toast(r.message,'warning');}
-      else if((r.errors||[]).length){toast(`Pushed ${r.pushed.length} to "${r.list_name}", ${r.errors.length} failed — see logs`,'warning');}
-      else{toast(`Pushed ${r.pushed.length} item${r.pushed.length!==1?'s':''} to Bring! list "${r.list_name}"`,'success');}
+      const r=await post(`/meal-plan/shopping-list/push?household_id=${hid}&week_start_date=${week}`,{});
+      const dest=r.destinations?.join(' & ')||'shopping list';
+      const errs=Object.values(r.results||{}).filter(x=>x.status==='error');
+      if(errs.length) toast(`Push errors: ${errs.map(x=>x.detail).join('; ')}`,'error');
+      else toast(`✓ Pushed to ${dest}`,'success');
     }catch(e){toast(e.message,'error');}
     finally{setPushingBring(false);}
   };
@@ -1022,8 +1023,8 @@ const PlannerPage=({hid})=>{
                 </body></html>`);
               w.document.close();
             }}>&#x1F5A8;&#xFE0F; Print / Save PDF</button>
-            <button className="btn-secondary" onClick={pushToBring} disabled={pushingBring}>
-              {pushingBring?'Pushing...':'📤 Push to Bring!'}
+            <button className="btn-secondary" onClick={pushShopping} disabled={pushingBring}>
+              {pushingBring?'Pushing…':'🛒 Push Shopping List'}
             </button>
           </div>
         </>}
@@ -1185,18 +1186,81 @@ const SettingsPage=({hid})=>{
             }}>Show my Bring! lists</button>
           </div>
         </div>
+        {/* ── Shopping List Options ── */}
+        <div style={{fontWeight:600,marginBottom:8}}>Shopping List Options</div>
         <div>
           <label style={{display:'flex',alignItems:'flex-start',gap:8,cursor:'pointer'}}>
             <input type="checkbox" style={{marginTop:2}}
               checked={prefs.bring_ollama_normalize!==false}
               onChange={e=>setPrefs(p=>({...p,bring_ollama_normalize:e.target.checked}))}/>
-            <span>Use AI to map ingredient names when pushing to Bring!
+            <span>Use AI to normalise ingredient names
               <span style={{display:'block',fontSize:12,color:'var(--gray)',fontWeight:400,marginTop:2}}>
-                Maps specialty names to common equivalents (e.g. "herbes de provence" → "mixed herbs") for better grocery section categorisation. Disable if results feel too generic.
+                Maps specialty or foreign ingredient names to common equivalents before sending
+                to any shopping list (e.g. "herbes de provence" → "mixed herbs").
+                Applies to all enabled destinations. Disable if results feel too generic.
               </span>
             </span>
           </label>
         </div>
+        <hr style={{border:'none',borderTop:'1px solid var(--border)',margin:'12px 0'}}/>
+        {/* ── Bring! ── */}
+        <div style={{fontWeight:600,marginBottom:8}}>Bring!</div>
+        <div>
+          <label style={{display:'flex',alignItems:'flex-start',gap:8,cursor:'pointer'}}>
+            <input type="checkbox" style={{marginTop:2}}
+              checked={prefs.bring_shopping_enabled!==false}
+              onChange={e=>setPrefs(p=>({...p,bring_shopping_enabled:e.target.checked}))}/>
+            <span>Push shopping list to Bring!
+              <span style={{display:'block',fontSize:12,color:'var(--gray)',fontWeight:400,marginTop:2}}>
+                Requires BRING_EMAIL and BRING_PASSWORD in container environment.
+              </span>
+            </span>
+          </label>
+        </div>
+        {prefs.bring_shopping_enabled!==false&&<>
+          <label style={{display:'block',marginTop:8}}>Bring! list name <span style={{fontWeight:400,color:'var(--gray)'}}>(only needed if your account has more than one list)</span></label>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <input style={{maxWidth:280}} value={prefs.bring_list_name||''} onChange={e=>setPrefs(p=>({...p,bring_list_name:e.target.value||null}))} placeholder="e.g. Groceries"/>
+            <button className="btn-secondary btn-sm" onClick={async()=>{
+              try{const r=await get('/meal-plan/bring/lists');toast((r.lists||[]).map(l=>l.name).join(', ')||'No Bring! lists found',(r.lists||[]).length?'success':'warning');}
+              catch(e){toast(e.message,'error');}
+            }}>Show my Bring! lists</button>
+          </div>
+        </>}
+        <hr style={{border:'none',borderTop:'1px solid var(--border)',margin:'12px 0'}}/>
+        {/* ── Home Assistant ── */}
+        <div style={{fontWeight:600,marginBottom:8}}>Home Assistant</div>
+        <div>
+          <label style={{display:'flex',alignItems:'flex-start',gap:8,cursor:'pointer'}}>
+            <input type="checkbox" style={{marginTop:2}}
+              checked={!!prefs.ha_shopping_enabled}
+              onChange={e=>setPrefs(p=>({...p,ha_shopping_enabled:e.target.checked}))}/>
+            <span>Push shopping list to Home Assistant todo list
+              <span style={{display:'block',fontSize:12,color:'var(--gray)',fontWeight:400,marginTop:2}}>
+                Requires HA_BASE_URL and HA_API_TOKEN in container environment.
+              </span>
+            </span>
+          </label>
+        </div>
+        {prefs.ha_shopping_enabled&&<div style={{marginTop:8}}>
+          <label>HA todo list entity</label>
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+            <input style={{maxWidth:300}} value={prefs.ha_shopping_list_entity||''}
+              onChange={e=>setPrefs(p=>({...p,ha_shopping_list_entity:e.target.value||null}))}
+              placeholder="e.g. todo.shopping_list"/>
+            <button className="btn-secondary btn-sm" onClick={async()=>{
+              try{
+                const r=await get('/config/ha-lists');
+                if(!r.configured){toast('HA not configured — set HA_BASE_URL and HA_API_TOKEN in container env','warning');return;}
+                if(!r.lists?.length){toast('No todo lists found in HA','warning');return;}
+                r.lists.forEach(l=>toast(`${l.friendly_name} — ${l.entity_id}`));
+              }catch(e){toast(e.message,'error');}
+            }}>Show HA lists</button>
+          </div>
+          <div style={{fontSize:12,color:'var(--gray)',marginTop:4}}>
+            Items are added to the existing list — nothing is removed on push.
+          </div>
+        </div>}
         <button className="btn-primary" style={{alignSelf:'start'}} onClick={savePrefs}>Save Preferences</button>
       </div></div>}
       {tab==='equipment'&&prefs&&<div className="card">
@@ -1639,7 +1703,7 @@ const DatabasePage=()=>{
                       <button className="btn-icon" style={{color:'#dc2626',fontSize:12}} title={`Delete all stubs from ${src}`}
                         onClick={()=>{if(window.confirm(`Delete all ${cnt} stubs from ${src}? Cannot be undone.`)){
                           del(`/config/source-stubs?source_name=${encodeURIComponent(src)}`)
-                            .then(r=>{toast(`Deleted ${r.deleted} stubs`);load();})
+                            .then(r=>{toast(`Deleted ${r.deleted} stubs from ${src}`);loadStats();})
                             .catch(e=>toast(e.message,'error'));
                         }}}>🗑️</button>
                     </td>
@@ -1863,6 +1927,73 @@ const HistoryPage=({hid})=>{
   );
 };
 
+const SearchResultCard=({r,inPlan,done,adding,searchServings,setSearchServings,addToWeek,block,del,hid,toast,prefs,weekMonday,setResults,setInPlan,setDone})=>{
+  const [open,setOpen]=useState(false);
+  const mealieUrl=prefs?.mealie_base_url||'';
+  return(
+        <div key={r.recipe_id} className="recipe-card" style={{marginBottom:10,
+          opacity:r.is_blocked?0.6:1,
+          borderLeft:r.is_blocked?'3px solid #dc2626':r.rating?'3px solid var(--green)':''}}>
+          <div className="recipe-card-hdr" onClick={()=>setOpen(o=>!o)}
+            style={{background:inPlan.has(r.recipe_id)?'#f0fdf4':''}}>
+            <div style={{flex:1}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                <span style={{fontWeight:700,fontSize:15}}>{r.title}</span>
+                {inPlan.has(r.recipe_id)&&<span className="badge badge-green">✓ In plan</span>}
+                {r.is_blocked&&<span className="badge badge-red">🚫 Blocked</span>}
+                {r.rating&&<span className="badge badge-amber">{'⭐'.repeat(r.rating)}</span>}
+              </div>
+              <div style={{display:'flex',gap:10,marginTop:4,flexWrap:'wrap',fontSize:12,color:'var(--gray)'}}>
+                {r.total_time_minutes&&<span>⏱ {r.total_time_minutes}m</span>}
+                {r.scraped_servings&&<span>🍽 {r.scraped_servings}</span>}
+                <span>🌾 {r.carbs_per_serving!=null?Math.round(r.carbs_per_serving)+'g':'NA'} carbs</span>
+                {r.protein_category&&r.protein_category!=='other'&&<span className="badge badge-blue" style={{fontSize:11}}>{r.protein_category}</span>}
+                {r.mealie_slug&&<span className="badge badge-green" style={{fontSize:11}}>In Mealie</span>}
+              </div>
+            </div>
+            <span style={{fontSize:18,color:'var(--gray)'}}>{open?'▲':'▼'}</span>
+          </div>
+          {open&&(
+            <div className="recipe-card-body">
+              <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap',alignItems:'center'}}>
+                {r.source_url&&<a href={r.source_url} target="_blank" rel="noopener" style={{fontSize:13}}>🔗 View original →</a>}
+                {r.mealie_slug&&mealieUrl&&<a href={`${mealieUrl}/recipe/${r.mealie_slug}`} target="_blank" rel="noopener" style={{fontSize:13}}>🥘 View in Mealie →</a>}
+              </div>
+              <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:8}}>
+                {done[r.recipe_id]
+                  ?<span className="badge badge-green">✓ {done[r.recipe_id]}</span>
+                  :<>
+                    {!inPlan.has(r.recipe_id)&&<>
+                      {r.scraped_servings&&<label style={{display:'flex',alignItems:'center',gap:4,fontSize:12}}>
+                        <span style={{color:'var(--gray)'}}>Servings:</span>
+                        <input type="number" min={1} max={20}
+                          value={searchServings[r.recipe_id]||(parseInt(r.scraped_servings)||4)}
+                          onChange={e=>setSearchServings(s=>({...s,[r.recipe_id]:+e.target.value}))}
+                          style={{width:44,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:4,textAlign:'center',fontSize:12}}/>
+                      </label>}
+                      <button className="btn-primary btn-sm" disabled={adding[r.recipe_id]}
+                        onClick={()=>addToWeek(r)}>
+                        {adding[r.recipe_id]?'Adding…':'+ Add to plan'}
+                      </button>
+                    </>}
+                    {inPlan.has(r.recipe_id)&&<span className="badge badge-green">✓ In this week\'s plan</span>}
+                    {!r.is_blocked&&<button className="btn-secondary btn-sm" onClick={()=>block(r)}>🚫 Block</button>}
+                    {r.is_blocked&&<button className="btn-secondary btn-sm" onClick={async()=>{
+                      try{
+                        await del(`/recipes/${r.recipe_id}/reject?household_id=${hid}`);
+                        toast(`${r.title} unblocked`);
+                        setResults(prev=>({...prev,results:prev.results.map(x=>x.recipe_id===r.recipe_id?{...x,is_blocked:false}:x)}));
+                      }catch(e){toast(e.message,'error');}
+                    }}>✅ Unblock</button>}
+                  </>
+                }
+              </div>
+            </div>
+          )}
+        </div>
+  );
+};
+
 const RecipeSearchPage=({hid})=>{
   const [query,setQuery]=useState('');
   const [results,setResults]=useState(null);
@@ -1947,75 +2078,13 @@ const RecipeSearchPage=({hid})=>{
         </div>
       )}
 
-      {results&&results.results.map(r=>{
-        const [srOpen,setSrOpen]=React.useState(false);
-        const [srIngPop,setSrIngPop]=React.useState(null);
-        return(
-        <div key={r.recipe_id} className="recipe-card" style={{marginBottom:10,
-          opacity:r.is_blocked?0.6:1,
-          borderLeft:r.is_blocked?'3px solid #dc2626':r.rating?'3px solid var(--green)':''}}>
-          {/* Header row — always visible */}
-          <div className="recipe-card-hdr" onClick={()=>setSrOpen(o=>!o)}
-            style={{background:inPlan.has(r.recipe_id)?'#f0fdf4':''}}>
-            <div style={{flex:1}}>
-              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                <span style={{fontWeight:700,fontSize:15}}>{r.title}</span>
-                {inPlan.has(r.recipe_id)&&<span className="badge badge-green">✓ In plan</span>}
-                {r.is_blocked&&<span className="badge badge-red">🚫 Blocked</span>}
-                {r.rating&&<span className="badge badge-amber">{'⭐'.repeat(r.rating)}</span>}
-              </div>
-              <div style={{display:'flex',gap:10,marginTop:4,flexWrap:'wrap',fontSize:12,color:'var(--gray)'}}>
-                {r.total_time_minutes&&<span>⏱ {r.total_time_minutes}m</span>}
-                {r.scraped_servings&&<span>🍽 {r.scraped_servings}</span>}
-                <span>🌾 {r.carbs_per_serving!=null?Math.round(r.carbs_per_serving)+'g':'NA'} carbs</span>
-                {r.protein_category&&r.protein_category!=='other'&&<span className="badge badge-blue" style={{fontSize:11}}>{r.protein_category}</span>}
-                {r.mealie_slug&&<span className="badge badge-green" style={{fontSize:11}}>In Mealie</span>}
-              </div>
-            </div>
-            <span style={{fontSize:18,color:'var(--gray)'}}>{srOpen?'▲':'▼'}</span>
-          </div>
-          {/* Expanded body */}
-          {srOpen&&(
-            <div className="recipe-card-body">
-              <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap',alignItems:'center'}}>
-                {r.source_url&&safeHref(r.source_url)&&<a href={r.source_url} target="_blank" rel="noopener" style={{fontSize:13}}>🔗 View original →</a>}
-                {r.mealie_slug&&prefs?.mealie_url&&<a href={`${prefs.mealie_url}/recipe/${r.mealie_slug}`} target="_blank" rel="noopener" style={{fontSize:13}}>🥘 View in Mealie →</a>}
-              </div>
-              {/* Actions */}
-              <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:8}}>
-                {done[r.recipe_id]
-                  ?<span className="badge badge-green">✓ {done[r.recipe_id]}</span>
-                  :<>
-                    {!inPlan.has(r.recipe_id)&&<>
-                      {r.scraped_servings&&<label style={{display:'flex',alignItems:'center',gap:4,fontSize:12}}>
-                        <span style={{color:'var(--gray)'}}>Servings:</span>
-                        <input type="number" min={1} max={20}
-                          value={searchServings[r.recipe_id]||(parseInt(r.scraped_servings)||4)}
-                          onChange={e=>setSearchServings(s=>({...s,[r.recipe_id]:+e.target.value}))}
-                          style={{width:44,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:4,textAlign:'center',fontSize:12}}/>
-                      </label>}
-                      <button className="btn-primary btn-sm" disabled={adding[r.recipe_id]}
-                        onClick={()=>addToWeek(r)}>
-                        {adding[r.recipe_id]?'Adding…':'+ Add to plan'}
-                      </button>
-                    </>}
-                    {inPlan.has(r.recipe_id)&&<span className="badge badge-green">✓ In this week's plan</span>}
-                    {!r.is_blocked&&<button className="btn-secondary btn-sm" onClick={()=>block(r)}>🚫 Block</button>}
-                    {r.is_blocked&&<button className="btn-secondary btn-sm" onClick={async()=>{
-                      try{
-                        await del(`/recipes/${r.recipe_id}/reject?household_id=${hid}`);
-                        toast(`${r.title} unblocked`);
-                        setResults(prev=>({...prev,results:prev.results.map(x=>x.recipe_id===r.recipe_id?{...x,is_blocked:false}:x)}));
-                      }catch(e){toast(e.message,'error');}
-                    }}>✅ Unblock</button>}
-                  </>
-                }
-              </div>
-            </div>
-          )}
-        </div>
-        );
-      })}
+      {results&&results.results.map(r=>(
+        <SearchResultCard key={r.recipe_id} r={r} inPlan={inPlan} done={done}
+          adding={adding} searchServings={searchServings} setSearchServings={setSearchServings}
+          addToWeek={addToWeek} block={block} del={del} hid={hid} toast={toast}
+          prefs={prefs} weekMonday={weekMonday} setResults={setResults}
+          setInPlan={setInPlan} setDone={setDone}/>
+      ))}
     </div>
   );
 };

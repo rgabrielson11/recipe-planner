@@ -38,7 +38,7 @@ for f in protein_categories.yaml; do
 done
 
 # ── User-owned: copy if missing OR empty (empty = broken from failed init) ────
-for f in recipe_sources.yaml pantry_staples.yaml package_sizes.yaml rejection_reasons.yaml cooking_vocabulary.yaml; do
+for f in recipe_sources.yaml package_sizes.yaml rejection_reasons.yaml cooking_vocabulary.yaml; do
     if [ -f "$DEFAULTS/$f" ]; then
         # -s = file exists and has size > 0
         if [ ! -s "$DATA/$f" ]; then
@@ -47,6 +47,28 @@ for f in recipe_sources.yaml pantry_staples.yaml package_sizes.yaml rejection_re
         fi
     fi
 done
+
+# Merge default pantry staples: add new defaults without removing user customisations
+STAPLES_LIVE="$DATA_DIR/pantry_staples.yaml"
+STAPLES_DEFAULT="$DEFAULTS/pantry_staples.yaml"
+if [ -f "$STAPLES_DEFAULT" ]; then
+    if [ ! -f "$STAPLES_LIVE" ]; then
+        cp "$STAPLES_DEFAULT" "$STAPLES_LIVE"
+        echo "[entrypoint] pantry_staples.yaml created from defaults"
+    else
+        added=0
+        while IFS= read -r line; do
+            if echo "$line" | grep -qE "^ *- .+"; then
+                item=$(echo "$line" | sed "s/^ *- //")
+                if ! grep -qF "- $item" "$STAPLES_LIVE"; then
+                    echo "  - $item" >> "$STAPLES_LIVE"
+                    added=$((added+1))
+                fi
+            fi
+        done < "$STAPLES_DEFAULT"
+        [ "$added" -gt 0 ] && echo "[entrypoint] pantry_staples.yaml: merged $added new default(s)"
+    fi
+fi
 
 echo "[entrypoint] YAML sync complete. Starting uvicorn..."
 exec uvicorn app.main:app --host 0.0.0.0 --port 8111

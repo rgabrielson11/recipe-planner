@@ -1,17 +1,10 @@
 # Pantry staples
 #
-# These are ingredients assumed to ALWAYS be on hand — salt, pepper, basic
-# oils, flour, sugar, etc. They are never added to a generated shopping
-# list, and a recipe needing only staples (beyond what's already tracked
-# in the pantry_items table) isn't penalized as "missing ingredients" by
-# the matching engine.
-#
-# Edit this file directly (e.g. in VS Code, via the Unraid share/bind
-# mount) or manage it through the API: GET/POST/DELETE /pantry/staples.
-# Both paths write to this same file, and comments are preserved either
-# way.
+# Ingredients assumed to ALWAYS be on hand. Never added to a shopping list.
+# Edit via Settings → Pantry → Staples, or POST/DELETE /pantry/staples.
 
 staples:
+<<<<<<< HEAD
 - salt
 - black pepper
 - olive oil
@@ -74,3 +67,76 @@ staples:
 - sea salt
 - white pepper
 - black peppercorns
+=======
+  # Salt & pepper
+  - salt
+  - kosher salt
+  - sea salt
+  - black pepper
+  - white pepper
+  - black peppercorns
+  # Oils & fats
+  - olive oil
+  - vegetable oil
+  - canola oil
+  - neutral oil
+  - sesame oil
+  - butter
+  - nonstick spray
+  - cooking spray
+  # Vinegars & acids
+  - apple cider vinegar
+  - white vinegar
+  - red wine vinegar
+  - lemon juice
+  - lime juice
+  # Sweeteners
+  - sugar
+  - white sugar
+  - brown sugar
+  - honey
+  # Condiments & sauces
+  - soy sauce
+  - worcestershire sauce
+  - hot sauce
+  - dijon mustard
+  - yellow mustard
+  - tomato paste
+  # Canned goods
+  - canned tomatoes
+  - chicken broth
+  - chicken stock
+  - beef broth
+  - beef stock
+  - vegetable broth
+  # Dairy & eggs
+  - eggs
+  - milk
+  - heavy cream
+  - parmesan cheese
+  # Dry goods
+  - all-purpose flour
+  - cornstarch
+  - bread crumbs
+  - panko
+  - pasta
+  - rice
+  - baking soda
+  - baking powder
+  # Herbs & spices
+  - garlic powder
+  - onion powder
+  - paprika
+  - cumin
+  - chili powder
+  - dried oregano
+  - dried thyme
+  - dried rosemary
+  - dried basil
+  - bay leaves
+  - red pepper flakes
+  - turmeric
+  - cinnamon
+  - nutmeg
+  - water
+>>>>>>> 7119aaecf1fb2a0490d53d49aecbbd7def474f07

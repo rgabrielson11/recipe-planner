@@ -413,10 +413,16 @@ def get_source_stub_counts(db: Session = Depends(get_db)):
 
 @router.delete("/source-stubs")
 def delete_source_stubs(source_name: str, db: Session = Depends(get_db)):
-    """Delete all recipe stubs from a named source."""
+    """Delete all recipe stubs from a named source or domain.
+    source_name may be either the source's configured name ('Just A Pinch')
+    or a domain string ('justapinch.com') — both are accepted.
+    """
     from urllib.parse import urlparse
     sources = config_files.get_recipe_sources().get("sources", [])
+
+    # Try matching by configured name first, then by domain
     src = next((s for s in sources if s.get("name") == source_name), None)
+<<<<<<< HEAD
     domains = set()
     if src:
         for cu in src.get("category_urls", []):
@@ -426,6 +432,26 @@ def delete_source_stubs(source_name: str, db: Session = Depends(get_db)):
         bare = source_name.lstrip("www.")
         domains.add(bare)
         domains.add("www." + bare)
+=======
+
+    domains: set[str] = set()
+    if src:
+        for cu in src.get("category_urls", []):
+            try:
+                domains.add(urlparse(cu).netloc)
+            except Exception:
+                pass
+    else:
+        # Treat source_name as a bare domain (e.g. 'justapinch.com')
+        # and delete stubs whose URL netloc matches
+        domains.add(source_name.lstrip("www."))
+        domains.add("www." + source_name.lstrip("www."))
+        if not any(db.query(models.Recipe).filter(
+            models.Recipe.source_url.contains(source_name)
+        ).first() for _ in [1]):
+            raise HTTPException(status_code=404,
+                detail=f"No stubs found for '{source_name}'")
+>>>>>>> 7119aaecf1fb2a0490d53d49aecbbd7def474f07
     stubs = db.query(models.Recipe).filter(
         models.Recipe.source_url.isnot(None),
         models.Recipe.mealie_slug.is_(None),
@@ -452,3 +478,18 @@ def save_protein_categories(payload: dict):
     cats = payload.get("categories", [])
     config_files.save_protein_categories(cats)
     return {"categories": cats}
+
+
+# ── Home Assistant ─────────────────────────────────────────────────────────────
+
+@router.get("/ha-lists")
+def get_ha_lists():
+    """Return available HA todo list entities for the settings picker."""
+    from app import ha_client
+    if not ha_client.is_configured():
+        return {"lists": [], "configured": False}
+    try:
+        lists = ha_client.get_todo_lists()
+        return {"lists": lists, "configured": True}
+    except ha_client.HAError as e:
+        raise HTTPException(status_code=502, detail=str(e))

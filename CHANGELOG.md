@@ -1,5 +1,174 @@
 # Recipe Planner — Changelog
 
+## Patch 78: fix recipe search blank screen — hooks violation
+
+### Bug fix
+
+Recipe search showed a spinner then blank screen when results loaded.
+Root cause: `React.useState` was called inside a `.map()` callback in the
+search results renderer — a React hooks violation (hooks must only be
+called at the top level of a component, never inside loops or callbacks).
+
+Fix: extracted the result card into a proper `SearchResultCard` component
+with its own `useState` for the expand/collapse toggle. The map now
+renders `<SearchResultCard>` elements, which is correct React.
+
+---
+
+## Phase 11 — Patch 5: restore pantry_staples.yaml; merge-safe entrypoint
+
+### Bug fix
+
+Patch 074 (gitignore) deleted `pantry_staples.yaml` from the repo via
+`git rm --cached`, which generates a deletion in the patch diff. Applying
+the patch removed the file from disk; container restart then restored image
+defaults.
+
+Fixes:
+- `pantry_staples.yaml` restored to git tracking with a comprehensive
+  60-item default list (oils, vinegars, dairy, spices, canned goods, dry goods)
+- Removed from `.gitignore` — tracked in git so patches can update the defaults
+- `entrypoint.sh` updated to **merge** pantry staples rather than copy-if-missing:
+  on each container start, any default staple not already in the live file is
+  appended. Custom additions and deletions are never overwritten.
+
+VERSION bumped to 11.4.
+
+---
+
+## Phase 11 — Patch 4: Bring! enable toggle; generic AI normalisation; no list clearing
+
+### Changes
+
+**Bring! enable/disable toggle**
+Bring! now has an explicit on/off toggle in Settings, consistent with HA.
+New preference field `bring_shopping_enabled` (default true). The push
+endpoint respects this flag before sending to Bring!.
+
+**Generic AI ingredient normalisation**
+Renamed from "Use AI to map ingredient names when pushing to Bring!" to
+"Use AI to normalise ingredient names". Moved into a "Shopping List Options"
+section above the per-service blocks. Description clarifies it applies to
+ALL enabled destinations.
+
+**Items added, not replaced**
+HA todo list push no longer clears the list before adding items.
+Items are appended to whatever is already there. The `clear_first`
+parameter is removed from `ha_client.push_shopping_list()`.
+
+**Settings layout**
+Three clear sections: Shopping List Options → Bring! → Home Assistant.
+Bring! list name field shown only when Bring! is enabled.
+HA entity field shown only when HA is enabled.
+
+VERSION bumped to 11.3.
+
+---
+
+## Phase 11 — Patch 3: Home Assistant shopping list integration
+
+### New feature
+
+**Single "🛒 Push Shopping List" button**
+
+The separate "Push to Bring!" button is replaced with a single unified
+button that routes to whichever destinations are configured — Bring!,
+Home Assistant, or both simultaneously.
+
+**Home Assistant todo list integration**
+
+Settings → Preferences → "Home Assistant Shopping List" section:
+- Toggle to enable HA push
+- Text field for the HA todo entity ID (e.g. `todo.shopping_list`)
+- "Show HA lists" button — fetches all `todo.*` entities from HA and
+  displays their friendly names + entity IDs so you can copy the right one
+
+The HA list is cleared then refilled on each push. Bring! and HA can both
+be active; the push button sends to all enabled destinations in one click.
+
+**New backend files/endpoints:**
+- `backend/app/ha_client.py` — HA REST API client
+- `GET /api/config/ha-lists` — lists available HA todo entities
+- `POST /api/meal-plan/shopping-list/push` — combined push endpoint
+  (replaces `/push-to-bring`; checks prefs and pushes to Bring! and/or HA)
+
+New preference fields (auto-migrated):
+- `ha_shopping_enabled` BOOLEAN DEFAULT 0
+- `ha_shopping_list_entity` TEXT
+
+New container env vars required for HA:
+- `HA_BASE_URL` — e.g. `http://192.168.111.x:8123`
+- `HA_API_TOKEN` — long-lived HA access token
+
+VERSION bumped to 11.2.
+
+---
+
+## Phase 11 — Patch 2: gitignore all user YAML files; fix delete-stubs load error
+
+### Bug fixes
+
+**"load is not defined" on stub delete**
+The delete-stubs button in the Database page called `load()` on success,
+but DatabasePage uses `loadStats()` as its refresh function. Fixed to call
+`loadStats()`, which correctly refreshes the stubs-by-source table after
+deletion.
+
+**Gitignore all user-owned YAML data files**
+Following the `recipe_sources.yaml` fix (Patch 11.0), the remaining
+user-owned data files were still git-tracked, meaning `git pull` could
+reset them to repo defaults. Added to `.gitignore` and removed from
+tracking:
+- `backend/app/data/pantry_staples.yaml`
+- `backend/app/data/package_sizes.yaml`
+- `backend/app/data/rejection_reasons.yaml`
+- `backend/app/data/cooking_vocabulary.yaml`
+
+All four files remain on disk and the entrypoint continues to copy
+defaults when files are missing. Only `protein_categories.yaml` remains
+code-owned (synced from image because it has a UI editing flow).
+
+VERSION bumped to 11.1.
+
+---
+
+## Phase 11 — Patch 1: recipe_sources.yaml removed from git tracking
+
+### Bug fix
+
+`recipe_sources.yaml` was tracked in git, meaning every `git pull` reset
+it to the repo defaults (HelloFresh + Home Chef only), silently wiping any
+custom sources added via the UI (Just A Pinch, Chopped, etc.).
+
+Fixes:
+- `backend/app/data/recipe_sources.yaml` added to `.gitignore`
+- Removed from git tracking (`git rm --cached`) — file stays on disk
+- `entrypoint.sh` updated: `recipe_sources.yaml` moved from code-owned
+  (always overwrite) to user-owned (copy only if missing/empty)
+
+Future `git pull` operations will never touch the live sources config.
+Custom sources now survive restarts and updates permanently.
+
+VERSION bumped to 11.0 — beginning Phase 11.
+
+---
+
+## Phase 10 — Patch 95: fix delete-source-stubs accepts domain or name
+
+### Bug fix
+
+The Database page delete button passes the domain (`justapinch.com`) as
+`source_name`, but `DELETE /api/config/source-stubs` only matched against
+the source's configured name (`Just A Pinch`), returning 404.
+
+Fixed: the endpoint now accepts either the configured name OR a bare domain.
+When the name doesn't match a configured source, it treats the value as a
+domain string and deletes stubs whose `source_url` contains that domain.
+
+VERSION bumped to 10.95.
+
+---
+
 ## Phase 10 — Patch 94: fix recipe_sources.yaml overwrite on container restart
 
 ### Bug fix

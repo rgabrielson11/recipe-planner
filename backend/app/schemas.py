@@ -35,7 +35,10 @@ class PreferenceCreate(BaseModel):
     favorite_rating_threshold: int = 4
     mealie_dinner_tag: str = "dinner-planner"
     bring_list_name: Optional[str] = None   # Patch 16
-    bring_ollama_normalize: Optional[bool] = True   # Patch 82
+    bring_shopping_enabled: Optional[bool] = True      # Phase 11
+    bring_ollama_normalize: Optional[bool] = True         # Phase 11 (all lists)
+    ha_shopping_enabled: Optional[bool] = False        # Phase 11
+    ha_shopping_list_entity: Optional[str] = None     # Phase 11
     notes: Optional[str] = None
 
 
@@ -52,7 +55,10 @@ class PreferenceUpdate(BaseModel):
     favorite_rating_threshold: Optional[int] = None
     mealie_dinner_tag: Optional[str] = None
     bring_list_name: Optional[str] = None   # Patch 16
-    bring_ollama_normalize: Optional[bool] = True   # Patch 82
+    bring_shopping_enabled: Optional[bool] = True      # Phase 11
+    bring_ollama_normalize: Optional[bool] = True         # Phase 11 (all lists)
+    ha_shopping_enabled: Optional[bool] = False        # Phase 11
+    ha_shopping_list_entity: Optional[str] = None     # Phase 11
     notes: Optional[str] = None
 
 
@@ -72,7 +78,10 @@ class PreferenceOut(BaseModel):
     favorite_rating_threshold: int
     mealie_dinner_tag: str
     bring_list_name: Optional[str] = None   # Patch 16
-    bring_ollama_normalize: Optional[bool] = True   # Patch 82
+    bring_shopping_enabled: Optional[bool] = True      # Phase 11
+    bring_ollama_normalize: Optional[bool] = True         # Phase 11 (all lists)
+    ha_shopping_enabled: Optional[bool] = False        # Phase 11
+    ha_shopping_list_entity: Optional[str] = None     # Phase 11
     notes: Optional[str]
     created_at: datetime
     updated_at: datetime
