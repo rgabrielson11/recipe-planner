@@ -1,0 +1,9 @@
+# Normalise line endings to LF on commit, checkout as-is
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+*.patch binary

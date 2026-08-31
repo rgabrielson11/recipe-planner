@@ -1,5 +1,19 @@
 # Recipe Planner — Changelog
 
+## Patch 79: add .gitattributes to fix CRLF line-ending issue
+
+### Bug fix
+
+Applying patches from Windows caused CRLF line endings to be mixed into
+LF-only source files on the Linux server. This produced massive spurious
+diffs (4000+ lines in index.html) and a merge conflict in
+pantry_staples.yaml, requiring a hard reset to recover.
+
+Added `.gitattributes` with `* text=auto eol=lf` so git always normalises
+to LF on commit and checkout, regardless of the client OS.
+
+---
+
 ## Patch 78: fix recipe search blank screen — hooks violation
 
 ### Bug fix
