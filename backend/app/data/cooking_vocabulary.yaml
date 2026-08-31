@@ -1,0 +1,31 @@
+# Controlled vocabulary for cooking methods, equipment, and skill levels.
+# Used by the interview flow and recipe matching engine.
+
+skill_levels:
+  - beginner
+  - intermediate
+  - advanced
+
+cooking_methods:
+  - stovetop
+  - oven
+  - grill
+  - slow_cooker
+  - instant_pot_pressure_cooker
+  - air_fryer
+  - sous_vide
+  - smoker
+  - microwave
+  - no_cook
+
+cookware:
+  - cast_iron_skillet
+  - dutch_oven
+  - wok
+  - sheet_pan
+  - instant_pot
+  - slow_cooker
+  - air_fryer
+  - grill
+  - stand_mixer
+  - food_processor
