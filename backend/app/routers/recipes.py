@@ -302,8 +302,34 @@ def search_recipes(
             "protein_category":   _rd._classify_protein(r.title, []),
             "is_blocked":         r.id in blocked_ids,
             "rating":             rated_map.get(r.id),
+            "missing_ingredients": [],
+            "pantry_overlap_pct":  0,
             "_exact":             exact,
         })
+
+    # Compute missing ingredients vs household pantry + staples
+    from app import config_files as _cf
+    staples_set = set(s.lower() for s in _cf.get_staples())
+    pantry_rows = db.query(models.PantryItem).filter(
+        models.PantryItem.household_id == household_id
+    ).all()
+    pantry_set = set(p.name.lower() for p in pantry_rows) | staples_set
+
+    stub_map = {r.id: r for r in db.query(models.Recipe).filter(
+        models.Recipe.id.in_([x["recipe_id"] for x in results])
+    ).all()}
+    import json as _j
+    for res in results:
+        stub = stub_map.get(res["recipe_id"])
+        if stub and stub.scraped_tokens_json:
+            try:
+                tokens = set(_j.loads(stub.scraped_tokens_json))
+                missing = sorted(t for t in tokens if t not in pantry_set)
+                overlap = len(tokens & pantry_set) / len(tokens) if tokens else 0
+                res["missing_ingredients"] = missing[:15]
+                res["pantry_overlap_pct"] = round(overlap * 100, 1)
+            except Exception:
+                pass
 
     # Sort: exact matches first, then alphabetical
     results.sort(key=lambda x: (0 if x["_exact"] else 1, x["title"]))

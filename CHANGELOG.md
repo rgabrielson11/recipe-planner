@@ -1,5 +1,26 @@
 # Recipe Planner — Changelog
 
+## Patch 81: recipe search — full ingredient actions parity with suggestions
+
+### New features
+
+Recipe search result cards now have full ingredient action parity with the
+suggestions page:
+
+- **🖨️ Print** — opens a print-ready page with ingredients and instructions
+- **🛒 Need to buy** — lists missing ingredients (vs household pantry + staples)
+  with tap-to-action popup:
+  - 📌 **Staple** — add to pantry staples so it's excluded from future lists
+  - 🚫 **Exclude** — add to excluded ingredients in preferences
+  - 👎 **Dislike** — add to disliked ingredients in preferences
+- **Pantry overlap %** — shown on header when > 0
+
+Backend: `GET /api/recipes/search` now computes `missing_ingredients` and
+`pantry_overlap_pct` for each result using the household's pantry items and
+staples, same as the suggestion engine.
+
+---
+
 ## Patch 79: add .gitattributes to fix CRLF line-ending issue
 
 ### Bug fix
