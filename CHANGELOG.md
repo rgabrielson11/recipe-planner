@@ -1,5 +1,34 @@
 # Recipe Planner — Changelog
 
+## Phase 11 — Patch 4: Bring! enable toggle; generic AI normalisation; no list clearing
+
+### Changes
+
+**Bring! enable/disable toggle**
+Bring! now has an explicit on/off toggle in Settings, consistent with HA.
+New preference field `bring_shopping_enabled` (default true). The push
+endpoint respects this flag before sending to Bring!.
+
+**Generic AI ingredient normalisation**
+Renamed from "Use AI to map ingredient names when pushing to Bring!" to
+"Use AI to normalise ingredient names". Moved into a "Shopping List Options"
+section above the per-service blocks. Description clarifies it applies to
+ALL enabled destinations.
+
+**Items added, not replaced**
+HA todo list push no longer clears the list before adding items.
+Items are appended to whatever is already there. The `clear_first`
+parameter is removed from `ha_client.push_shopping_list()`.
+
+**Settings layout**
+Three clear sections: Shopping List Options → Bring! → Home Assistant.
+Bring! list name field shown only when Bring! is enabled.
+HA entity field shown only when HA is enabled.
+
+VERSION bumped to 11.3.
+
+---
+
 ## Phase 11 — Patch 3: Home Assistant shopping list integration
 
 ### New feature

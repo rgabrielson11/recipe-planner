@@ -88,16 +88,14 @@ def add_item(entity_id: str, name: str, description: str = "") -> None:
     r.raise_for_status()
 
 
-def push_shopping_list(shopping_list: dict, entity_id: str, clear_first: bool = True) -> dict:
+def push_shopping_list(shopping_list: dict, entity_id: str, use_ollama: bool = True) -> dict:
     """
-    Push all buy items from the shopping list to the specified HA todo list entity.
+    Add all buy items from the shopping list to the specified HA todo list entity.
+    Items are appended — existing items in the list are not cleared.
     Returns {entity_id, pushed, errors}.
     """
     if not is_configured():
         raise HAError("HA_BASE_URL / HA_API_TOKEN not configured")
-
-    if clear_first:
-        clear_list(entity_id)
 
     items = []
     for section_items in shopping_list.get("shopping_by_section", {}).values():

@@ -909,7 +909,8 @@ async def push_shopping_list(
 
     # ── Bring! ──────────────────────────────────────────────────────────────
     bring_configured = _bring.BRING_EMAIL and _bring.BRING_PASSWORD
-    if bring_configured:
+    bring_enabled = (prefs.bring_shopping_enabled if prefs and prefs.bring_shopping_enabled is not None else True)
+    if bring_configured and bring_enabled:
         list_name  = prefs.bring_list_name if prefs else None
         use_ollama = (prefs.bring_ollama_normalize if prefs and prefs.bring_ollama_normalize is not None else True)
         try:
@@ -926,7 +927,7 @@ async def push_shopping_list(
     entity_id  = prefs.ha_shopping_list_entity if prefs else None
     if _ha.is_configured() and ha_enabled and entity_id:
         try:
-            r = _ha.push_shopping_list(result, entity_id)
+            r = _ha.push_shopping_list(result, entity_id, use_ollama=use_ollama)
             results["ha"] = {"status": "ok", "pushed": r.get("pushed", 0), "entity_id": entity_id}
             destinations.append(f"Home Assistant ({entity_id})")
             log.info("Pushed to HA: household=%s entity=%s pushed=%d", household_id, entity_id, r.get("pushed", 0))
