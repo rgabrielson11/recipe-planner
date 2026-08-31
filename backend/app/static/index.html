@@ -2047,6 +2047,7 @@ const SearchResultCard=({r,inPlan,done,adding,searchServings,setSearchServings,a
 const RecipeSearchPage=({hid})=>{
   const [query,setQuery]=useState('');
   const [results,setResults]=useState(null);
+  const [limit,setLimit]=useState(50);
   const [loading,setLoading]=useState(false);
   const [adding,setAdding]=useState({});
   const [done,setDone]=useState({});
@@ -2070,7 +2071,7 @@ const RecipeSearchPage=({hid})=>{
     if(!q||!q.trim()){setResults(null);return;}
     setLoading(true);
     try{
-      const r=await get(`/recipes/search?q=${encodeURIComponent(q)}&household_id=${hid}`);
+      const r=await get(`/recipes/search?q=${encodeURIComponent(q)}&household_id=${hid}&limit=${limit}`);
       setResults(r);
     }catch(e){toast(e.message,'error');}
     finally{setLoading(false);}
@@ -2100,16 +2101,22 @@ const RecipeSearchPage=({hid})=>{
     <div>
       <div className="page-header">
         <h1 className="page-title">🔍 Recipe Search</h1>
-        <p className="page-sub">Search all scraped recipes{inPlan.size>0?` — ${inPlan.size} already in this week's plan`:''}</p>
+        <p className="page-sub">Search all scraped recipes{results?` — showing up to ${limit} results`:''}{inPlan.size>0?` · ${inPlan.size} in this week's plan`:''}</p>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <input className="input" placeholder="Search by recipe title…" value={query}
           style={{flex:1,padding:'8px 12px',border:'1px solid var(--border)',borderRadius:6,fontSize:14}}
           onChange={e=>setQuery(e.target.value)}
           onKeyDown={e=>e.key==='Enter'&&search(query)}/>
+        <select value={limit} onChange={e=>setLimit(+e.target.value)}
+          style={{padding:'8px',border:'1px solid var(--border)',borderRadius:6,fontSize:14,background:'var(--bg)'}}>
+          {[10,25,50,100,200].map(n=><option key={n} value={n}>{n} results</option>)}
+        </select>
         <button className="btn-primary" onClick={()=>search(query)} disabled={loading||!query.trim()}>
           {loading?'Searching…':'Search'}
         </button>
+        {results&&query&&<button className="btn-secondary btn-sm" title="Refresh"
+          onClick={()=>search(query)} disabled={loading}>↺</button>}
         {query&&<button className="btn-secondary" onClick={()=>{setQuery('');setResults(null);}}>Clear</button>}
       </div>
 

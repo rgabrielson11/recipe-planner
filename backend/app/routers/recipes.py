@@ -309,7 +309,10 @@ def search_recipes(
 
     # Compute missing ingredients vs household pantry + staples
     from app import config_files as _cf
-    staples_set = set(s.lower() for s in _cf.get_staples())
+    try:
+        staples_set = set(s.lower() for s in _cf.get_staples())
+    except Exception:
+        staples_set = set()
     pantry_rows = db.query(models.PantryItem).filter(
         models.PantryItem.household_id == household_id
     ).all()

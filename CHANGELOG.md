@@ -1,5 +1,19 @@
 # Recipe Planner — Changelog
 
+## Patch 83: search result count selector; robust YAML loading
+
+### Changes
+
+**Result count selector** (10 / 25 / 50 / 100 / 200, default 50) added to
+the search bar alongside a ↺ refresh button. Subtitle shows "showing up to
+N results" once loaded.
+
+**Search endpoint robust to pantry_staples.yaml failures** — wraps
+`get_staples()` in try/except so a corrupt or missing YAML file returns
+empty staples set instead of a 500, keeping the search page working.
+
+---
+
 ## Patch 81: recipe search — full ingredient actions parity with suggestions
 
 ### New features
