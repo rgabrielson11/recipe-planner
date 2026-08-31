@@ -1,5 +1,65 @@
 # Recipe Planner — Changelog
 
+## Patch 89: fix search blank page + input sizing + YAML file restoration
+
+### Bug fixes
+
+**Search page blank after results load**
+`pantryItems` was referenced in the JSX map call but never declared in
+`RecipeSearchPage` — a `ReferenceError` that only fired when results
+rendered. Fixed by passing `[]` instead.
+
+**Search input box too small**
+The limit `<select>` had no fixed width, competing with the flex input.
+Fixed with `width:120px; flexShrink:0` on the select.
+
+**rejection_reasons.yaml and cooking_vocabulary.yaml missing**
+Gitignore patch 074 deleted these files. Restored both with full default
+content and removed them from `.gitignore` so they stay tracked in git.
+
+**recipe_sources.yaml overwritten on git pull**
+`recipe_sources.yaml` was tracked in git so `git pull` reset it to
+defaults (HelloFresh + Home Chef only), wiping custom sources. Removed
+from git tracking and added to `.gitignore`. Only `protein_categories.yaml`
+remains code-owned.
+
+**Entrypoint merge for pantry staples**
+`pantry_staples.yaml` entrypoint now merges (adds missing defaults) rather
+than copy-if-missing, preserving user customisations across container restarts.
+
+---
+
+## Patch 88: search result count selector; ingredient actions; YAML robustness
+
+### New features
+
+**Recipe search — full ingredient actions parity with suggestions page**
+Expanded search result cards now include: 🖨️ Print, 🛒 Need to buy list
+with tap-to-action (📌 Staple / 🚫 Exclude / 👎 Dislike), pantry overlap %,
+View original + View in Mealie links, Block/Unblock toggle.
+
+Backend: `GET /api/recipes/search` now computes `missing_ingredients` and
+`pantry_overlap_pct` per result using household pantry + staples.
+
+**Result count selector (10/25/50/100/200, default 50)**
+Dropdown in search bar; ↺ refresh button re-runs with current limit.
+
+---
+
+## Patch 87: .gitattributes — normalise line endings LF
+
+Added `.gitattributes` with `* text=auto eol=lf` to prevent CRLF/LF
+conflicts when applying patches from Windows machines.
+
+---
+
+## Patch 86: fix merge conflict in config.py
+
+`delete_source_stubs()` had unresolved conflict markers causing
+`SyntaxError` on startup. Resolved by keeping HEAD version.
+
+---
+
 ## Patch 83: search result count selector; robust YAML loading
 
 ### Changes

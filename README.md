@@ -17,7 +17,7 @@ Self-hosted household dinner meal planner for a family of 4. Plans weekly dinner
 | Database | SQLite (WAL mode) |
 | Recipe storage | Self-hosted [Mealie](https://mealie.io) |
 | Recipe discovery | HelloFresh A–Z directory + Home Chef category pages |
-| Shopping list push | [Bring!](https://www.getbring.com) (optional) |
+| Shopping list push | [Bring!](https://www.getbring.com) and/or Home Assistant todo list (optional) |
 | Frontend | React SPA (single HTML file, served by FastAPI) |
 | Deployment | Docker on Unraid, port `8111` |
 
@@ -35,6 +35,8 @@ Recipes come from two sources:
 
 A **nightly background scraper** (`scrape_job.py`) runs at 3 AM (configurable) to keep the recipe cache warm. When you hit "Generate Suggestions" the engine scores from the cache — no network wait. The first run after deploy triggers a one-time synchronous scrape.
 
+Additional sources (Just A Pinch, Chopped, and others) can be added via the Sources page in the UI.
+
 A **non-dinner keyword filter** screens candidate URLs by slug before scraping — pancakes, cheesecakes, smoothies, and similar non-dinner content never waste scrape budget. Edit `non_dinner_title_keywords` in `recipe_sources.yaml` to tune.
 
 ### Suggestion engine
@@ -51,13 +53,12 @@ Scraped from HelloFresh and Home Chef, scored against your current pantry, and r
 
 ```
 0. Select week            — pick current, next, or upcoming week to plan for
-1. Last week feedback     — rate / block / re-queue ALL unreviewed past meals (not just last week)
-2. Review pantry          — update what's on hand
+1. Review pantry          — update what's on hand
 2. Set weekly intent      — ingredient hints boost matching scores
-3. Generate suggestions   — ranked list of N recipes; click ingredients to add to staples / exclude / dislike
-                            or pull from 📆 Past Meals to repeat a favourite
-4. Accept / reject        — permanent or time-based suppression
-5. Confirm selections     — locks in your picks; 🖨️ print all selected recipes
+3. Generate suggestions   — ranked list of N recipes; search bar + result count selector;
+                            click ingredients to add to staples / exclude / dislike
+4. Confirm selections     — adjust servings per recipe; locks in your picks
+5. Shopping list          — push to Bring! and/or Home Assistant in one click
 6. Get shopping list      — pantry-first, package-rounded, section-grouped
                             click pantry-check items to add to buy list; 🖨️ print pantry or shopping list
 7. Push to Bring!         — optional one-tap push to the Bring! grocery app
