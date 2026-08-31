@@ -1,5 +1,20 @@
 # Recipe Planner — Changelog
 
+## Patch 78: fix recipe search blank screen — hooks violation
+
+### Bug fix
+
+Recipe search showed a spinner then blank screen when results loaded.
+Root cause: `React.useState` was called inside a `.map()` callback in the
+search results renderer — a React hooks violation (hooks must only be
+called at the top level of a component, never inside loops or callbacks).
+
+Fix: extracted the result card into a proper `SearchResultCard` component
+with its own `useState` for the expand/collapse toggle. The map now
+renders `<SearchResultCard>` elements, which is correct React.
+
+---
+
 ## Phase 11 — Patch 5: restore pantry_staples.yaml; merge-safe entrypoint
 
 ### Bug fix
