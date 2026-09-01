@@ -1,5 +1,13 @@
 # Recipe Planner — Changelog
 
+## Patch 91: fix Mealie recipe links — use /g/{group}/r/{slug} format
+
+Mealie nightly uses /g/{group_slug}/r/{slug} as the recipe view URL, not
+/recipe/{slug}. Updated all Mealie links (Past Meals, Recipe Search) to
+use the correct format with the group slug fetched from /config/mealie-url.
+
+---
+
 ## Patch 90: Past Meals — In Mealie badge becomes a link
 
 The "In Mealie" badge on Past Meals recipe rows is now a clickable "🥘 Mealie" link
