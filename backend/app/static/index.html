@@ -1784,10 +1784,12 @@ const HistoryPage=({hid})=>{
   const [historyDone,setHistoryDone]=useState({});
   const [blocked,setBlocked]=useState([]);
   const [unblocking,setUnblocking]=useState({});
+  const [mealieUrl,setMealieUrl]=useState("");
   const toast=useToast();
   const week=weekMonday();
 
   useEffect(()=>{
+    get('/config/mealie-url').then(d=>setMealieUrl(d?.mealie_base_url||'')).catch(()=>{});
     setLoading(true);
     get(`/meal-plan/history?household_id=${hid}`)
       .then(d=>{
@@ -1837,8 +1839,10 @@ const HistoryPage=({hid})=>{
                 <div style={{fontWeight:600,fontSize:14}}>{r.title}</div>
                 <div style={{fontSize:12,color:'var(--gray)',marginTop:2}}>
                   {r.total_time_minutes?`⏱ ${r.total_time_minutes} min · `:''}
-                  {r.mealie_slug&&<span className="badge badge-blue" style={{marginRight:4}}>In Mealie</span>}
-                  {r.source_url&&<a href={r.source_url} target="_blank" rel="noopener" style={{fontSize:11,color:'var(--gray)'}}>🔗 Source</a>}
+                  {r.source_url&&<a href={r.source_url} target="_blank" rel="noopener" style={{fontSize:11,color:'var(--gray)',marginRight:6}}>🔗 Source</a>}
+                  {r.mealie_slug&&(mealieUrl
+                    ?<a href={`${mealieUrl}/recipe/${r.mealie_slug}`} target="_blank" rel="noopener" style={{fontSize:11,color:'var(--gray)'}}>🥘 Mealie</a>
+                    :<span className="badge badge-blue" style={{marginRight:4}}>In Mealie</span>)}
                 </div>
               </div>
               <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>

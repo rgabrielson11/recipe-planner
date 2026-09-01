@@ -1,5 +1,13 @@
 # Recipe Planner — Changelog
 
+## Patch 90: Past Meals — In Mealie badge becomes a link
+
+The "In Mealie" badge on Past Meals recipe rows is now a clickable "🥘 Mealie" link
+that opens the recipe directly in Mealie. Falls back to a static badge if
+the Mealie URL is not configured.
+
+---
+
 ## Patch 89: fix search blank page + input sizing + YAML file restoration
 
 ### Bug fixes
