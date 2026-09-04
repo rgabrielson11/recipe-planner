@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "").rstrip("/")
 OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "qwen3:latest")
-_TIMEOUT        = int(os.getenv("OLLAMA_TIMEOUT", "30"))
+_TIMEOUT        = int(os.getenv("OLLAMA_TIMEOUT", "60"))
 
 
 def is_configured() -> bool:

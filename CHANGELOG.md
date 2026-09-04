@@ -1,5 +1,14 @@
 # Recipe Planner — Changelog
 
+## Patch 93: use_ollama scoping fix; week picker; selected recipes bar; Ollama timeout
+
+- **HA push use_ollama error** fixed: variable was scoped inside Bring! block but used in HA block. Moved to top of function.
+- **Ollama timeout** increased from 30s to 60s default.
+- **Past Meals + Search — week picker**: "+ This week" replaced with "+ Add to week" which opens a modal to choose This week / Next week / +2 / +3 weeks.
+- **Suggestions page — always show selected recipes**: a card at the bottom of step 3 shows all confirmed recipes with ✕ remove buttons and a "Review & Confirm →" button, always visible regardless of how recipes were added (suggestions, past meals, search).
+
+---
+
 ## Patch 92: restore package_sizes.yaml; fix patch_recipe_ingredients 500
 
 - **package_sizes.yaml restored** with defaults for common grocery items

@@ -906,13 +906,13 @@ async def push_shopping_list(
 
     destinations = []
     results = {}
+    use_ollama = (prefs.bring_ollama_normalize if prefs and prefs.bring_ollama_normalize is not None else True)
 
     # ── Bring! ──────────────────────────────────────────────────────────────
     bring_configured = _bring.BRING_EMAIL and _bring.BRING_PASSWORD
     bring_enabled = (prefs.bring_shopping_enabled if prefs and prefs.bring_shopping_enabled is not None else True)
     if bring_configured and bring_enabled:
         list_name  = prefs.bring_list_name if prefs else None
-        use_ollama = (prefs.bring_ollama_normalize if prefs and prefs.bring_ollama_normalize is not None else True)
         try:
             r = await _bring.push_shopping_list(result, list_name=list_name, use_ollama=use_ollama)
             results["bring"] = {"status": "ok", "pushed": r.get("pushed", 0), "list": r.get("list_name")}

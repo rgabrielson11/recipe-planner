@@ -905,6 +905,18 @@ const PlannerPage=({hid})=>{
 
         {loading?<div className="spinner"/>:<>
 
+          {confirmed.length>0&&!importResults&&<div className="card" style={{marginTop:16,borderLeft:'3px solid var(--green)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,flexWrap:'wrap'}}>
+              <span style={{fontWeight:600,fontSize:14}}>✅ {confirmed.length} recipe{confirmed.length!==1?'s':''} selected</span>
+              <button className="btn-primary btn-sm" style={{marginLeft:'auto'}} onClick={()=>setStep(4)}>Review & Confirm →</button>
+            </div>
+            {suggestions.filter(s=>confirmed.includes(s.recipe_id)).map(s=>(
+              <div key={s.recipe_id} style={{display:'flex',alignItems:'center',gap:8,padding:'3px 0',fontSize:13,borderTop:'1px solid var(--border)'}}>
+                <span style={{flex:1}}>{s.title}</span>
+                <button className="btn-icon" style={{color:'#dc2626'}} onClick={()=>setConfirmed(c=>c.filter(id=>id!==s.recipe_id))}>✕</button>
+              </div>
+            ))}
+          </div>}
           {!importResults
             ?<button className="btn-success" onClick={confirmSelections} disabled={!confirmed.length}>✓ Lock In & Import to Mealie</button>
             :<button className="btn-primary" onClick={loadShoppingList}>🛒 Generate Shopping List →</button>
@@ -1802,16 +1814,25 @@ const HistoryPage=({hid})=>{
       .finally(()=>setLoading(false));
   },[hid]);
 
-  const addToWeek=async(recipe)=>{
+  const [weekPickerRecipe,setWeekPickerRecipe]=useState(null);
+  const [weekPickerSel,setWeekPickerSel]=useState('');
+  const weekOptions=Array.from({length:4},(_,i)=>{
+    const d=new Date();const day=d.getDay();
+    d.setDate(d.getDate()-(day===0?6:day-1)+i*7);
+    const iso=d.toISOString().slice(0,10);
+    const label=i===0?'This week':i===1?'Next week':`+${i} weeks`;
+    return{iso,label};
+  });
+  const addToWeek=async(recipe,targetWeek)=>{
     setAdding(a=>({...a,[recipe.recipe_id]:true}));
     try{
       await post(`/meal-plan/history/add`,{
         household_id:hid,
-        week_start_date:week,
+        week_start_date:targetWeek,
         recipe_ids:[recipe.recipe_id],
       });
       setAdded(a=>({...a,[recipe.recipe_id]:true}));
-      toast(`"${recipe.title}" added to this week`,'success');
+      toast(`"${recipe.title}" added`,'success');
     }catch(e){toast(e.message,'error');}
     finally{setAdding(a=>({...a,[recipe.recipe_id]:false}));}
   };
@@ -1877,8 +1898,8 @@ const HistoryPage=({hid})=>{
                       ?<span className="badge badge-green">✓ Added</span>
                       :<button className="btn-secondary btn-sm"
                           disabled={adding[r.recipe_id]}
-                          onClick={()=>addToWeek(r)}>
-                          {adding[r.recipe_id]?'Adding…':'+ This week'}
+                          onClick={()=>{setWeekPickerRecipe(r);setWeekPickerSel(week);}}>
+                          + Add to week
                         </button>
                     }
                     {!historyDone[r.recipe_id]&&<button className="btn-secondary btn-sm" style={{color:'#dc2626'}}
@@ -2045,7 +2066,35 @@ const SearchResultCard=({r,inPlan,done,adding,searchServings,setSearchServings,a
               </div>
             </div>
           )}
+          {weekPickerRecipe&&(
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center'}}
+          onClick={()=>setWeekPickerRecipe(null)}>
+          <div style={{background:'var(--bg)',borderRadius:12,padding:24,minWidth:280,boxShadow:'0 8px 32px rgba(0,0,0,0.25)'}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{margin:'0 0 12px',fontSize:16}}>Add to which week?</h3>
+            <p style={{fontSize:13,color:'var(--gray)',marginBottom:12,fontStyle:'italic'}}>{weekPickerRecipe.title}</p>
+            <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:16}}>
+              {weekOptions.map(({iso,label})=>(
+                <button key={iso} className={weekPickerSel===iso?'btn-primary':'btn-secondary'}
+                  onClick={()=>setWeekPickerSel(iso)}>
+                  {label} <span style={{opacity:.7,fontSize:12}}>({iso})</span>
+                </button>
+              ))}
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button className="btn-primary" style={{flex:1}} disabled={adding[weekPickerRecipe.recipe_id]}
+                onClick={async()=>{
+                  await addToWeek(weekPickerRecipe,weekPickerSel);
+                  setHistoryDone(d=>({...d,[weekPickerRecipe.recipe_id]:'Added'}));
+                  setWeekPickerRecipe(null);
+                }}>
+                {adding[weekPickerRecipe.recipe_id]?'Adding…':'Confirm'}
+              </button>
+              <button className="btn-secondary" onClick={()=>setWeekPickerRecipe(null)}>Cancel</button>
+            </div>
+          </div>
         </div>
+      )}
+    </div>
   );
 };
 
