@@ -1949,6 +1949,34 @@ const HistoryPage=({hid})=>{
           ))}
         </div>
       )}
+      {weekPickerRecipe&&(
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center'}}
+          onClick={()=>setWeekPickerRecipe(null)}>
+          <div style={{background:'var(--bg)',borderRadius:12,padding:24,minWidth:280,boxShadow:'0 8px 32px rgba(0,0,0,0.25)'}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{margin:'0 0 12px',fontSize:16}}>Add to which week?</h3>
+            <p style={{fontSize:13,color:'var(--gray)',marginBottom:12,fontStyle:'italic'}}>{weekPickerRecipe.title}</p>
+            <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:16}}>
+              {weekOptions.map(({iso,label})=>(
+                <button key={iso} className={weekPickerSel===iso?'btn-primary':'btn-secondary'}
+                  onClick={()=>setWeekPickerSel(iso)}>
+                  {label} <span style={{opacity:.7,fontSize:12}}>({iso})</span>
+                </button>
+              ))}
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button className='btn-primary' style={{flex:1}} disabled={adding[weekPickerRecipe.recipe_id]}
+                onClick={async()=>{
+                  await addToWeek(weekPickerRecipe,weekPickerSel);
+                  setHistoryDone(d=>({...d,[weekPickerRecipe.recipe_id]:'Added'}));
+                  setWeekPickerRecipe(null);
+                }}>
+                {adding[weekPickerRecipe.recipe_id]?'Adding…':'Confirm'}
+              </button>
+              <button className='btn-secondary' onClick={()=>setWeekPickerRecipe(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -2066,34 +2094,7 @@ const SearchResultCard=({r,inPlan,done,adding,searchServings,setSearchServings,a
               </div>
             </div>
           )}
-          {weekPickerRecipe&&(
-        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center'}}
-          onClick={()=>setWeekPickerRecipe(null)}>
-          <div style={{background:'var(--bg)',borderRadius:12,padding:24,minWidth:280,boxShadow:'0 8px 32px rgba(0,0,0,0.25)'}} onClick={e=>e.stopPropagation()}>
-            <h3 style={{margin:'0 0 12px',fontSize:16}}>Add to which week?</h3>
-            <p style={{fontSize:13,color:'var(--gray)',marginBottom:12,fontStyle:'italic'}}>{weekPickerRecipe.title}</p>
-            <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:16}}>
-              {weekOptions.map(({iso,label})=>(
-                <button key={iso} className={weekPickerSel===iso?'btn-primary':'btn-secondary'}
-                  onClick={()=>setWeekPickerSel(iso)}>
-                  {label} <span style={{opacity:.7,fontSize:12}}>({iso})</span>
-                </button>
-              ))}
-            </div>
-            <div style={{display:'flex',gap:8}}>
-              <button className="btn-primary" style={{flex:1}} disabled={adding[weekPickerRecipe.recipe_id]}
-                onClick={async()=>{
-                  await addToWeek(weekPickerRecipe,weekPickerSel);
-                  setHistoryDone(d=>({...d,[weekPickerRecipe.recipe_id]:'Added'}));
-                  setWeekPickerRecipe(null);
-                }}>
-                {adding[weekPickerRecipe.recipe_id]?'Adding…':'Confirm'}
-              </button>
-              <button className="btn-secondary" onClick={()=>setWeekPickerRecipe(null)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
+          
     </div>
   );
 };
