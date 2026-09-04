@@ -585,7 +585,7 @@ const PlannerPage=({hid})=>{
             const selAsRecs=existingSels.map(s=>({
               recipe_id:s.recipe_id,title:s.title,
               source_url:s.source_url,mealie_slug:s.mealie_slug,
-              scraped_servings:s.servings_override?`${s.servings_override} servings`:s.scraped_servings,total_time_minutes:s.total_time_minutes,
+              scraped_servings:s.servings_override?`${s.servings_override} servings`:s.scraped_servings,_base_servings:s.scraped_servings,total_time_minutes:s.total_time_minutes,
               carbs_per_serving:s.carbs_per_serving,
               missing_ingredients:s.missing_ingredients||[],
               pantry_overlap_pct:s.pantry_overlap_pct||0,
@@ -910,10 +910,14 @@ const PlannerPage=({hid})=>{
         {/* Print All Recipes — appears after import */}
         {importResults&&<div style={{marginBottom:16}}>
           <button className="btn-secondary" onClick={async()=>{
-            const selected=suggestions.filter(s=>confirmed.includes(s.recipe_id));
+            // Merge suggestions and weekSelections — weekSelections includes recipes added via search/past meals
+            const selFromSugs=suggestions.filter(s=>confirmed.includes(s.recipe_id));
+            const selIds=new Set(selFromSugs.map(s=>s.recipe_id));
+            const selFromWeek=(weekSelections||[]).filter(s=>!selIds.has(s.recipe_id));
+            const selected=[...selFromSugs,...selFromWeek.map(s=>({...s,_base_servings:s.scraped_servings}))];
             const results=await Promise.allSettled(
               selected.map(r=>{
-                const base=parseInt(r.scraped_servings)||numPeople;
+                const base=parseInt(r._base_servings||r.scraped_servings)||numPeople;
                 const target=servingOverrides[r.recipe_id]||numPeople;
                 const scale=base>0?Math.round((target/base)*100)/100:1;
                 return get(`/recipes/${r.recipe_id}/print-data?scale=${scale}`)
