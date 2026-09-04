@@ -448,19 +448,53 @@ def get_selections(
         models.WeeklySelection.household_id == household_id,
         models.WeeklySelection.week_start_date == week_start_date,
     ).all()
+
+    # Compute pantry + staples set for missing ingredient calculation
+    from app import config_files as _cf
+    import json as _json
+    from app.recipe_discovery import _classify_protein
+    try:
+        staples_set = set(s.lower() for s in _cf.get_staples())
+    except Exception:
+        staples_set = set()
+    pantry_rows = db.query(models.PantryItem).filter(
+        models.PantryItem.household_id == household_id
+    ).all()
+    pantry_set = set(p.name.lower() for p in pantry_rows) | staples_set
+
     result = []
     for s in sels:
         r = s.recipe
+        if not r:
+            result.append({"recipe_id": s.recipe_id, "servings_override": s.servings_override,
+                           "title": s.recipe_id, "source_url": None, "scraped_servings": None,
+                           "total_time_minutes": None, "carbs_per_serving": None,
+                           "mealie_slug": None, "missing_ingredients": [], "pantry_overlap_pct": 0,
+                           "protein_category": "other", "score": 0})
+            continue
+        missing = []
+        pantry_overlap_pct = 0
+        if r.scraped_tokens_json:
+            try:
+                tokens = set(_json.loads(r.scraped_tokens_json))
+                missing = sorted(t for t in tokens if t not in pantry_set)[:15]
+                overlap = len(tokens & pantry_set) / len(tokens) if tokens else 0
+                pantry_overlap_pct = round(overlap * 100, 1)
+            except Exception:
+                pass
         result.append({
             "recipe_id": s.recipe_id,
             "servings_override": s.servings_override,
-            "title": r.title if r else s.recipe_id,
-            "source_url": r.source_url if r else None,
-            "scraped_servings": r.scraped_servings if r else None,
-            "total_time_minutes": r.scraped_time_minutes if r else None,
-            "carbs_per_serving": r.scraped_carbs if r else None,
-            "mealie_slug": r.mealie_slug if r else None,
-            "missing_ingredients": [],
+            "title": r.title,
+            "source_url": r.source_url,
+            "scraped_servings": r.scraped_servings,
+            "total_time_minutes": r.scraped_time_minutes,
+            "carbs_per_serving": r.scraped_carbs,
+            "mealie_slug": r.mealie_slug,
+            "missing_ingredients": missing,
+            "pantry_overlap_pct": pantry_overlap_pct,
+            "protein_category": _classify_protein(r.title, []),
+            "score": 0,
         })
     return result
 

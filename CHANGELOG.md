@@ -1,5 +1,16 @@
 # Recipe Planner — Changelog
 
+## Patch 103: selections endpoint returns full ingredient data
+
+The GET /meal-plan/selections endpoint now computes missing_ingredients
+and pantry_overlap_pct for each recipe using the household pantry and
+staples, identical to the search endpoint. Pre-selected recipes on the
+suggestions page now show the full RecipeCard UI including ingredient
+list with staple/exclude/dislike actions, pantry overlap percentage,
+and buy count badge.
+
+---
+
 ## Patch 102: pantry check items push to shopping list
 
 Items moved from the pantry check section to the buy list via
