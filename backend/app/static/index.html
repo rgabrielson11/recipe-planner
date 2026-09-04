@@ -573,6 +573,28 @@ const PlannerPage=({hid})=>{
   },[hid]);
 
   useEffect(()=>{
+    if(step===3){
+      get(`/meal-plan/selections?household_id=${hid}&week_start_date=${week}`)
+        .then(existingSels=>{
+          if(!existingSels||!existingSels.length)return;
+          setConf(c=>{
+            const all=new Set([...c,...existingSels.map(s=>s.recipe_id)]);
+            return[...all];
+          });
+          setSug(prev=>{
+            const selAsRecs=existingSels.map(s=>({
+              recipe_id:s.recipe_id,title:s.title,
+              source_url:s.source_url,mealie_slug:s.mealie_slug,
+              scraped_servings:s.scraped_servings,total_time_minutes:s.total_time_minutes,
+              carbs_per_serving:s.carbs_per_serving,missing_ingredients:[],
+              pantry_overlap_pct:0,protein_category:'',score:999,_pre_selected:true,
+            }));
+            const existingIds=new Set(prev.map(s=>s.recipe_id));
+            const newOnes=selAsRecs.filter(s=>!existingIds.has(s.recipe_id));
+            return newOnes.length?[...newOnes,...prev]:prev;
+          });
+        }).catch(()=>{});
+    }
     if(step===4){
       get(`/meal-plan/selections?household_id=${hid}&week_start_date=${week}`)
         .then(rows=>setWeekSelections(rows||[]))
@@ -774,9 +796,9 @@ const PlannerPage=({hid})=>{
           });
           // Build ordered list of groups, appending any unconfigured keys at the end
           const allKeys=[...catOrder.map(c=>c.key),...Object.keys(grouped).filter(k=>!catOrder.find(c=>c.key===k))];
-          if(filteredSugs.length===0&&sugSearch){return<div style={{padding:32,textAlign:'center',color:'var(--gray)'}}>No recipes match "{sugSearch}"</div>;}
+          if(filteredSugs.length===0&&!preSelected.length&&sugSearch){return<div style={{padding:32,textAlign:'center',color:'var(--gray)'}}>No recipes match "{sugSearch}"</div>;}
           const seenKeys=new Set();
-          return allKeys.filter(k=>{if(seenKeys.has(k)||!grouped[k])return false;seenKeys.add(k);return true;}).map(k=>{
+          const groupedSecs=allKeys.filter(k=>{if(seenKeys.has(k)||!grouped[k])return false;seenKeys.add(k);return true;}).map(k=>{
             const cat=catOrder.find(c=>c.key===k)||{key:k,label:k};
             const recs=grouped[k]||[];
             return(<div key={k} style={{marginBottom:8}}>
@@ -791,6 +813,8 @@ const PlannerPage=({hid})=>{
                 rejectionReasons={rejectionReasons} cookingMethods={cookingMethods}/>)}
             </div>);
           });
+          const preSection=preSelected.length>0?(<div style={{marginBottom:16}}><div style={{fontSize:13,fontWeight:700,color:'#16a34a',textTransform:'uppercase',letterSpacing:'.06em',padding:'6px 0 4px',borderBottom:'2px solid #16a34a',marginBottom:8}}>Added to this week ({preSelected.length})</div>{preSelected.map(r=><RecipeCard key={r.recipe_id} r={r} pantryItems={pantry} onConfirm={toggleConfirm} onReject={toggleReject} onRemove={id=>setSug(s=>s.filter(x=>x.recipe_id!==id))} confirmed={confirmed} rejected={rejected} hid={hid} prefs={prefs} rejectionReasons={rejectionReasons} cookingMethods={cookingMethods}/>)}</div>):null;
+          return<>{preSection}{groupedSecs}</>;
         })()}
         {/* All-rejected banner */}
         {suggestions.length>0&&suggestions.every(r=>rejected.includes(r.recipe_id))&&!loading&&(

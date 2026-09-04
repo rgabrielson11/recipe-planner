@@ -1,5 +1,21 @@
 # Recipe Planner — Changelog
 
+## Patch 98: suggestions page shows search/past-meals selections at top
+
+When reaching step 3 (suggestions), the planner now fetches any
+recipes already added to that week (via search or past meals) and:
+- Injects them into confirmed so they are pre-selected
+- Prepends them to the suggestions list under an "Added to this week"
+  green header section
+- Merges them into the grouped suggestions when loading via
+  loadSuggestions() too
+
+This makes search/past-meals additions fully visible in the
+suggestions flow, so the selected-recipes bar, confirm page,
+and shopping list all work correctly.
+
+---
+
 ## Patch 96: search week picker; confirm page polls backend selections
 
 **Search 'Add to plan' week picker**
