@@ -553,7 +553,7 @@ const PlannerPage=({hid})=>{
   const pushShopping=async()=>{
     setPushingBring(true);
     try{
-      const r=await post(`/meal-plan/shopping-list/push?household_id=${hid}&week_start_date=${week}`,{});
+      const r=await post(`/meal-plan/shopping-list/push?household_id=${hid}&week_start_date=${week}`,{extra_items:extraBuyItems});
       const dest=r.destinations?.join(' & ')||'shopping list';
       const errs=Object.values(r.results||{}).filter(x=>x.status==='error');
       if(errs.length) toast(`Push errors: ${errs.map(x=>x.detail).join('; ')}`,'error');

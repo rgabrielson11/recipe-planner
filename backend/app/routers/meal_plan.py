@@ -16,6 +16,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 import logging
@@ -898,10 +899,14 @@ def didnt_make(recipe_id: str, household_id: str, week_start_date: str, db: Sess
     return {"removed": recipe_id, "selections": deleted_sel, "entries": deleted_entry}
 
 
+class PushShoppingListRequest(BaseModel):
+    extra_items: list[str] = []
+
 @router.post("/shopping-list/push")
 async def push_shopping_list(
     household_id: str,
     week_start_date: str,
+    body: PushShoppingListRequest = PushShoppingListRequest(),
     db: Session = Depends(get_db),
 ):
     """
@@ -918,6 +923,15 @@ async def push_shopping_list(
 
     # Build the shopping list once
     result = sl.build_shopping_list(household_id, _date.fromisoformat(week_start_date), db)
+
+    # Merge any extra items added from the pantry check in the UI
+    if body.extra_items:
+        extra_section = result.setdefault('shopping_by_section', {}).setdefault('Added from Pantry', [])
+        existing = {i['item'].lower() for sec in result.get('shopping_by_section', {}).values() for i in sec}
+        for name in body.extra_items:
+            if name.lower() not in existing:
+                extra_section.append({'item': name, 'quantity': None, 'unit': '', 'package_label': ''})
+                existing.add(name.lower())
 
     destinations = []
     results = {}

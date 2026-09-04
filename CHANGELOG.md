@@ -1,5 +1,15 @@
 # Recipe Planner — Changelog
 
+## Patch 102: pantry check items push to shopping list
+
+Items moved from the pantry check section to the buy list via
+"+ Add to buy list" are now included when pushing to Bring! or
+Home Assistant. The frontend sends extraBuyItems in the push
+request body; the backend merges them into the shopping list
+before dispatching to configured destinations.
+
+---
+
 ## Patch 98: suggestions page shows search/past-meals selections at top
 
 When reaching step 3 (suggestions), the planner now fetches any
