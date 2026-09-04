@@ -1,5 +1,26 @@
 # Recipe Planner — Changelog
 
+## Patch 95: week date consistency; clickable steps; skip to confirm
+
+**Week date timezone fix**
+weekOptions in the week picker used toISOString() (UTC) while all other
+week calculations use localISO() (local time). For users behind UTC this
+could produce the wrong date. Fixed to use localISO() everywhere.
+
+**Clickable step bar**
+All steps in the planner step bar are now clickable. Steps already completed
+(done) can always be revisited. Forward jumps are enabled once planning has
+started (step >= 1). The Confirm step (4) is always reachable when recipes
+are queued.
+
+**Skip to Confirm button**
+When one or more recipes are confirmed (from search, past meals, or
+suggestions) and the current step is before Confirm, a "Skip to Confirm
+(N recipes queued) →" button appears below the step bar so you can skip
+directly without stepping through suggestions.
+
+---
+
 ## Patch 93: use_ollama scoping fix; week picker; selected recipes bar; Ollama timeout
 
 - **HA push use_ollama error** fixed: variable was scoped inside Bring! block but used in HA block. Moved to top of function.

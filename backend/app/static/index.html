@@ -643,7 +643,24 @@ const PlannerPage=({hid})=>{
   return(
     <div>
       <div className="page-header"><h1 className="page-title">📅 Weekly Planner</h1><p className="page-sub">Week of {fmt(week)}</p></div>
-      <div className="step-bar">{STEPS.map((s,i)=><div key={i} className={`step${step===i?' active':step>i?' done':''}`} onClick={()=>step>i&&setStep(i)}>{step>i?'✓ ':''}{s}</div>)}</div>
+      <div className="step-bar">{STEPS.map((s,i)=>{
+        const canJump=step>i||(i<=5&&step>=1)||(confirmed.length>0&&i===4)||(confirmed.length>0&&i===5&&step>=4);
+        const isActive=step===i;const isDone=step>i;
+        return(
+          <div key={i} className={`step${isActive?' active':isDone?' done':''}`}
+            style={{cursor:canJump?'pointer':'default',opacity:canJump||isActive?1:0.5}}
+            onClick={()=>canJump&&setStep(i)}>
+            {isDone?'✓ ':''}{s}
+          </div>
+        );
+      })}</div>
+      {confirmed.length>0&&step<4&&(
+        <div style={{textAlign:'right',marginBottom:8}}>
+          <button className="btn-secondary btn-sm" onClick={()=>setStep(4)}>
+            Skip to Confirm ({confirmed.length} recipe{confirmed.length!==1?'s':''} queued) →
+          </button>
+        </div>
+      )}
 
       {/* Step 0: Week Selection */}
       {step===0&&<div>
@@ -1819,7 +1836,7 @@ const HistoryPage=({hid})=>{
   const weekOptions=Array.from({length:4},(_,i)=>{
     const d=new Date();const day=d.getDay();
     d.setDate(d.getDate()-(day===0?6:day-1)+i*7);
-    const iso=d.toISOString().slice(0,10);
+    const iso=localISO(d);
     const label=i===0?'This week':i===1?'Next week':`+${i} weeks`;
     return{iso,label};
   });
