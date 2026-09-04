@@ -801,9 +801,6 @@ const PlannerPage=({hid})=>{
           const filteredSugs=sugSearch.trim()
             ?filteredSugs_.filter(r=>r.title.toLowerCase().includes(sugSearch.toLowerCase()))
             :filteredSugs_;
-          const filteredSugs=sugSearch.trim()
-            ?suggestions.filter(r=>r.title.toLowerCase().includes(sugSearch.toLowerCase()))
-            :suggestions;
           const catOrder=proteinCategories.length
             ?[...proteinCategories].sort((a,b)=>(a.order||99)-(b.order||99)||a.key.localeCompare(b.key))
             :[{key:'other',label:'🍽️ Other',order:99}];
