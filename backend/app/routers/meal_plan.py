@@ -436,7 +436,7 @@ def _apply_mealie_metadata(slug: str, dinner_tag: str, recipe: models.Recipe,
         log.debug("Category set failed for '%s': %s", slug, e)
 
 
-@router.get("/selections", response_model=list[schemas.WeeklySelectionOut])
+@router.get("/selections")
 def get_selections(
     household_id: str,
     week_start_date: date,
