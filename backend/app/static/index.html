@@ -536,6 +536,7 @@ const PlannerPage=({hid})=>{
   const [extraBuyItems,setExtraBuyItems]=useState([]);
   const [loading,setLoading]=useState(false);
   const [importResults,setImportResults]=useState(null);
+  const [weekSelections,setWeekSelections]=useState([]);
   const [mealieUrl,setMealieUrl]=useState('');
   const [rejectionReasons,setRejectionReasons]=useState([]);
   const [cookingMethods,setCookingMethods]=useState([]);
@@ -570,6 +571,14 @@ const PlannerPage=({hid})=>{
     get('/config/protein-categories').then(d=>setProteinCategories(d.categories||[])).catch(()=>{});
     get(`/households/${hid}`).then(h=>{if(h?.num_people)setNumPeople(h.num_people);}).catch(()=>{});
   },[hid]);
+
+  useEffect(()=>{
+    if(step===4){
+      get(`/meal-plan/selections?household_id=${hid}&week_start_date=${week}`)
+        .then(rows=>setWeekSelections(rows||[]))
+        .catch(()=>{});
+    }
+  },[step,hid,week]);
 
   const loadSuggestions=async(countOverride)=>{
     const n=countOverride??numSug;
@@ -806,7 +815,7 @@ const PlannerPage=({hid})=>{
             Adjust servings per recipe — the shopping list will scale ingredients accordingly.
             Default is your household size ({numPeople} people).
           </p>
-          {suggestions.filter(s=>confirmed.includes(s.recipe_id)).map(r=>{
+          {(weekSelections.length>0?weekSelections:suggestions.filter(s=>confirmed.includes(s.recipe_id))).map(r=>{
             const baseServings=parseInt(r.scraped_servings)||null;
             const targetServings=servingOverrides[r.recipe_id]||numPeople;
             const scale=baseServings?Math.round((targetServings/baseServings)*10)/10:null;
@@ -935,7 +944,7 @@ const PlannerPage=({hid})=>{
             ))}
           </div>}
           {!importResults
-            ?<button className="btn-success" onClick={confirmSelections} disabled={!confirmed.length}>✓ Lock In & Import to Mealie</button>
+            ?<button className="btn-success" onClick={confirmSelections} disabled={!confirmed.length&&!weekSelections.length}>✓ Lock In & Import to Mealie</button>
             :<button className="btn-primary" onClick={loadShoppingList}>🛒 Generate Shopping List →</button>
           }
         </>}
@@ -2093,8 +2102,8 @@ const SearchResultCard=({r,inPlan,done,adding,searchServings,setSearchServings,a
                           style={{width:44,padding:'2px 4px',border:'1px solid var(--border)',borderRadius:4,textAlign:'center',fontSize:12}}/>
                       </label>}
                       <button className="btn-primary btn-sm" disabled={adding[r.recipe_id]}
-                        onClick={()=>addToWeek(r)}>
-                        {adding[r.recipe_id]?'Adding…':'+ Add to plan'}
+                        onClick={()=>{setWeekPickerRecipe(r);setWeekPickerSel(week);}}>
+                        + Add to plan
                       </button>
                     </>}
                     {inPlan.has(r.recipe_id)&&<span className="badge badge-green">✓ In this week\'s plan</span>}
@@ -2129,6 +2138,15 @@ const RecipeSearchPage=({hid})=>{
   const [mealieGroup,setMealieGroup]=useState('home');
   const [unblocking,setUnblocking]=useState({});
   const [searchServings,setSearchServings]=useState({});
+  const [weekPickerRecipe,setWeekPickerRecipe]=useState(null);
+  const [weekPickerSel,setWeekPickerSel]=useState('');
+  const weekOptions=Array.from({length:4},(_,i)=>{
+    const d=new Date();const day=d.getDay();
+    d.setDate(d.getDate()-(day===0?6:day-1)+i*7);
+    const iso=localISO(d);
+    const label=i===0?'This week':i===1?'Next week':`+${i} weeks`;
+    return{iso,label};
+  });
   const toast=useToast();
   const week=weekMonday();
 
@@ -2151,13 +2169,15 @@ const RecipeSearchPage=({hid})=>{
   };
 
   const addToWeek=async(recipe)=>{
+    const targetWeek=recipe._targetWeek||week;
     setAdding(a=>({...a,[recipe.recipe_id]:true}));
     try{
       const servings=searchServings[recipe.recipe_id]||null;
-      await post('/meal-plan/history/add',{household_id:hid,week_start_date:week,recipe_ids:[recipe.recipe_id],...(servings?{servings_override:{[recipe.recipe_id]:servings}}:{})});
-      setInPlan(s=>new Set([...s,recipe.recipe_id]));
-      setDone(d=>({...d,[recipe.recipe_id]:"In this week's plan \u2713"}));
-      toast(`"${recipe.title}" added to this week's plan`);
+      await post('/meal-plan/history/add',{household_id:hid,week_start_date:targetWeek,recipe_ids:[recipe.recipe_id],...(servings?{servings_override:{[recipe.recipe_id]:servings}}:{})});
+      if(targetWeek===week)setInPlan(s=>new Set([...s,recipe.recipe_id]));
+      const wl=targetWeek===week?'this week':targetWeek;
+      setDone(d=>({...d,[recipe.recipe_id]:`Added to ${wl} ✓`}));
+      toast(`"${recipe.title}" added to ${wl}`);
     }catch(e){toast(e.message,'error');}
     finally{setAdding(a=>({...a,[recipe.recipe_id]:false}));}
   };
@@ -2215,6 +2235,33 @@ const RecipeSearchPage=({hid})=>{
           prefs={prefs} mealieUrl={mealieUrl} mealieGroup={mealieGroup} setResults={setResults}
           setInPlan={setInPlan} setDone={setDone} pantryItems={[]}/>
       ))}
+      {weekPickerRecipe&&(
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center'}}
+          onClick={()=>setWeekPickerRecipe(null)}>
+          <div style={{background:'var(--bg)',borderRadius:12,padding:24,minWidth:280,boxShadow:'0 8px 32px rgba(0,0,0,0.25)'}} onClick={e=>e.stopPropagation()}>
+            <h3 style={{margin:'0 0 12px',fontSize:16}}>Add to which week?</h3>
+            <p style={{fontSize:13,color:'var(--gray)',marginBottom:12,fontStyle:'italic'}}>{weekPickerRecipe.title}</p>
+            <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:16}}>
+              {weekOptions.map(({iso,label})=>(
+                <button key={iso} className={weekPickerSel===iso?'btn-primary':'btn-secondary'}
+                  onClick={()=>setWeekPickerSel(iso)}>
+                  {label} <span style={{opacity:.7,fontSize:12}}>({iso})</span>
+                </button>
+              ))}
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button className='btn-primary' style={{flex:1}} disabled={adding[weekPickerRecipe.recipe_id]}
+                onClick={async()=>{
+                  await addToWeek({...weekPickerRecipe,_targetWeek:weekPickerSel});
+                  setWeekPickerRecipe(null);
+                }}>
+                {adding[weekPickerRecipe.recipe_id]?'Adding…':'Confirm'}
+              </button>
+              <button className='btn-secondary' onClick={()=>setWeekPickerRecipe(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

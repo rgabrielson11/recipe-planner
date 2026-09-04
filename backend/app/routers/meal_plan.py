@@ -442,11 +442,26 @@ def get_selections(
     week_start_date: date,
     db: Session = Depends(get_db),
 ):
-    """Returns the confirmed recipe selections for the given week."""
-    return db.query(models.WeeklySelection).filter(
+    """Returns the confirmed recipe selections for the given week with recipe details."""
+    sels = db.query(models.WeeklySelection).filter(
         models.WeeklySelection.household_id == household_id,
         models.WeeklySelection.week_start_date == week_start_date,
     ).all()
+    result = []
+    for s in sels:
+        r = s.recipe
+        result.append({
+            "recipe_id": s.recipe_id,
+            "servings_override": s.servings_override,
+            "title": r.title if r else s.recipe_id,
+            "source_url": r.source_url if r else None,
+            "scraped_servings": r.scraped_servings if r else None,
+            "total_time_minutes": r.scraped_time_minutes if r else None,
+            "carbs_per_serving": r.scraped_carbs if r else None,
+            "mealie_slug": r.mealie_slug if r else None,
+            "missing_ingredients": [],
+        })
+    return result
 
 
 # ── 6. Shopping list ──────────────────────────────────────────────────────────

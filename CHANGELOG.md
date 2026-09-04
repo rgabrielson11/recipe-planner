@@ -1,5 +1,25 @@
 # Recipe Planner — Changelog
 
+## Patch 96: search week picker; confirm page polls backend selections
+
+**Search 'Add to plan' week picker**
+The search result card now opens a week picker modal (This week / Next week
+/ +2 / +3) before adding a recipe to the plan, consistent with Past Meals.
+
+**Confirm page shows all week selections**
+The Confirm step (step 4) now fetches actual weekly selections from the
+backend when entered, showing ALL recipes added for that week regardless
+of how they were added (suggestions, search, past meals). The local
+'confirmed' array is only used as a fallback when no backend selections
+exist yet.
+
+**get_selections endpoint enriched**
+Now returns recipe details (title, time, servings, carbs, mealie slug)
+alongside each selection, so the Confirm page can display full recipe
+info without a separate lookup.
+
+---
+
 ## Patch 95: week date consistency; clickable steps; skip to confirm
 
 **Week date timezone fix**
