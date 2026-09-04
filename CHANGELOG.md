@@ -1,5 +1,16 @@
 # Recipe Planner — Changelog
 
+## Patch 105: pre-selected recipes now show full ingredient details
+
+The frontend was hardcoding missing_ingredients:[] and pantry_overlap_pct:0
+when building pre-selected recipe objects from the selections API response,
+ignoring the enriched data the API (patch 103) now returns. Fixed to use
+s.missing_ingredients, s.pantry_overlap_pct, and s.protein_category from
+the API response, so pre-selected recipes on the suggestions page show
+the full RecipeCard with ingredient list and staple/exclude/dislike actions.
+
+---
+
 ## Patch 104: merge Review & Confirm with Lock In; remove redundant button
 
 On the Confirm step (step 4), the "Review & Confirm →" button in the

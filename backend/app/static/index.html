@@ -586,8 +586,10 @@ const PlannerPage=({hid})=>{
               recipe_id:s.recipe_id,title:s.title,
               source_url:s.source_url,mealie_slug:s.mealie_slug,
               scraped_servings:s.scraped_servings,total_time_minutes:s.total_time_minutes,
-              carbs_per_serving:s.carbs_per_serving,missing_ingredients:[],
-              pantry_overlap_pct:0,protein_category:'',score:999,_pre_selected:true,
+              carbs_per_serving:s.carbs_per_serving,
+              missing_ingredients:s.missing_ingredients||[],
+              pantry_overlap_pct:s.pantry_overlap_pct||0,
+              protein_category:s.protein_category||'',score:999,_pre_selected:true,
             }));
             const existingIds=new Set(prev.map(s=>s.recipe_id));
             const newOnes=selAsRecs.filter(s=>!existingIds.has(s.recipe_id));
