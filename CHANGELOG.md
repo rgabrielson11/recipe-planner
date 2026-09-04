@@ -1,5 +1,12 @@
 # Recipe Planner — Changelog
 
+## Patch 92: restore package_sizes.yaml; fix patch_recipe_ingredients 500
+
+- **package_sizes.yaml restored** with defaults for common grocery items
+- **patch_recipe_ingredients** no longer raises on Mealie 500 — logs warning with response body and returns gracefully
+
+---
+
 ## Patch 91: fix Mealie recipe links — use /g/{group}/r/{slug} format
 
 Mealie nightly uses /g/{group_slug}/r/{slug} as the recipe view URL, not

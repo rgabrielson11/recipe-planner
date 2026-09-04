@@ -1,0 +1,102 @@
+# Package sizes for shopping list rounding.
+# When a calculated quantity exceeds a threshold, the shopping list
+# suggests buying N packages instead of a raw amount.
+# Format: pattern matched against ingredient name (case-insensitive)
+
+packages:
+
+  # Produce
+  - pattern: garlic
+    size: 1
+    unit: head
+    label: "1 head"
+  - pattern: onion
+    size: 3
+    unit: count
+    label: "bag of 3"
+
+  # Dairy
+  - pattern: butter
+    size: 1
+    unit: lb
+    label: "1 lb"
+  - pattern: milk
+    size: 0.5
+    unit: gallon
+    label: "½ gallon"
+  - pattern: heavy cream
+    size: 1
+    unit: cup
+    label: "1 pt"
+  - pattern: parmesan
+    size: 5
+    unit: oz
+    label: "5 oz wedge"
+
+  # Dry goods
+  - pattern: rice
+    size: 2
+    unit: lb
+    label: "2 lb bag"
+  - pattern: pasta
+    size: 1
+    unit: lb
+    label: "1 lb box"
+  - pattern: flour
+    size: 5
+    unit: lb
+    label: "5 lb bag"
+  - pattern: sugar
+    size: 4
+    unit: lb
+    label: "4 lb bag"
+  - pattern: bread crumbs
+    size: 15
+    unit: oz
+    label: "15 oz can"
+  - pattern: panko
+    size: 8
+    unit: oz
+    label: "8 oz box"
+
+  # Canned
+  - pattern: chicken broth
+    size: 32
+    unit: oz
+    label: "32 oz carton"
+  - pattern: beef broth
+    size: 32
+    unit: oz
+    label: "32 oz carton"
+  - pattern: tomato paste
+    size: 6
+    unit: oz
+    label: "6 oz can"
+  - pattern: canned tomatoes
+    size: 28
+    unit: oz
+    label: "28 oz can"
+
+  # Oils
+  - pattern: olive oil
+    size: 16
+    unit: oz
+    label: "16 oz bottle"
+  - pattern: vegetable oil
+    size: 48
+    unit: oz
+    label: "48 oz bottle"
+
+  # Meat
+  - pattern: chicken breast
+    size: 2
+    unit: lb
+    label: "2 lb pack"
+  - pattern: ground beef
+    size: 1
+    unit: lb
+    label: "1 lb pack"
+  - pattern: ground turkey
+    size: 1
+    unit: lb
+    label: "1 lb pack"

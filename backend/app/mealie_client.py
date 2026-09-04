@@ -534,7 +534,10 @@ def patch_recipe_ingredients(slug: str, ingredient_strings: list[str], base_serv
             json=detail,
             timeout=_TIMEOUT,
         )
-        r.raise_for_status()
+        if not r.ok:
+            log.warning("patch_recipe_ingredients: Mealie %s for '%s' — %s",
+                        r.status_code, slug, r.text[:300])
+            return
         log.info("Patched %d ingredient quantities on Mealie recipe '%s'", changed, slug)
     except Exception as e:
         log.warning("patch_recipe_ingredients failed for slug=%s: %s", slug, e)
