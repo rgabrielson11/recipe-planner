@@ -973,7 +973,9 @@ const PlannerPage=({hid})=>{
           {confirmed.length>0&&!importResults&&<div className="card" style={{marginTop:16,borderLeft:'3px solid var(--green)'}}>
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,flexWrap:'wrap'}}>
               <span style={{fontWeight:600,fontSize:14}}>✅ {confirmed.length} recipe{confirmed.length!==1?'s':''} selected</span>
-              <button className="btn-primary btn-sm" style={{marginLeft:'auto'}} onClick={()=>setStep(4)}>Review & Confirm →</button>
+              {step<4
+                ?<button className="btn-primary btn-sm" style={{marginLeft:'auto'}} onClick={()=>setStep(4)}>Review & Confirm →</button>
+                :<button className="btn-success btn-sm" style={{marginLeft:'auto'}} disabled={!confirmed.length&&!weekSelections.length} onClick={confirmSelections}>✓ Lock In & Import →</button>}
             </div>
             {suggestions.filter(s=>confirmed.includes(s.recipe_id)).map(s=>(
               <div key={s.recipe_id} style={{display:'flex',alignItems:'center',gap:8,padding:'3px 0',fontSize:13,borderTop:'1px solid var(--border)'}}>
@@ -982,10 +984,9 @@ const PlannerPage=({hid})=>{
               </div>
             ))}
           </div>}
-          {!importResults
-            ?<button className="btn-success" onClick={confirmSelections} disabled={!confirmed.length&&!weekSelections.length}>✓ Lock In & Import to Mealie</button>
-            :<button className="btn-primary" onClick={loadShoppingList}>🛒 Generate Shopping List →</button>
-          }
+                    {importResults&&(
+            <button className="btn-primary" onClick={loadShoppingList}>🛒 Generate Shopping List →</button>
+          )}
         </>}
       </div>}
 

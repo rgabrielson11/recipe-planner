@@ -1,5 +1,16 @@
 # Recipe Planner — Changelog
 
+## Patch 104: merge Review & Confirm with Lock In; remove redundant button
+
+On the Confirm step (step 4), the "Review & Confirm →" button in the
+selected-recipes bar now calls confirmSelections() directly, labelled
+"✓ Lock In & Import →". The separate standalone "Lock In & Import to
+Mealie" green button is removed. On earlier steps the bar button still
+navigates to the Confirm step. After import succeeds, the "Generate
+Shopping List →" button appears as before.
+
+---
+
 ## Patch 103: selections endpoint returns full ingredient data
 
 The GET /meal-plan/selections endpoint now computes missing_ingredients
