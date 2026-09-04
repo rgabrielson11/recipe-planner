@@ -1,5 +1,15 @@
 # Recipe Planner — Changelog
 
+## Patch 106: print-all scales ingredients to selected servings
+
+The "Print All Recipes" button on the Confirm step now passes the
+servings scale factor to the print-data endpoint. Ingredient quantities
+are multiplied by (target_servings / base_servings) for each recipe
+before rendering the print view. The servings line on each printed
+recipe shows the target count and scale factor (e.g. "4 servings (x2)").
+
+---
+
 ## Patch 105: pre-selected recipes now show full ingredient details
 
 The frontend was hardcoding missing_ingredients:[] and pantry_overlap_pct:0

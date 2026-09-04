@@ -912,14 +912,21 @@ const PlannerPage=({hid})=>{
           <button className="btn-secondary" onClick={async()=>{
             const selected=suggestions.filter(s=>confirmed.includes(s.recipe_id));
             const results=await Promise.allSettled(
-              selected.map(r=>get(`/recipes/${r.recipe_id}/print-data`))
+              selected.map(r=>{
+                const base=parseInt(r.scraped_servings)||numPeople;
+                const target=servingOverrides[r.recipe_id]||numPeople;
+                const scale=base>0?Math.round((target/base)*100)/100:1;
+                return get(`/recipes/${r.recipe_id}/print-data?scale=${scale}`)
+                  .then(d=>({...d,_target_servings:target,_scale:scale}));
+              })
             );
             const recipes=results
               .map((res,i)=>res.status==='fulfilled'?res.value:{title:selected[i].title,ingredients:[],instructions:[],source_url:selected[i].source_url,total_time_minutes:selected[i].total_time_minutes})
               .filter(Boolean);
             const escHtml=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             const sections=recipes.map((d,idx)=>{
-              const meta=[d.total_time_minutes?`⏱ ${escHtml(d.total_time_minutes)} min`:'',d.servings?`🍽 ${escHtml(d.servings)}`:'',d.source_url?`<a href="${escHtml(d.source_url)}">${escHtml(d.source_url)}</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+              const servingsLabel=d._target_servings?`${d._target_servings} servings${d._scale&&d._scale!==1?' (×'+d._scale+')':''}`:d.servings||'';
+              const meta=[d.total_time_minutes?`⏱ ${escHtml(d.total_time_minutes)} min`:'',servingsLabel?`🍽 ${escHtml(servingsLabel)}`:'',d.source_url?`<a href="${escHtml(d.source_url)}">${escHtml(d.source_url)}</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
               const ings=(d.ingredients||[]).map(i=>`<li>${escHtml(i)}</li>`).join('');
               const steps=(d.instructions||[]).map(s=>`<li>${escHtml(s)}</li>`).join('');
               const breakStyle=idx===0?'':'page-break-before:always;break-before:page;';

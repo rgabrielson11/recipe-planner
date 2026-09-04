@@ -152,7 +152,7 @@ def list_rejections(recipe_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{recipe_id}/print-data")
-def get_print_data(recipe_id: str, db: Session = Depends(get_db)):
+def get_print_data(recipe_id: str, scale: float = 1.0, db: Session = Depends(get_db)):
     """
     Returns all available recipe data needed for the in-app print view.
     Combines local DB fields (scraped ingredients, description, cook time)
@@ -219,6 +219,37 @@ def get_print_data(recipe_id: str, db: Session = Depends(get_db)):
         except Exception:
             pass   # Mealie unavailable — fall back to scraped data only
 
+    # Scale ingredient quantities if requested
+    if scale and scale != 1.0:
+        import re as _re
+        def scale_ing(s):
+            """Scale the first number/fraction found in an ingredient string."""
+            def replace_num(m):
+                try:
+                    num = float(m.group(0))
+                    scaled = num * scale
+                    # Format: drop trailing zeros, use fractions for common values
+                    if scaled == int(scaled):
+                        return str(int(scaled))
+                    # Round to 2 decimal places
+                    return str(round(scaled, 2))
+                except Exception:
+                    return m.group(0)
+            # Match decimals and simple fractions like 1/2, 3/4
+            def replace_frac(m):
+                try:
+                    num, den = int(m.group(1)), int(m.group(2))
+                    scaled = (num / den) * scale
+                    if scaled == int(scaled):
+                        return str(int(scaled))
+                    return str(round(scaled, 2))
+                except Exception:
+                    return m.group(0)
+            s = _re.sub(r"(\d+)/(\d+)", replace_frac, s, count=1)
+            s = _re.sub(r"\d+\.\d+|\d+", replace_num, s, count=1)
+            return s
+        data["ingredients"] = [scale_ing(i) for i in data["ingredients"]]
+        data["scale_applied"] = round(scale, 2)
     return data
 
 
