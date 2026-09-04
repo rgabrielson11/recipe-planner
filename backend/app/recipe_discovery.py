@@ -919,9 +919,19 @@ def collect_and_scrape(
                 _update_row_from_detail(_existing, detail)
                 db.add(_existing)
             else:
-                row = models.Recipe(source_url=url, title=detail["name"], mealie_slug=None)
-                _update_row_from_detail(row, detail)
-                db.add(row)
+                # Also check for duplicate title — same recipe republished with new URL
+                _title_match = db.query(models.Recipe).filter(
+                    models.Recipe.title == detail["name"]
+                ).first() if detail.get("name") else None
+                if _title_match:
+                    log.info("Title duplicate detected — updating existing stub (id=%s) with new URL: %s",
+                             _title_match.id, url)
+                    _update_row_from_detail(_title_match, detail)
+                    db.add(_title_match)
+                else:
+                    row = models.Recipe(source_url=url, title=detail["name"], mealie_slug=None)
+                    _update_row_from_detail(row, detail)
+                    db.add(row)
                 try:
                     db.flush()
                     new_recipes += 1

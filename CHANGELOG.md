@@ -1,5 +1,21 @@
 # Recipe Planner — Changelog
 
+## Patch 111: recipe deduplication — cleanup and prevention
+
+**Cleanup**: removed 15 duplicate recipe stubs (same title, different HelloFresh
+URL slug from recipe republishing). Kept most complete record per group;
+re-pointed WeeklySelection and MealPlanEntry references to the keeper.
+
+**Prevention**: scraper now checks for title match before inserting a new
+stub. If a recipe with the same title already exists at a different URL,
+the existing record is updated rather than a new duplicate created.
+
+**Database page button**: "Remove Duplicates" button triggers
+POST /config/dedup-recipes which finds and collapses all title-duplicate
+groups, keeping the most complete stub.
+
+---
+
 ## Patch 106: print-all scales ingredients to selected servings
 
 The "Print All Recipes" button on the Confirm step now passes the

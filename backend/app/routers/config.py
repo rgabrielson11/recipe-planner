@@ -472,3 +472,37 @@ def get_ha_lists():
         return {"lists": lists, "configured": True}
     except ha_client.HAError as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.post("/dedup-recipes")
+def dedup_recipes(db: Session = Depends(get_db)):
+    """Find and remove duplicate recipe stubs (same title, different URL).
+    Keeps the most complete record; re-points all references to it."""
+    from collections import defaultdict
+    all_recipes = db.query(models.Recipe).filter(models.Recipe.title.isnot(None)).all()
+    by_title = defaultdict(list)
+    for r in all_recipes:
+        by_title[r.title.strip().lower()].append(r)
+
+    removed = 0
+    groups = 0
+    for title, recipes in by_title.items():
+        if len(recipes) < 2:
+            continue
+        groups += 1
+        def score(r):
+            return (bool(r.mealie_slug)*10 + bool(r.scraped_tokens_json)*5 +
+                    bool(r.scraped_ingredients_json)*4 + bool(r.scraped_instructions_json)*3 +
+                    bool(r.scraped_carbs)*2 + bool(r.scraped_time_minutes))
+        recipes.sort(key=score, reverse=True)
+        keeper = recipes[0]
+        for dup in recipes[1:]:
+            db.query(models.WeeklySelection).filter(
+                models.WeeklySelection.recipe_id == dup.id).update({"recipe_id": keeper.id})
+            db.query(models.MealPlanEntry).filter(
+                models.MealPlanEntry.recipe_id == dup.id).update({"recipe_id": keeper.id})
+            db.delete(dup)
+            removed += 1
+
+    db.commit()
+    return {"groups_found": groups, "duplicates_removed": removed}

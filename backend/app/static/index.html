@@ -1804,6 +1804,11 @@ const DatabasePage=()=>{
             </table>
           }
           <button className="btn-secondary btn-sm" style={{marginTop:12}} onClick={loadStats}>↺ Refresh</button>
+          <button className="btn-secondary btn-sm" style={{marginTop:12,marginLeft:8}} onClick={async()=>{
+            if(!window.confirm('Remove duplicate recipes (same title, different URL)? Keeps the most complete record.'))return;
+            try{const r=await post('/config/dedup-recipes',{});toast(`Removed ${r.duplicates_removed} duplicate(s) across ${r.groups_found} group(s)`,'success');loadStats();}
+            catch(e){toast(e.message,'error');}
+          }}>🧹 Remove Duplicates</button>
         </>}
       </div>
 
