@@ -2226,7 +2226,7 @@ const RecipeSearchPage=({hid})=>{
     setAdding(a=>({...a,[recipe.recipe_id]:true}));
     try{
       const servings=searchServings[recipe.recipe_id]||null;
-      await post('/meal-plan/history/add',{household_id:hid,week_start_date:targetWeek,recipe_ids:[recipe.recipe_id],...(servings?{servings_override:{[recipe.recipe_id]:servings}}:{})});
+      await post('/meal-plan/history/add',{household_id:hid,week_start_date:targetWeek,recipe_ids:[recipe.recipe_id],...(servings?{servings_overrides:{[recipe.recipe_id]:servings}}:{})});
       if(targetWeek===week)setInPlan(s=>new Set([...s,recipe.recipe_id]));
       const wl=targetWeek===week?'this week':targetWeek;
       setDone(d=>({...d,[recipe.recipe_id]:`Added to ${wl} ✓`}));
