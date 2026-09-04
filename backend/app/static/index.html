@@ -585,7 +585,7 @@ const PlannerPage=({hid})=>{
             const selAsRecs=existingSels.map(s=>({
               recipe_id:s.recipe_id,title:s.title,
               source_url:s.source_url,mealie_slug:s.mealie_slug,
-              scraped_servings:s.servings_override?`${s.servings_override} servings`:s.scraped_servings,_base_servings:s.scraped_servings,total_time_minutes:s.total_time_minutes,
+              scraped_servings:s.servings_override?`${s.servings_override} servings`:(numPeople?`${numPeople} servings`:s.scraped_servings),_base_servings:s.scraped_servings,total_time_minutes:s.total_time_minutes,
               carbs_per_serving:s.carbs_per_serving,
               missing_ingredients:s.missing_ingredients||[],
               pantry_overlap_pct:s.pantry_overlap_pct||0,
