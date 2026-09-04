@@ -780,8 +780,27 @@ const PlannerPage=({hid})=>{
           <div style={{fontSize:48}}>🍽️</div>
           <p>No suggestions. Check Recipe Sources to ensure sources are enabled.</p>
         </div>}
+        {suggestions.filter(r=>r._pre_selected).length>0&&(
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:13,fontWeight:700,color:'#16a34a',textTransform:'uppercase',
+              letterSpacing:'.06em',padding:'6px 0 4px',borderBottom:'2px solid #16a34a',marginBottom:8}}>
+              Added to this week ({suggestions.filter(r=>r._pre_selected).length})
+            </div>
+            {suggestions.filter(r=>r._pre_selected).map(r=>(
+              <RecipeCard key={r.recipe_id} r={r} pantryItems={pantry}
+                onConfirm={toggleConfirm} onReject={toggleReject}
+                onRemove={id=>setSug(s=>s.filter(x=>x.recipe_id!==id))}
+                confirmed={confirmed} rejected={rejected} hid={hid} prefs={prefs}
+                rejectionReasons={rejectionReasons} cookingMethods={cookingMethods}/>
+            ))}
+          </div>
+        )}
         {(()=>{
           // Group suggestions by protein category using loaded config order
+          const filteredSugs_=suggestions.filter(r=>!r._pre_selected);
+          const filteredSugs=sugSearch.trim()
+            ?filteredSugs_.filter(r=>r.title.toLowerCase().includes(sugSearch.toLowerCase()))
+            :filteredSugs_;
           const filteredSugs=sugSearch.trim()
             ?suggestions.filter(r=>r.title.toLowerCase().includes(sugSearch.toLowerCase()))
             :suggestions;
@@ -796,9 +815,9 @@ const PlannerPage=({hid})=>{
           });
           // Build ordered list of groups, appending any unconfigured keys at the end
           const allKeys=[...catOrder.map(c=>c.key),...Object.keys(grouped).filter(k=>!catOrder.find(c=>c.key===k))];
-          if(filteredSugs.length===0&&!preSelected.length&&sugSearch){return<div style={{padding:32,textAlign:'center',color:'var(--gray)'}}>No recipes match "{sugSearch}"</div>;}
+          if(filteredSugs.length===0&&sugSearch){return<div style={{padding:32,textAlign:'center',color:'var(--gray)'}}>No recipes match "{sugSearch}"</div>;}
           const seenKeys=new Set();
-          const groupedSecs=allKeys.filter(k=>{if(seenKeys.has(k)||!grouped[k])return false;seenKeys.add(k);return true;}).map(k=>{
+          return allKeys.filter(k=>{if(seenKeys.has(k)||!grouped[k])return false;seenKeys.add(k);return true;}).map(k=>{
             const cat=catOrder.find(c=>c.key===k)||{key:k,label:k};
             const recs=grouped[k]||[];
             return(<div key={k} style={{marginBottom:8}}>
@@ -813,8 +832,7 @@ const PlannerPage=({hid})=>{
                 rejectionReasons={rejectionReasons} cookingMethods={cookingMethods}/>)}
             </div>);
           });
-          const preSection=preSelected.length>0?(<div style={{marginBottom:16}}><div style={{fontSize:13,fontWeight:700,color:'#16a34a',textTransform:'uppercase',letterSpacing:'.06em',padding:'6px 0 4px',borderBottom:'2px solid #16a34a',marginBottom:8}}>Added to this week ({preSelected.length})</div>{preSelected.map(r=><RecipeCard key={r.recipe_id} r={r} pantryItems={pantry} onConfirm={toggleConfirm} onReject={toggleReject} onRemove={id=>setSug(s=>s.filter(x=>x.recipe_id!==id))} confirmed={confirmed} rejected={rejected} hid={hid} prefs={prefs} rejectionReasons={rejectionReasons} cookingMethods={cookingMethods}/>)}</div>):null;
-          return<>{preSection}{groupedSecs}</>;
+
         })()}
         {/* All-rejected banner */}
         {suggestions.length>0&&suggestions.every(r=>rejected.includes(r.recipe_id))&&!loading&&(
