@@ -721,15 +721,10 @@ const PlannerPage=({hid})=>{
 
       {/* Step 1: Pantry */}
       {step===1&&<div>
-        <div className="card" style={{marginBottom:16}}>
-          <h3 className="section-title">Pantry Status</h3>
-          {expired.length>0&&<div className="alert alert-warning">⚠️ {expired.length} expired: {expired.map(p=>p.name).join(', ')}</div>}
-          <div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:8}}>
-            <div className="stat-card" style={{flex:1}}><div className="stat-val">{pantry.length}</div><div className="stat-label">Tracked items</div></div>
-            <div className="stat-card" style={{flex:1}}><div className="stat-val" style={{color:'var(--red)'}}>{expired.length}</div><div className="stat-label">Expired</div></div>
-          </div>
+        <PantryPage hid={hid} embedded={true}/>
+        <div style={{marginTop:16}}>
+          <button className="btn-primary" onClick={()=>setStep(2)}>Continue →</button>
         </div>
-        <button className="btn-primary" onClick={()=>setStep(2)}>Continue →</button>
       </div>}
 
       {/* Step 2: Intent */}
@@ -1125,7 +1120,7 @@ const PlannerPage=({hid})=>{
 };
 
 // ── Pantry ────────────────────────────────────────────────────────────────────
-const PantryPage=({hid})=>{
+const PantryPage=({hid,embedded=false})=>{
   const [items,setItems]=useState([]);
   const [form,setForm]=useState({name:'',quantity:'',unit:''});
   const [editId,setEditId]=useState(null);
