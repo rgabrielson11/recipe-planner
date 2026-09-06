@@ -1127,7 +1127,7 @@ const PlannerPage=({hid})=>{
 // ── Pantry ────────────────────────────────────────────────────────────────────
 const PantryPage=({hid})=>{
   const [items,setItems]=useState([]);
-  const [form,setForm]=useState({name:'',quantity:'',unit:'',category:'',expiry_date:''});
+  const [form,setForm]=useState({name:'',quantity:'',unit:''});
   const [editId,setEditId]=useState(null);
   const [filter,setFilter]=useState('');
   const [confirmDeleteId,setConfirmDeleteId]=useState(null);
@@ -1137,14 +1137,13 @@ const PantryPage=({hid})=>{
   const save=async()=>{
     if(!form.name.trim()){toast('Name required','warning');return;}
     try{
-      const p={...form,household_id:hid,quantity:form.quantity?+form.quantity:null,expiry_date:form.expiry_date||null};
+      const p={...form,household_id:hid,quantity:form.quantity?+form.quantity:null};
       if(editId)await put(`/pantry/${editId}`,p);else await post('/pantry',p);
-      setForm({name:'',quantity:'',unit:'',category:'',expiry_date:''});setEditId(null);load();toast(editId?'Updated':'Added');
+      setForm({name:'',quantity:'',unit:''});setEditId(null);load();toast(editId?'Updated':'Added');
     }catch(e){toast(e.message,'error');}
   };
-  const startEdit=item=>{setEditId(item.id);setForm({name:item.name,quantity:item.quantity||'',unit:item.unit||'',category:item.category||'',expiry_date:item.expiry_date||''});};
+  const startEdit=item=>{setEditId(item.id);setForm({name:item.name,quantity:item.quantity||'',unit:item.unit||''})};
   const remove=async id=>{try{await del(`/pantry/${id}`);setConfirmDeleteId(null);load();toast('Removed');}catch(e){toast(e.message,'error');}};
-  const today=localISO(new Date());
   const filtered=items.filter(i=>i.name.toLowerCase().includes(filter.toLowerCase()));
   return(
     <div>
@@ -1161,10 +1160,10 @@ const PantryPage=({hid})=>{
               {['produce','meat & seafood','dairy & eggs','dry goods & pasta','canned & jarred','frozen','other'].map(c=><option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          <div><label>Expiry</label><input type="date" value={form.expiry_date} onChange={e=>setForm(f=>({...f,expiry_date:e.target.value}))}/></div>
+
           <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
             <button className="btn-primary" onClick={save}>{editId?'Update':'Add'}</button>
-            {editId&&<button className="btn-secondary" onClick={()=>{setEditId(null);setForm({name:'',quantity:'',unit:'',category:'',expiry_date:''});}}>Cancel</button>}
+            {editId&&<button className="btn-secondary" onClick={()=>{setEditId(null);setForm({name:'',quantity:'',unit:''});}}>Cancel</button>}
           </div>
         </div>
       </div>
@@ -1173,13 +1172,10 @@ const PantryPage=({hid})=>{
           <input style={{maxWidth:280}} placeholder="🔍 Filter..." value={filter} onChange={e=>setFilter(e.target.value)}/>
           <span style={{fontSize:13,color:'var(--gray)'}}>{filtered.length} shown</span>
         </div>
-        <table className="table"><thead><tr><th>Name</th><th>Qty</th><th>Unit</th><th>Category</th><th>Expiry</th><th></th></tr></thead>
+        <table className="table"><thead><tr><th>Name</th><th>Qty</th><th>Unit</th><th></th></tr></thead>
           <tbody>{filtered.map(item=>{
-            const exp=item.expiry_date&&item.expiry_date<today;
-            const soon=item.expiry_date&&!exp&&item.expiry_date<=localISO(new Date(Date.now()+7*864e5));
-            return(<tr key={item.id} style={{background:exp?'#fef2f2':soon?'#fffbeb':''}}>
-              <td style={{fontWeight:500}}>{item.name}</td><td>{item.quantity||'—'}</td><td>{item.unit||'—'}</td><td>{item.category||'—'}</td>
-              <td>{item.expiry_date?<span className={`badge badge-${exp?'red':soon?'amber':'green'}`}>{exp?'⚠️ ':soon?'⏰ ':''}{fmt(item.expiry_date)}</span>:'—'}</td>
+            return(<tr key={item.id}>
+              <td style={{fontWeight:500}}>{item.name}</td><td>{item.quantity||'—'}</td><td>{item.unit||'—'}</td>
               <td>
                 <button className="btn-icon" onClick={()=>{setConfirmDeleteId(null);startEdit(item);}}>✏️</button>
                 {confirmDeleteId===item.id
