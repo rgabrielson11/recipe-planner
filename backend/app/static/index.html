@@ -1138,7 +1138,7 @@ const PantryPage=({hid})=>{
     if(!form.name.trim()){toast('Name required','warning');return;}
     try{
       const p={...form,household_id:hid,quantity:form.quantity?+form.quantity:null,expiry_date:form.expiry_date||null};
-      if(editId)await patch(`/pantry/${editId}`,p);else await post('/pantry',p);
+      if(editId)await put(`/pantry/${editId}`,p);else await post('/pantry',p);
       setForm({name:'',quantity:'',unit:'',category:'',expiry_date:''});setEditId(null);load();toast(editId?'Updated':'Added');
     }catch(e){toast(e.message,'error');}
   };
