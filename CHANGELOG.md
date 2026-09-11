@@ -1,5 +1,14 @@
 # Recipe Planner — Changelog
 
+## Patch 116: add Pinch of Yum as recipe source
+
+Pinch of Yum added (dinner, chicken, beef-and-pork, pasta, soups-and-stews,
+seafood). Clean robots.txt, 200 OK responses, JSON-LD with full nutrition
+data. 100+ recipe links per category page via article-tag extraction.
+Single-segment URLs already supported from Budget Bytes patch.
+
+---
+
 ## Patch 115: add Budget Bytes as recipe source
 
 **Budget Bytes** added as a source (category/recipes/main-dish/, soup, pasta,
