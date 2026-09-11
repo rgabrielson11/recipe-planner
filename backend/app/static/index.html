@@ -814,16 +814,30 @@ const PlannerPage=({hid})=>{
           return allKeys.filter(k=>{if(seenKeys.has(k)||!grouped[k])return false;seenKeys.add(k);return true;}).map(k=>{
             const cat=catOrder.find(c=>c.key===k)||{key:k,label:k};
             const recs=grouped[k]||[];
+            const scoredRecs=recs.filter(r=>!r.is_random);
+            const randomRecs=recs.filter(r=>r.is_random);
             return(<div key={k} style={{marginBottom:8}}>
               <div style={{fontSize:13,fontWeight:700,color:'var(--gray)',textTransform:'uppercase',
                 letterSpacing:'.06em',padding:'6px 0 4px',borderBottom:'2px solid var(--border)',marginBottom:8}}>
-                {cat.label||k} <span style={{fontWeight:400,opacity:.6}}>({recs.length})</span>
+                {cat.label||k} <span style={{fontWeight:400,opacity:.6}}>({scoredRecs.length}{randomRecs.length>0?` + ${randomRecs.length} random`:''})</span>
               </div>
-              {recs.map(r=><RecipeCard key={r.recipe_id} r={r} pantryItems={pantry}
+              {scoredRecs.map(r=><RecipeCard key={r.recipe_id} r={r} pantryItems={pantry}
                 onConfirm={toggleConfirm} onReject={toggleReject}
                 onRemove={id=>setSug(s=>s.filter(x=>x.recipe_id!==id))}
                 confirmed={confirmed} rejected={rejected} hid={hid} prefs={prefs}
                 rejectionReasons={rejectionReasons} cookingMethods={cookingMethods}/>)}
+              {randomRecs.length>0&&<>
+                <div style={{fontSize:11,fontWeight:600,color:'var(--gray)',opacity:.6,
+                  textTransform:'uppercase',letterSpacing:'.05em',padding:'8px 0 4px',
+                  borderTop:'1px dashed var(--border)',marginTop:4}}>
+                  Random picks ({randomRecs.length})
+                </div>
+                {randomRecs.map(r=><RecipeCard key={r.recipe_id} r={r} pantryItems={pantry}
+                  onConfirm={toggleConfirm} onReject={toggleReject}
+                  onRemove={id=>setSug(s=>s.filter(x=>x.recipe_id!==id))}
+                  confirmed={confirmed} rejected={rejected} hid={hid} prefs={prefs}
+                  rejectionReasons={rejectionReasons} cookingMethods={cookingMethods}/>)}
+              </>}
             </div>);
           });
 

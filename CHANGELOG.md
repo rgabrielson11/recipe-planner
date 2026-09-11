@@ -1,5 +1,16 @@
 # Recipe Planner — Changelog
 
+## Patch 117: random recipe pool in suggestions
+
+Adds 10 random recipes per protein category to the suggestions page,
+appearing below the scored picks under a dashed "Random picks (N)" divider.
+Random picks are excluded from scoring/rejection filtering, giving full
+catalogue visibility. The scored section header shows "Chicken (12 + 10 random)".
+Rejected/suppressed recipes are excluded from the random pool.
+Pool size (RANDOM_PER_CATEGORY=10) is configurable in meal_plan.py.
+
+---
+
 ## Patch 116: add Pinch of Yum as recipe source
 
 Pinch of Yum added (dinner, chicken, beef-and-pork, pasta, soups-and-stews,

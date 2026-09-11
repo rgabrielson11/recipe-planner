@@ -232,6 +232,85 @@ def suggest(
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    # ── Random discovery pool ─────────────────────────────────────────────────
+    # Add up to RANDOM_PER_CATEGORY random recipes per protein category that
+    # are not already in the scored suggestions.  These surface variety and
+    # give users a way to browse the full catalogue without just seeing the
+    # top-scored items every week.
+    RANDOM_PER_CATEGORY = 10
+    try:
+        import random as _random
+        import json as _json
+
+        existing_ids = {s["recipe_id"] for s in result["suggestions"]}
+
+        # Get rejected/suppressed IDs to exclude
+        rejected_ids = {
+            r.recipe_id for r in db.query(models.RejectedRecipe).filter(
+                models.RejectedRecipe.household_id == household_id
+            ).all()
+        }
+        exclude_ids = existing_ids | rejected_ids
+
+        # Load pantry + staples for missing_ingredients calculation
+        from app import config_files as _cf
+        try:
+            staples_set = set(s.lower() for s in _cf.get_staples())
+        except Exception:
+            staples_set = set()
+        pantry_rows = db.query(models.PantryItem).filter(
+            models.PantryItem.household_id == household_id
+        ).all()
+        pantry_set = set(p.name.lower() for p in pantry_rows) | staples_set
+
+        # Find all eligible stubs with scraped data
+        all_stubs = db.query(models.Recipe).filter(
+            models.Recipe.id.notin_(exclude_ids),
+            models.Recipe.scraped_tokens_json.isnot(None),
+            models.Recipe.title.isnot(None),
+        ).all()
+
+        # Group by protein category
+        from app.recipe_discovery import _classify_protein
+        cat_buckets: dict = {}
+        for stub in all_stubs:
+            cat = _classify_protein(stub.title, [])
+            cat_buckets.setdefault(cat, []).append(stub)
+
+        random_picks = []
+        for cat, stubs in cat_buckets.items():
+            sample = _random.sample(stubs, min(RANDOM_PER_CATEGORY, len(stubs)))
+            for stub in sample:
+                try:
+                    tokens = set(_json.loads(stub.scraped_tokens_json))
+                    missing = sorted(t for t in tokens if t not in pantry_set)[:15]
+                    overlap = len(tokens & pantry_set) / len(tokens) if tokens else 0
+                except Exception:
+                    missing, overlap = [], 0
+                random_picks.append({
+                    "rank": 9999,
+                    "recipe_id": stub.id,
+                    "title": stub.title,
+                    "source_url": stub.source_url,
+                    "mealie_slug": stub.mealie_slug,
+                    "scraped_servings": stub.scraped_servings,
+                    "total_time_minutes": stub.scraped_time_minutes,
+                    "carbs_per_serving": stub.scraped_carbs,
+                    "protein_category": cat,
+                    "score": 0,
+                    "pantry_overlap_pct": round(overlap * 100, 1),
+                    "missing_ingredients": missing,
+                    "is_random": True,
+                })
+
+        result["suggestions"] = result["suggestions"] + random_picks
+        result["random_pool_added"] = len(random_picks)
+        log.info("Random pool: added %d recipes across %d categories",
+                 len(random_picks), len(cat_buckets))
+    except Exception as e:
+        log.warning("Random pool injection failed: %s", e)
+
     return result
 
 
