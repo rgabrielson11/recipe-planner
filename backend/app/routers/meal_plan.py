@@ -187,7 +187,7 @@ def suggest_progress(household_id: str):
     return recipe_discovery.get_progress(household_id)
 
 
-@router.get("/suggest", response_model=schemas.WeeklySuggestion)
+@router.get("/suggest")
 def suggest(
     household_id: str,
     week_start_date: date,
@@ -247,8 +247,8 @@ def suggest(
 
         # Get rejected/suppressed IDs to exclude
         rejected_ids = {
-            r.recipe_id for r in db.query(models.RejectedRecipe).filter(
-                models.RejectedRecipe.household_id == household_id
+            r.recipe_id for r in db.query(models.RecipeRejection).filter(
+                models.RecipeRejection.household_id == household_id
             ).all()
         }
         exclude_ids = existing_ids | rejected_ids
