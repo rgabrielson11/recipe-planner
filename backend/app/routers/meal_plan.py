@@ -238,7 +238,10 @@ def suggest(
     # are not already in the scored suggestions.  These surface variety and
     # give users a way to browse the full catalogue without just seeing the
     # top-scored items every week.
-    RANDOM_PER_CATEGORY = 10
+    prefs_obj = db.query(models.Preference).filter(models.Preference.household_id == household_id).first()
+    RANDOM_PER_CATEGORY = (prefs_obj.random_per_category if prefs_obj and prefs_obj.random_per_category is not None else 10)
+    if RANDOM_PER_CATEGORY == 0:
+        return result  # random pool disabled
     try:
         import random as _random
         import json as _json

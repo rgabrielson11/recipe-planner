@@ -36,6 +36,7 @@ class PreferenceCreate(BaseModel):
     mealie_dinner_tag: str = "dinner-planner"
     bring_list_name: Optional[str] = None   # Patch 16
     bring_shopping_enabled: Optional[bool] = True      # Phase 11
+    random_per_category: Optional[int] = 10               # random pool per category
     bring_ollama_normalize: Optional[bool] = True         # Phase 11 (all lists)
     ha_shopping_enabled: Optional[bool] = False        # Phase 11
     ha_shopping_list_entity: Optional[str] = None     # Phase 11
@@ -56,6 +57,7 @@ class PreferenceUpdate(BaseModel):
     mealie_dinner_tag: Optional[str] = None
     bring_list_name: Optional[str] = None   # Patch 16
     bring_shopping_enabled: Optional[bool] = True      # Phase 11
+    random_per_category: Optional[int] = 10               # random pool per category
     bring_ollama_normalize: Optional[bool] = True         # Phase 11 (all lists)
     ha_shopping_enabled: Optional[bool] = False        # Phase 11
     ha_shopping_list_entity: Optional[str] = None     # Phase 11
@@ -79,6 +81,7 @@ class PreferenceOut(BaseModel):
     mealie_dinner_tag: str
     bring_list_name: Optional[str] = None   # Patch 16
     bring_shopping_enabled: Optional[bool] = True      # Phase 11
+    random_per_category: Optional[int] = 10               # random pool per category
     bring_ollama_normalize: Optional[bool] = True         # Phase 11 (all lists)
     ha_shopping_enabled: Optional[bool] = False        # Phase 11
     ha_shopping_list_entity: Optional[str] = None     # Phase 11

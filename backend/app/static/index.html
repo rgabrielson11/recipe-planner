@@ -1265,6 +1265,7 @@ const SettingsPage=({hid})=>{
         <div className="form-row">
           <div><label>Max cook time (min)</label><input type="number" value={prefs.max_cook_time_minutes||''} onChange={e=>setPrefs(p=>({...p,max_cook_time_minutes:e.target.value?+e.target.value:null}))} placeholder="e.g. 60"/></div>
           <div><label>Default suggestions</label><input type="number" min={1} max={200} value={prefs.default_num_suggestions||10} onChange={e=>setPrefs(p=>({...p,default_num_suggestions:+e.target.value}))}/></div>
+          <div><label>Random picks per category <span style={{fontWeight:400,color:'var(--gray)',fontSize:12}}>(0 to disable)</span></label><input type="number" min={0} max={50} value={prefs.random_per_category??10} onChange={e=>setPrefs(p=>({...p,random_per_category:+e.target.value}))}/></div>
           <div><label>Favourite threshold (★)</label><select value={prefs.favorite_rating_threshold||4} onChange={e=>setPrefs(p=>({...p,favorite_rating_threshold:+e.target.value}))}>{[3,4,5].map(n=><option key={n} value={n}>{n} stars</option>)}</select></div>
           <div><label>Skill level</label><select value={prefs.skill_level||''} onChange={e=>setPrefs(p=>({...p,skill_level:e.target.value||null}))}>
             <option value="">— not set —</option>

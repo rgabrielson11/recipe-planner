@@ -45,6 +45,7 @@ def run_migrations():
         ("recipes", "scraped_reviews",          "INTEGER"),   # Patch 13
         ("preferences", "bring_list_name",      "TEXT"),      # Patch 16
         ("preferences", "bring_shopping_enabled",  "BOOLEAN DEFAULT 1"),  # Phase 11
+        ("preferences", "random_per_category",        "INTEGER DEFAULT 10"),  # random pool
         ("preferences", "bring_ollama_normalize", "BOOLEAN DEFAULT 1"),  # Phase 11
         ("preferences", "ha_shopping_enabled",      "BOOLEAN DEFAULT 0"),  # Phase 11
         ("preferences", "ha_shopping_list_entity",  "TEXT"),                  # Phase 11

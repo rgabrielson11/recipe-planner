@@ -46,6 +46,7 @@ class Preference(Base):
     mealie_dinner_tag         = Column(String, nullable=False, default="dinner-planner")
     bring_list_name           = Column(String, nullable=True)  # Patch 16: exact Bring! list name to push to
     bring_shopping_enabled    = Column(Boolean, nullable=True, default=True)   # Phase 11: Bring! push enabled
+    random_per_category        = Column(Integer, nullable=True, default=10)           # random recipe pool per category
     bring_ollama_normalize    = Column(Boolean, nullable=True, default=True)   # Phase 11: AI ingredient normalisation (all lists)
     ha_shopping_enabled      = Column(Boolean, nullable=True, default=False)  # Phase 11: push shopping list to HA
     ha_shopping_list_entity  = Column(String,  nullable=True)                   # Phase 11: HA todo entity_id
