@@ -171,9 +171,16 @@ def _looks_like_recipe_url(url: str) -> bool:
         return False
 
     # Require at least 2 path segments — filters bare /recipes/ category roots
+    # Exception: sites like Budget Bytes use single-segment slugs e.g. /chicken-tenders/
     segments = [s for s in path.split("/") if s]
-    if len(segments) < 2:
+    if len(segments) < 1:
         return False
+    if len(segments) == 1:
+        seg = segments[0]
+        _OK = re.compile(r"^[a-z][a-z0-9-]{4,60}$")
+        _SKIP = re.compile(r"^(about|contact|faq|join|index|random|feed|sitemap|privacy|terms|shop|search|login|register|category|tag|author|page|wp-|cdn-cgi)")
+        if not _OK.match(seg) or _SKIP.match(seg) or "-" not in seg:
+            return False
 
     if _EXCLUDE_PATTERNS.search(path):
         return False
@@ -254,6 +261,18 @@ def _extract_recipe_urls(html: str, base_url: str) -> list[str]:
     """Extract candidate recipe URLs from an HTML page."""
     soup  = BeautifulSoup(html, "lxml")
     found = set()
+    # For WordPress sites (Budget Bytes etc.) prefer article-scoped links
+    article_links = set()
+    for article in soup.find_all("article"):
+        for tag in article.find_all("a", href=True):
+            href = tag["href"].split("?")[0].split("#")[0]
+            full = urljoin(base_url, href)
+            parsed_full = urlparse(full)
+            full = parsed_full._replace(path=parsed_full.path.rstrip("/") or "/").geturl()
+            if _same_host(full, base_url):
+                article_links.add(full)
+    if article_links:
+        return [u for u in article_links if not _EXCLUDE_PATTERNS.search(urlparse(u).path)]
     for tag in soup.find_all("a", href=True):
         href = tag["href"].split("?")[0].split("#")[0]
         full = urljoin(base_url, href)

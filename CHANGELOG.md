@@ -1,5 +1,23 @@
 # Recipe Planner — Changelog
 
+## Patch 115: add Budget Bytes as recipe source
+
+**Budget Bytes** added as a source (category/recipes/main-dish/, soup, pasta,
+bowl-meals). Recipe pages use JSON-LD schema.org/Recipe markup with full
+ingredients, cook time, servings, carbs, and ratings.
+
+Scraper improvements:
+- Article-tag link extraction: for WordPress sites that use <article> cards
+  (Budget Bytes etc.), links are extracted from article elements only,
+  avoiding nav/footer noise.
+- Single-segment URL support: Budget Bytes recipes use /recipe-name/ slugs
+  (one path segment). The URL validator now allows these when they look like
+  real recipe slugs (hyphenated, 4-60 chars).
+- Cost annotation stripping: Budget Bytes includes prices in ingredient
+  strings like "1 lb chicken (.66*)". These are stripped before storage.
+
+---
+
 ## Patch 111: recipe deduplication — cleanup and prevention
 
 **Cleanup**: removed 15 duplicate recipe stubs (same title, different HelloFresh
