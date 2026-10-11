@@ -1,5 +1,15 @@
 # Recipe Planner — Changelog
 
+## Patch 126: blocked recipes moved to own page
+
+Extracted the blocked recipes section from Past Meals into a dedicated
+Blocked page (nav: Planning → Blocked). Shows count, source link, and
+unblock button per recipe. Past Meals is now focused on weekly history
+only. BlockedPage fetches from the same /meal-plan/history endpoint
+and reads the blocked array from the response.
+
+---
+
 ## Patch 125: fix Mealie ingredient parsing
 
 Mealie recipeIngredient objects have three relevant text fields:

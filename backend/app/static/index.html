@@ -167,7 +167,7 @@ const NAV=[
   {key:'pantry',icon:'🥫',label:'Pantry'},
   {section:'Configuration'},{key:'settings',icon:'⚙️',label:'Preferences'},
   {key:'sources',icon:'🌐',label:'Recipe Sources'},{key:'keywords',icon:'🔍',label:'Dinner Filter'},
-  {section:'Planning'},{key:'history',icon:'📆',label:'Past Meals'},{key:'search',icon:'🔍',label:'Recipe Search'},
+  {section:'Planning'},{key:'history',icon:'📆',label:'Past Meals'},{key:'blocked',icon:'🚫',label:'Blocked'},{key:'search',icon:'🔍',label:'Recipe Search'},
   {section:'Tools'},{key:'rejections',icon:'🚫',label:'Rejections'},{key:'logs',icon:'📋',label:'Logs'},{key:'database',icon:'🗄️',label:'Database'},
 ];
 const Nav=({page,setPage,navOpen,onClose,version})=>(
@@ -1886,6 +1886,74 @@ const DatabasePage=({hid})=>{
   );
 };
 
+const BlockedPage=({hid})=>{
+  const [blocked,setBlocked]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [unblocking,setUnblocking]=useState({});
+  const [done,setDone]=useState({});
+  const toast=useToast();
+
+  const load=()=>{
+    setLoading(true);
+    get(`/meal-plan/history?household_id=${hid}`)
+      .then(d=>{
+        const b=Array.isArray(d)?[]:d.blocked||[];
+        setBlocked(b);
+      })
+      .catch(()=>toast('Could not load blocked recipes','error'))
+      .finally(()=>setLoading(false));
+  };
+  useEffect(()=>{load();},[hid]);
+
+  return(
+    <div>
+      <div className="page-header">
+        <h1 className="page-title">🚫 Blocked Recipes</h1>
+        <p className="page-sub">Permanently rejected — unblock to allow back into suggestions</p>
+      </div>
+      {loading&&<div className="spinner"/>}
+      {!loading&&blocked.length===0&&(
+        <div className="card" style={{textAlign:'center',padding:48,color:'var(--gray)'}}>
+          <div style={{fontSize:48}}>✅</div>
+          <p style={{marginTop:12}}>No blocked recipes — recipes you permanently reject will appear here.</p>
+        </div>
+      )}
+      {!loading&&blocked.length>0&&(
+        <div className="card">
+          <p style={{fontSize:13,color:'var(--gray)',marginBottom:12}}>{blocked.length} recipe{blocked.length!==1?'s':''} blocked</p>
+          {blocked.map(r=>(
+            <div key={r.recipe_id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:14}}>{r.title}</div>
+                <div style={{fontSize:12,color:'var(--gray)',marginTop:2}}>
+                  {r.total_time_minutes?`⏱ ${r.total_time_minutes} min `:''}
+                  {r.source_url&&<a href={r.source_url} target="_blank" rel="noopener" style={{color:'var(--gray)',marginLeft:4}}>🔗 Source</a>}
+                </div>
+              </div>
+              {done[r.recipe_id]
+                ?<span className="badge badge-green">✓ {done[r.recipe_id]}</span>
+                :<button className="btn-secondary btn-sm" disabled={unblocking[r.recipe_id]}
+                  onClick={async()=>{
+                    setUnblocking(u=>({...u,[r.recipe_id]:true}));
+                    try{
+                      await del(`/recipes/${r.recipe_id}/reject?household_id=${hid}`);
+                      setDone(d=>({...d,[r.recipe_id]:'Unblocked'}));
+                      setBlocked(b=>b.filter(x=>x.recipe_id!==r.recipe_id));
+                      toast(`${r.title} unblocked`,'success');
+                    }catch(e){toast(e.message,'error');}
+                    finally{setUnblocking(u=>({...u,[r.recipe_id]:false}));}
+                  }}>
+                  {unblocking[r.recipe_id]?'Unblocking…':'✅ Unblock'}
+                </button>
+              }
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const HistoryPage=({hid})=>{
   const [weeks,setWeeks]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -1893,8 +1961,7 @@ const HistoryPage=({hid})=>{
   const [added,setAdded]=useState({});
   const [historyRatings,setHistoryRatings]=useState({});
   const [historyDone,setHistoryDone]=useState({});
-  const [blocked,setBlocked]=useState([]);
-  const [unblocking,setUnblocking]=useState({});
+
   const [mealieUrl,setMealieUrl]=useState("");
   const [mealieGroup,setMealieGroup]=useState('home');
   const toast=useToast();
@@ -1906,8 +1973,8 @@ const HistoryPage=({hid})=>{
     get(`/meal-plan/history?household_id=${hid}`)
       .then(d=>{
         // Handle both old array format and new {weeks, blocked} format
-        if(Array.isArray(d)){setWeeks(d);setBlocked([]);}
-        else{setWeeks(d.weeks||[]);setBlocked(d.blocked||[]);}
+        if(Array.isArray(d)){setWeeks(d);}
+        else{setWeeks(d.weeks||[]);}
       })
       .catch(()=>toast('Could not load history','error'))
       .finally(()=>setLoading(false));
@@ -2016,38 +2083,7 @@ const HistoryPage=({hid})=>{
           ))}
         </div>
       ))}
-      {blocked.length>0&&(
-        <div className="card" style={{marginTop:16,borderLeft:'3px solid #dc2626'}}>
-          <h3 className="section-title" style={{marginBottom:12}}>🚫 Blocked Recipes</h3>
-          {blocked.map(r=>(
-            <div key={r.recipe_id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:600,fontSize:14}}>{r.title}</div>
-                <div style={{fontSize:12,color:'var(--gray)',marginTop:2}}>
-                  {r.total_time_minutes?`⏱ ${r.total_time_minutes} min · `:''}
-                  {r.source_url&&<a href={r.source_url} target="_blank" rel="noopener" style={{color:'var(--gray)'}}>🔗 Source</a>}
-                </div>
-              </div>
-              {historyDone[r.recipe_id]
-                ?<span className="badge badge-green">✓ {historyDone[r.recipe_id]}</span>
-                :<button className="btn-secondary btn-sm" disabled={unblocking[r.recipe_id]}
-                  onClick={async()=>{
-                    setUnblocking(u=>({...u,[r.recipe_id]:true}));
-                    try{
-                      await del(`/recipes/${r.recipe_id}/reject?household_id=${hid}`);
-                      setHistoryDone(d=>({...d,[r.recipe_id]:'Unblocked'}));
-                      setBlocked(b=>b.filter(x=>x.recipe_id!==r.recipe_id));
-                      toast(`${r.title} unblocked`);
-                    }catch(e){toast(e.message,'error');}
-                    finally{setUnblocking(u=>({...u,[r.recipe_id]:false}));}
-                  }}>
-                  {unblocking[r.recipe_id]?'Unblocking…':'✅ Unblock'}
-                </button>
-              }
-            </div>
-          ))}
-        </div>
-      )}
+
       {weekPickerRecipe&&(
         <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center'}}
           onClick={()=>setWeekPickerRecipe(null)}>
@@ -2354,7 +2390,7 @@ const App=()=>{
   },[hid]);
   if(!hid||!valid)return<ToastProvider><HouseholdGate onSave={saveHid}/></ToastProvider>;
   const pageLabel=NAV.find(n=>n.key===page)?.label||'';
-  const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,history:<HistoryPage hid={hid}/>,search:<RecipeSearchPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage hid={hid}/>};
+  const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,history:<HistoryPage hid={hid}/>,blocked:<BlockedPage hid={hid}/>,search:<RecipeSearchPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage hid={hid}/>};
   return(
     <ToastProvider>
       <div className="topbar">
