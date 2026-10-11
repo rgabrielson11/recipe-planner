@@ -75,7 +75,7 @@ async def list_bring_lists() -> list[dict]:
             resp = await bring.load_lists()
         except BringException as e:
             raise BringError(f"Bring! login/list-fetch failed: {e}") from e
-        return [{"listUuid": l["listUuid"], "name": l["name"]} for l in resp["lists"]]
+        return [{"listUuid": l["listUuid"], "name": l["name"]} for l in resp.lists]
 
 
 def _build_catalog_lookup(translations: dict) -> dict[str, str]:

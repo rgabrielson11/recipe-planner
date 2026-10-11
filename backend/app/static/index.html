@@ -768,17 +768,16 @@ const PlannerPage=({hid})=>{
       {step===3&&<div>
         {loading&&suggestions.length===0&&(<div style={{padding:'32px 0'}}>
           <div style={{background:'var(--border)',borderRadius:8,height:8,margin:'0 0 6px',overflow:'hidden'}}>
-            <div style={{height:'100%',borderRadius:8,background:'var(--primary)',width:,transition:'width .5s ease'}}/>
+            <div style={{height:'100%',borderRadius:8,background:'var(--primary)',width:`${Math.max(progress||0,3)}%`,transition:'width .5s ease'}}/>
           </div>
           <p style={{fontSize:12,color:'var(--gray)',textAlign:'center'}}>{progressLabel||'Loading suggestions...'}</p>
         </div>)}
-        {!loading&&<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
-          <h3 className="section-title" style={{margin:0,flex:1}}>{suggestions.length} Suggestions — {confirmed.length} selected</h3>
-          <input placeholder="🔍 Search recipes…" value={sugSearch}
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
+          <h3 className="section-title" style={{margin:0,flex:1}}>{loading?'Loading suggestions…':'Suggestions'}</h3>
+          {!loading&&<input placeholder="🔍 Search recipes…" value={sugSearch}
             onChange={e=>setSugSearch(e.target.value)}
-            style={{padding:'5px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:13,minWidth:180}}/>
-          {sugSearch&&<button className="btn-icon" onClick={()=>setSugSearch('')} title="Clear search">✕</button>}
-        </div>}
+            style={{padding:'5px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:13,minWidth:180}}/>}
+          {!loading&&sugSearch&&<button className="btn-icon" onClick={()=>setSugSearch('')} title="Clear search">✕</button>}
           <button className="btn-secondary btn-sm" onClick={()=>loadSuggestions()} disabled={loading}>&#x21BA; Refresh</button>
           <button className="btn-secondary btn-sm" onClick={()=>{const next=numSug+5;setNumSug(next);loadSuggestions(next);}} disabled={loading}>&#x2795; Load {numSug+5} suggestions</button>
         </div>

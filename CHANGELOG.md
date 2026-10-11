@@ -1,5 +1,23 @@
 # Recipe Planner — Changelog
 
+## Patch 129: fix blank page + Bring! list API compatibility
+
+### Bug fixes
+
+**Frontend**
+- `step===3` progress bar had empty `width:` value (from bash `${}` expansion
+  stripping the JS template literal during patch 128). Fixed to
+  `width:\`${Math.max(progress||0,3)}%\``.
+- `h3` title ternary `{loading?'Loading suggestions…':}` had an empty else
+  branch, causing a React render error and a blank page on step 3.
+
+**Backend**
+- `bring_client.py` `get_lists()`: `resp["lists"]` subscript replaced with
+  `resp.lists` — Bring! Python library v1.x changed `load_lists()` return
+  type from a plain dict to a `BringListResponse` dataclass.
+
+---
+
 ## Patch 128: step 3 shows progress bar while API loads
 
 loadSuggestions now transitions to step 3 immediately before calling the
