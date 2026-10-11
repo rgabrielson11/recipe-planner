@@ -27,12 +27,32 @@ reasons:
     label: "Contains an allergen"
     permanent: true
 
+  - key: wrong_meal_type
+    label: "Wrong meal type (breakfast, dessert, snack, etc.)"
+    permanent: true
+
+  - key: not_a_dinner
+    label: "Not a dinner recipe"
+    permanent: true
+
+  - key: side_dish
+    label: "Side dish / appetiser — not a main"
+    permanent: true
+
+  - key: too_many_servings
+    label: "Way too many servings for our household"
+    permanent: true
+
   - key: cook_method_unavailable
     label: "Cooking method not available (e.g. no smoker)"
     permanent: true
 
   - key: cookware_unavailable
     label: "Required cookware not on hand"
+    permanent: true
+
+  - key: not_applicable
+    label: "Not applicable to our household"
     permanent: true
 
   # ── Temporary suppressions ───────────────────────────────────────────────
@@ -65,6 +85,16 @@ reasons:
     label: "Missing a key ingredient I don't want to buy"
     permanent: false
     suppress_weeks: 2
+
+  - key: too_heavy
+    label: "Too heavy / rich for right now"
+    permanent: false
+    suppress_weeks: 2
+
+  - key: already_planned
+    label: "Already planning to make this separately"
+    permanent: false
+    suppress_weeks: 1
 
   - key: other
     label: "Other"
