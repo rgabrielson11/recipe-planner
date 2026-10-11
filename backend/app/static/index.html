@@ -1713,7 +1713,7 @@ const LogsPage=()=>{
 };
 
 // ── App ───────────────────────────────────────────────────────────────────────
-const DatabasePage=()=>{
+const DatabasePage=({hid})=>{
   const [wiping,setWiping]=useState(false);
   const [result,setResult]=useState(null);
   const [showConfirm,setShowConfirm]=useState(false);
@@ -2354,7 +2354,7 @@ const App=()=>{
   },[hid]);
   if(!hid||!valid)return<ToastProvider><HouseholdGate onSave={saveHid}/></ToastProvider>;
   const pageLabel=NAV.find(n=>n.key===page)?.label||'';
-  const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,history:<HistoryPage hid={hid}/>,search:<RecipeSearchPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage/>};
+  const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,history:<HistoryPage hid={hid}/>,search:<RecipeSearchPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage hid={hid}/>};
   return(
     <ToastProvider>
       <div className="topbar">

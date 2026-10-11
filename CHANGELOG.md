@@ -1,5 +1,13 @@
 # Recipe Planner — Changelog
 
+## Patch 124: fix Sync from Mealie button
+
+DatabasePage was not receiving hid prop so the sync endpoint call had
+undefined as household_id. Added hid to DatabasePage definition and
+passed it in the page router.
+
+---
+
 ## Patch 123: expand rejection reasons
 
 Added 5 new permanent and 2 new temporary rejection reasons to
