@@ -1091,3 +1091,131 @@ async def push_shopping_list(
         "results": results,
         "pushed_to": len([r for r in results.values() if r.get("status") == "ok"]),
     }
+
+
+@router.post("/mealie/sync-recipes")
+def sync_mealie_recipes(household_id: str, db: Session = Depends(get_db)):
+    """Pull all recipes from Mealie into the local stubs table so they
+    appear in search results and suggestions.  Existing rows are updated
+    (not duplicated) by matching on mealie_slug."""
+    from app import mealie_client as _mc
+    import json as _json, re as _re
+
+    if not _mc.MEALIE_BASE_URL or not _mc.MEALIE_API_TOKEN:
+        raise HTTPException(400, "Mealie not configured")
+
+    added = updated = skipped = 0
+    page = 1
+
+    while True:
+        try:
+            data = _mc.list_recipes(page=page, per_page=50)
+        except _mc.MealieError as e:
+            raise HTTPException(502, str(e))
+
+        items = data.get("items", [])
+        if not items:
+            break
+
+        for item in items:
+            slug = item.get("slug")
+            name = item.get("name")
+            if not slug or not name:
+                continue
+
+            # Fetch full detail for ingredients + nutrition
+            try:
+                detail = _mc.get_recipe(slug)
+            except Exception:
+                skipped += 1
+                continue
+
+            # Build ingredient string list
+            ings = detail.get("recipeIngredient", [])
+            ing_strings = []
+            for i in ings:
+                note = i.get("note") or i.get("display") or ""
+                if note.strip():
+                    ing_strings.append(note.strip())
+
+            # Tokenise for scoring
+            from app.recipe_discovery import _classify_protein
+            tokens = set()
+            for ing in ing_strings:
+                tokens.update(w.lower() for w in _re.findall(r"[a-z]+", ing.lower()) if len(w) > 2)
+            
+            # Parse nutrition
+            nutrition = detail.get("nutrition") or {}
+            try:
+                carbs = float(nutrition.get("carbohydrateContent", 0) or 0)
+            except Exception:
+                carbs = None
+
+            # Parse time
+            time_str = detail.get("totalTime") or detail.get("cookTime") or ""
+            time_mins = None
+            if time_str:
+                try:
+                    import re as _re2
+                    h = int((_re2.search(r"(\d+)H", time_str) or [None, 0])[1] or 0)
+                    m = int((_re2.search(r"(\d+)M", time_str) or [None, 0])[1] or 0)
+                    time_mins = h * 60 + m or None
+                except Exception:
+                    pass
+
+            servings = detail.get("recipeServings")
+            rating = detail.get("rating")
+            org_url = detail.get("orgURL")
+
+            # Upsert: check slug, then title, then orgURL (scraper may have it already)
+            row = db.query(models.Recipe).filter(models.Recipe.mealie_slug == slug).first()
+            if not row and org_url:
+                row = db.query(models.Recipe).filter(models.Recipe.source_url == org_url).first()
+            if not row:
+                row = db.query(models.Recipe).filter(models.Recipe.title == name).first()
+
+            if row:
+                row.mealie_slug = slug
+                row.title = name
+                row.scraped_time_minutes = time_mins or row.scraped_time_minutes
+                row.scraped_carbs = carbs or row.scraped_carbs
+                row.scraped_servings = str(int(servings)) if servings else row.scraped_servings
+                row.scraped_rating = float(rating) if rating else row.scraped_rating
+                if ing_strings:
+                    row.scraped_ingredients_json = _json.dumps(ing_strings)
+                if tokens:
+                    row.scraped_tokens_json = _json.dumps(list(tokens))
+                if org_url and (not row.source_url or 'mealie' in (row.source_url or '')):
+                    row.source_url = org_url
+                db.add(row)
+                updated += 1
+            else:
+                row = models.Recipe(
+                    source_url=org_url or f"{_mc.MEALIE_BASE_URL}/g/home/r/{slug}",
+                    title=name,
+                    mealie_slug=slug,
+                    scraped_time_minutes=time_mins,
+                    scraped_carbs=carbs,
+                    scraped_servings=str(int(servings)) if servings else None,
+                    scraped_rating=float(rating) if rating else None,
+                    scraped_ingredients_json=_json.dumps(ing_strings) if ing_strings else None,
+                    scraped_tokens_json=_json.dumps(list(tokens)) if tokens else None,
+                )
+                db.add(row)
+                added += 1
+            try:
+                db.flush()
+            except Exception:
+                db.rollback()
+                skipped += 1
+                continue
+
+        db.commit()
+        total_pages = data.get("total_pages", 1)
+        if page >= total_pages:
+            break
+        page += 1
+
+    log.info("Mealie sync: added=%d updated=%d skipped=%d", added, updated, skipped)
+    return {"added": added, "updated": updated, "skipped": skipped,
+            "total": added + updated}

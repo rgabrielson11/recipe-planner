@@ -1,5 +1,19 @@
 # Recipe Planner — Changelog
 
+## Patch 121: Mealie library as recipe source
+
+Adds POST /meal-plan/mealie/sync-recipes which pulls all 154 Mealie
+recipes into the local stubs table. Upserts by slug, orgURL, then title
+— existing stubs get Mealie slug linked and ingredients/nutrition
+updated; new stubs are created. Result: 110 updated, 44 added.
+
+Mealie recipes now appear in recipe search and the suggestions engine
+(scoring, random pool, protein category grouping).
+
+Database page gains a “🔄 Sync from Mealie” button.
+
+---
+
 ## Patch 117: random recipe pool in suggestions
 
 Adds 10 random recipes per protein category to the suggestions page,
