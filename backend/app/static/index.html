@@ -606,9 +606,8 @@ const PlannerPage=({hid})=>{
 
   const loadSuggestions=async(countOverride)=>{
     const n=countOverride??numSug;
-    setLoading(true);setSug([]);setProgress(0);setProgressLabel('Starting...');
-    // Poll the backend progress endpoint every 800ms while the scoring
-    // engine runs — shows real feed names, pool stages, and scrape counts.
+    // Go to step 3 immediately so user sees the page — loading spinner shows there
+    setSug([]);setStep(3);setLoading(true);setProgress(2);setProgressLabel('Starting...');
     const poll=setInterval(async()=>{
       try{
         const p=await get(`/meal-plan/suggest/progress?household_id=${hid}`);
@@ -622,17 +621,13 @@ const PlannerPage=({hid})=>{
         num_suggestions:n,
       });
       const r=await get(`/meal-plan/suggest?household_id=${hid}&week_start_date=${week}&num=${n}`);
-      clearInterval(poll);
+      clearInterval(poll);setProgress(0);setProgressLabel('');
       const _scored=(r.suggestions||[]).filter(s=>!s.is_random);
       const _random=(r.suggestions||[]).filter(s=>s.is_random);
-      // Step 3 immediately — empty list so the transition paints right away
-      setSug([]);setStep(3);setProgress(0);setProgressLabel('');
-      // Scored picks on next frame
-      setTimeout(()=>setSug(_scored), 0);
-      // Random picks after scored cards mount
-      setTimeout(()=>setSug(s=>[...s,..._random]), 80);
+      setSug(_scored);
+      setTimeout(()=>setSug(s=>[...s,..._random]),80);
       toast(`${_scored.length} suggestions + ${_random.length} random picks loaded`);
-    }catch(e){clearInterval(poll);setProgress(0);setProgressLabel('');toast(e.message,'error');}
+    }catch(e){clearInterval(poll);setProgress(0);setProgressLabel('');toast(e.message,'error');setStep(2);}
     finally{setLoading(false);}
   };
 
@@ -771,13 +766,19 @@ const PlannerPage=({hid})=>{
 
       {/* Step 2 */}
       {step===3&&<div>
-        {loading&&suggestions.length===0&&<div className="spinner"/>}
-        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
+        {loading&&suggestions.length===0&&(<div style={{padding:'32px 0'}}>
+          <div style={{background:'var(--border)',borderRadius:8,height:8,margin:'0 0 6px',overflow:'hidden'}}>
+            <div style={{height:'100%',borderRadius:8,background:'var(--primary)',width:,transition:'width .5s ease'}}/>
+          </div>
+          <p style={{fontSize:12,color:'var(--gray)',textAlign:'center'}}>{progressLabel||'Loading suggestions...'}</p>
+        </div>)}
+        {!loading&&<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
           <h3 className="section-title" style={{margin:0,flex:1}}>{suggestions.length} Suggestions — {confirmed.length} selected</h3>
           <input placeholder="🔍 Search recipes…" value={sugSearch}
             onChange={e=>setSugSearch(e.target.value)}
             style={{padding:'5px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:13,minWidth:180}}/>
           {sugSearch&&<button className="btn-icon" onClick={()=>setSugSearch('')} title="Clear search">✕</button>}
+        </div>}
           <button className="btn-secondary btn-sm" onClick={()=>loadSuggestions()} disabled={loading}>&#x21BA; Refresh</button>
           <button className="btn-secondary btn-sm" onClick={()=>{const next=numSug+5;setNumSug(next);loadSuggestions(next);}} disabled={loading}>&#x2795; Load {numSug+5} suggestions</button>
         </div>

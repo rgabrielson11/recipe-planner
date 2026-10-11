@@ -1,5 +1,14 @@
 # Recipe Planner — Changelog
 
+## Patch 128: step 3 shows progress bar while API loads
+
+loadSuggestions now transitions to step 3 immediately before calling the
+API. Step 3 shows the same progress bar and label as before while loading,
+then reveals the recipe list when data arrives. Completely eliminates the
+intermediate Done screen between step 2 and suggestions.
+
+---
+
 ## Patch 127: instant step 3 transition — recipes render live
 
 Instead of waiting on the Done screen while React mounts all recipe
