@@ -1134,9 +1134,10 @@ def sync_mealie_recipes(household_id: str, db: Session = Depends(get_db)):
             ings = detail.get("recipeIngredient", [])
             ing_strings = []
             for i in ings:
-                note = i.get("note") or i.get("display") or ""
-                if note.strip():
-                    ing_strings.append(note.strip())
+                # Prefer display (full formatted string) or originalText over note (which is just extra annotation)
+                text = i.get("display") or i.get("originalText") or i.get("note") or ""
+                if text.strip():
+                    ing_strings.append(text.strip())
 
             # Tokenise for scoring
             from app.recipe_discovery import _classify_protein

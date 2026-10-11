@@ -96,7 +96,7 @@ def run_scrape_once(trigger: str = "scheduled") -> dict:
                     except Exception:
                         continue
                     ings = detail.get("recipeIngredient", [])
-                    ing_strings = [i.get("note") or i.get("display") or "" for i in ings]
+                    ing_strings = [(i.get("display") or i.get("originalText") or i.get("note") or "") for i in ings]
                     ing_strings = [s.strip() for s in ing_strings if s.strip()]
                     tokens = set()
                     for ing in ing_strings:

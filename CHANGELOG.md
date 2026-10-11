@@ -1,5 +1,19 @@
 # Recipe Planner — Changelog
 
+## Patch 125: fix Mealie ingredient parsing
+
+Mealie recipeIngredient objects have three relevant text fields:
+- note: extra annotation only (e.g. 'thinly sliced', '2-3 lb')
+- display: full formatted string (e.g. '3 tablespoons olive oil')  
+- originalText: original scraped text
+
+The sync was using note first, producing fragments instead of full
+ingredient strings. Fixed to prefer display -> originalText -> note
+in both the sync endpoint and the nightly scrape_job. Re-synced all
+154 Mealie recipes to correct the stored ingredients.
+
+---
+
 ## Patch 124: fix Sync from Mealie button
 
 DatabasePage was not receiving hid prop so the sync endpoint call had
