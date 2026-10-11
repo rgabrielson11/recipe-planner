@@ -1,5 +1,21 @@
 # Recipe Planner — Changelog
 
+## Patch 130: remove Bring! integration
+
+Bring! is no longer used. All related code removed:
+
+- `backend/app/bring_client.py` — deleted
+- `meal_plan.py` — removed `/bring/lists` and `/shopping-list/push-to-bring`
+  endpoints; removed Bring! push block from `/shopping-list/push`
+- `ollama_client.py` — removed `normalize_for_bring()` function
+- `models.py` / `schemas.py` — removed `bring_list_name`,
+  `bring_shopping_enabled`, `bring_ollama_normalize` columns/fields
+- `database.py` — removed Bring! migration entries
+- `index.html` — removed Push Shopping List button, pushShopping handler,
+  and entire Bring! preferences section (enable toggle, list name, list picker)
+
+---
+
 ## Patch 129: fix blank page + Bring! list API compatibility
 
 ### Bug fixes

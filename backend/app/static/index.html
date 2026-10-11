@@ -546,21 +546,9 @@ const PlannerPage=({hid})=>{
   const [numPeople,setNumPeople]=useState(4);
   const [progress,setProgress]=useState(0);
   const [progressLabel,setProgressLabel]=useState('');
-  const [pushingBring,setPushingBring]=useState(false);
   const [scrapeActive,setScrapeActive]=useState(false);
   const toast=useToast();
 
-  const pushShopping=async()=>{
-    setPushingBring(true);
-    try{
-      const r=await post(`/meal-plan/shopping-list/push?household_id=${hid}&week_start_date=${week}`,{extra_items:extraBuyItems});
-      const dest=r.destinations?.join(' & ')||'shopping list';
-      const errs=Object.values(r.results||{}).filter(x=>x.status==='error');
-      if(errs.length) toast(`Push errors: ${errs.map(x=>x.detail).join('; ')}`,'error');
-      else toast(`✓ Pushed to ${dest}`,'success');
-    }catch(e){toast(e.message,'error');}
-    finally{setPushingBring(false);}
-  };
 
   useEffect(()=>{
     get(`/pantry?household_id=${hid}`).then(setPantry).catch(()=>{});
@@ -1131,9 +1119,6 @@ const PlannerPage=({hid})=>{
                 </body></html>`);
               w.document.close();
             }}>&#x1F5A8;&#xFE0F; Print / Save PDF</button>
-            <button className="btn-secondary" onClick={pushShopping} disabled={pushingBring}>
-              {pushingBring?'Pushing…':'🛒 Push Shopping List'}
-            </button>
           </div>
         </>}
       </div>}
@@ -1281,57 +1266,8 @@ const SettingsPage=({hid})=>{
           </select></div>
           <div><label>Mealie dinner tag</label><input value={prefs.mealie_dinner_tag||''} onChange={e=>setPrefs(p=>({...p,mealie_dinner_tag:e.target.value}))} placeholder="dinner-planner"/></div>
         </div>
-        <div>
-          <label>Bring! list name <span style={{fontWeight:400,color:'var(--gray)'}}>(only needed if your Bring! account has more than one list)</span></label>
-          <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            <input style={{maxWidth:280}} value={prefs.bring_list_name||''} onChange={e=>setPrefs(p=>({...p,bring_list_name:e.target.value||null}))} placeholder="e.g. Groceries"/>
-            <button className="btn-secondary btn-sm" onClick={async()=>{
-              try{const r=await get('/meal-plan/bring/lists');toast((r.lists||[]).map(l=>l.name).join(', ')||'No Bring! lists found',(r.lists||[]).length?'success':'warning');}
-              catch(e){toast(e.message,'error');}
-            }}>Show my Bring! lists</button>
-          </div>
-        </div>
         {/* ── Shopping List Options ── */}
         <div style={{fontWeight:600,marginBottom:8}}>Shopping List Options</div>
-        <div>
-          <label style={{display:'flex',alignItems:'flex-start',gap:8,cursor:'pointer'}}>
-            <input type="checkbox" style={{marginTop:2}}
-              checked={prefs.bring_ollama_normalize!==false}
-              onChange={e=>setPrefs(p=>({...p,bring_ollama_normalize:e.target.checked}))}/>
-            <span>Use AI to normalise ingredient names
-              <span style={{display:'block',fontSize:12,color:'var(--gray)',fontWeight:400,marginTop:2}}>
-                Maps specialty or foreign ingredient names to common equivalents before sending
-                to any shopping list (e.g. "herbes de provence" → "mixed herbs").
-                Applies to all enabled destinations. Disable if results feel too generic.
-              </span>
-            </span>
-          </label>
-        </div>
-        <hr style={{border:'none',borderTop:'1px solid var(--border)',margin:'12px 0'}}/>
-        {/* ── Bring! ── */}
-        <div style={{fontWeight:600,marginBottom:8}}>Bring!</div>
-        <div>
-          <label style={{display:'flex',alignItems:'flex-start',gap:8,cursor:'pointer'}}>
-            <input type="checkbox" style={{marginTop:2}}
-              checked={prefs.bring_shopping_enabled!==false}
-              onChange={e=>setPrefs(p=>({...p,bring_shopping_enabled:e.target.checked}))}/>
-            <span>Push shopping list to Bring!
-              <span style={{display:'block',fontSize:12,color:'var(--gray)',fontWeight:400,marginTop:2}}>
-                Requires BRING_EMAIL and BRING_PASSWORD in container environment.
-              </span>
-            </span>
-          </label>
-        </div>
-        {prefs.bring_shopping_enabled!==false&&<>
-          <label style={{display:'block',marginTop:8}}>Bring! list name <span style={{fontWeight:400,color:'var(--gray)'}}>(only needed if your account has more than one list)</span></label>
-          <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            <input style={{maxWidth:280}} value={prefs.bring_list_name||''} onChange={e=>setPrefs(p=>({...p,bring_list_name:e.target.value||null}))} placeholder="e.g. Groceries"/>
-            <button className="btn-secondary btn-sm" onClick={async()=>{
-              try{const r=await get('/meal-plan/bring/lists');toast((r.lists||[]).map(l=>l.name).join(', ')||'No Bring! lists found',(r.lists||[]).length?'success':'warning');}
-              catch(e){toast(e.message,'error');}
-            }}>Show my Bring! lists</button>
-          </div>
-        </>}
         <hr style={{border:'none',borderTop:'1px solid var(--border)',margin:'12px 0'}}/>
         {/* ── Home Assistant ── */}
         <div style={{fontWeight:600,marginBottom:8}}>Home Assistant</div>

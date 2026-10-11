@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 import logging
-from app import models, schemas, mealie_client, matching_engine, recipe_discovery, shopping_list as sl, bring_client
+from app import models, schemas, mealie_client, matching_engine, recipe_discovery, shopping_list as sl
 
 log = logging.getLogger(__name__)
 from app.database import get_db
@@ -615,68 +615,6 @@ def get_shopping_list(
     return result
 
 
-# ── 6b. Push shopping list to Bring! (Patch 16) ────────────────────────────────
-
-@router.get("/bring/lists")
-async def get_bring_lists():
-    """
-    Lists the Bring! account's shopping lists (name + uuid) — used by the
-    Settings UI so you can pick which one to push to by exact name. Requires
-    BRING_EMAIL / BRING_PASSWORD to be set in .env.
-    """
-    try:
-        return {"lists": await bring_client.list_bring_lists()}
-    except bring_client.BringError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/shopping-list/push-to-bring")
-async def push_shopping_list_to_bring(
-    household_id: str,
-    week_start_date: date,
-    db: Session = Depends(get_db),
-):
-    """
-    Generates the shopping list the same way GET /shopping-list does, then
-    pushes every BUY item (not pantry_check, not using_from_pantry — those
-    are already on hand) to the household's configured Bring! list
-    (Preference.bring_list_name), so it shows up natively in the Bring!
-    app instead of only in this UI.
-
-    Pushing the same week twice is safe — Bring!'s add-item call updates
-    the existing item's quantity in place rather than duplicating it.
-    """
-    try:
-        result = sl.build_shopping_list(
-            household_id=household_id,
-            week_start=week_start_date,
-            db=db,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    prefs = db.query(models.Preference).filter(
-        models.Preference.household_id == household_id
-    ).first()
-    list_name = prefs.bring_list_name if prefs else None
-
-    prefs_obj = db.query(models.Preference).filter(
-        models.Preference.household_id == household_id
-    ).first()
-    bring_ollama = (prefs_obj.bring_ollama_normalize if prefs_obj and prefs_obj.bring_ollama_normalize is not None else True)
-    try:
-        push_result = await bring_client.push_shopping_list(result, list_name=list_name, use_ollama=bring_ollama)
-    except bring_client.BringError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    log.info(
-        "Pushed shopping list to Bring!: household=%s week=%s list=%r pushed=%d errors=%d",
-        household_id, week_start_date, push_result.get("list_name"),
-        len(push_result.get("pushed", [])), len(push_result.get("errors", [])),
-    )
-    return push_result
-
-
 # ── 7. End-of-week review ─────────────────────────────────────────────────────
 
 @router.get("/entries", response_model=list[schemas.MealPlanEntryOut])
@@ -1026,10 +964,9 @@ async def push_shopping_list(
     db: Session = Depends(get_db),
 ):
     """
-    Push the shopping list to all configured destinations (Bring!, HA, or both)
+    Push the shopping list to all configured destinations (HA, etc.)
     based on the household preferences. Returns a summary of what was pushed where.
     """
-    from app import bring_client as _bring
     from app import ha_client as _ha
     from datetime import date as _date
 
@@ -1051,21 +988,7 @@ async def push_shopping_list(
 
     destinations = []
     results = {}
-    use_ollama = (prefs.bring_ollama_normalize if prefs and prefs.bring_ollama_normalize is not None else True)
-
-    # ── Bring! ──────────────────────────────────────────────────────────────
-    bring_configured = _bring.BRING_EMAIL and _bring.BRING_PASSWORD
-    bring_enabled = (prefs.bring_shopping_enabled if prefs and prefs.bring_shopping_enabled is not None else True)
-    if bring_configured and bring_enabled:
-        list_name  = prefs.bring_list_name if prefs else None
-        try:
-            r = await _bring.push_shopping_list(result, list_name=list_name, use_ollama=use_ollama)
-            results["bring"] = {"status": "ok", "pushed": r.get("pushed", 0), "list": r.get("list_name")}
-            destinations.append(f"Bring! ({r.get('list_name', 'Groceries')})")
-            log.info("Pushed to Bring!: household=%s pushed=%d", household_id, r.get("pushed", 0))
-        except Exception as e:
-            results["bring"] = {"status": "error", "detail": str(e)}
-            log.warning("Bring! push failed: %s", e)
+    use_ollama = True  # AI name normalisation for shopping list destinations
 
     # ── Home Assistant ───────────────────────────────────────────────────────
     ha_enabled = prefs.ha_shopping_enabled if prefs else False
@@ -1083,7 +1006,7 @@ async def push_shopping_list(
     if not results:
         raise HTTPException(
             status_code=400,
-            detail="No shopping list destinations configured. Set up Bring! or Home Assistant in Settings → Preferences."
+            detail="No shopping list destinations configured. Set up Home Assistant in Settings → Preferences."
         )
 
     return {
