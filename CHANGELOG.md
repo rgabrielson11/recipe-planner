@@ -1,5 +1,18 @@
 # Recipe Planner — Changelog
 
+## Patch 123: expand rejection reasons
+
+Added 5 new permanent and 2 new temporary rejection reasons to
+rejection_reasons.yaml. No code change required — YAML is read fresh
+on every request.
+
+New permanent: wrong_meal_type, not_a_dinner, side_dish,
+too_many_servings, not_applicable.
+
+New temporary: too_heavy (2 weeks), already_planned (1 week).
+
+---
+
 ## Patch 122: nightly Mealie sync + faster suggestions render
 
 **Nightly Mealie sync**: scrape_job.run_scrape_once now syncs the full

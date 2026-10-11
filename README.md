@@ -6,7 +6,7 @@ Self-hosted household dinner meal planner. Plans weekly dinners using on-hand pa
 **API docs:** `http://<unraid-ip>:8111/docs`  
 **Mobile:** fully responsive — hamburger drawer nav on screens ≤ 639 px  
 **Timezone:** set `TZ` in the Unraid template to match your local timezone for correct week calculation and scrape schedule  
-**Version:** 122
+**Version:** 123
 
 ---
 
@@ -113,6 +113,13 @@ Rejected recipes are also excluded from the random pick pool.
 | `too_expensive` | Temporary | 2 weeks |
 | `too_complex` | Temporary | 2 weeks |
 | `missing_key_ingredient` | Temporary | 2 weeks |
+| `wrong_meal_type` | Permanent | never resurface |
+| `not_a_dinner` | Permanent | never resurface |
+| `side_dish` | Permanent | never resurface |
+| `too_many_servings` | Permanent | never resurface |
+| `not_applicable` | Permanent | never resurface |
+| `too_heavy` | Temporary | 2 weeks |
+| `already_planned` | Temporary | 1 week |
 | `other` | Temporary | 1 week |
 | `dislike` | Permanent | never resurface |
 | `allergy` | Permanent | never resurface |
