@@ -594,8 +594,12 @@ const PlannerPage=({hid})=>{
 
   const loadSuggestions=async(countOverride)=>{
     const n=countOverride??numSug;
-    // Go to step 3 immediately so user sees the page — loading spinner shows there
-    setSug([]);setStep(3);setLoading(true);setProgress(2);setProgressLabel('Starting...');
+    // flushSync forces React 18 to paint the loading UI BEFORE async API calls start
+    // (React 18 automatic batching would otherwise batch these updates with the final
+    // loaded state, so the spinner never appears if the API responds quickly)
+    ReactDOM.flushSync(()=>{
+      setSug([]);setStep(3);setLoading(true);setProgress(2);setProgressLabel('Starting...');
+    });
     const poll=setInterval(async()=>{
       try{
         const p=await get(`/meal-plan/suggest/progress?household_id=${hid}`);

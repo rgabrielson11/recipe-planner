@@ -1,5 +1,22 @@
 # Recipe Planner — Changelog
 
+## Patch 131: fix suggestions spinner — ReactDOM.flushSync for React 18
+
+### Bug fix
+
+The "Generating suggestions…" progress bar and spinner never appeared; the
+UI jumped directly from the Done prompt to the fully-loaded suggestions list
+because React 18 automatic batching was coalescing the initial loading-state
+updates (`setSug([])`, `setStep(3)`, `setLoading(true)`, …) with the final
+loaded-state updates into a single render pass.
+
+**Fix:** Wrapped the initial state updates in `ReactDOM.flushSync()`, which
+forces a synchronous paint before the async API calls begin.  The progress
+bar, step transition, and "Starting…" label are now visible immediately on
+click, and the poll-driven progress updates work as intended.
+
+---
+
 ## Patch 130: remove Bring! integration
 
 Bring! is no longer used. All related code removed:
