@@ -1,5 +1,15 @@
 # Recipe Planner — Changelog
 
+## Patch 127: instant step 3 transition — recipes render live
+
+Instead of waiting on the Done screen while React mounts all recipe
+cards, the planner now transitions to step 3 immediately with an empty
+list. Scored picks are injected on the next animation frame, random
+picks 80ms after that. A spinner shows briefly while the list populates.
+User sees the suggestions page instantly after the API returns.
+
+---
+
 ## Patch 126: blocked recipes moved to own page
 
 Extracted the blocked recipes section from Past Meals into a dedicated

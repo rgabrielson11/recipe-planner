@@ -622,13 +622,15 @@ const PlannerPage=({hid})=>{
         num_suggestions:n,
       });
       const r=await get(`/meal-plan/suggest?household_id=${hid}&week_start_date=${week}&num=${n}`);
-      clearInterval(poll);setProgress(100);setProgressLabel('Done!');
-      // Show scored picks immediately, defer random picks to avoid blocking render
+      clearInterval(poll);
       const _scored=(r.suggestions||[]).filter(s=>!s.is_random);
       const _random=(r.suggestions||[]).filter(s=>s.is_random);
-      setSug(_scored);setStep(3);
-      setTimeout(()=>{setProgress(0);setProgressLabel('');},400);
-      setTimeout(()=>setSug(s=>[...s,..._random]),80);
+      // Step 3 immediately — empty list so the transition paints right away
+      setSug([]);setStep(3);setProgress(0);setProgressLabel('');
+      // Scored picks on next frame
+      setTimeout(()=>setSug(_scored), 0);
+      // Random picks after scored cards mount
+      setTimeout(()=>setSug(s=>[...s,..._random]), 80);
       toast(`${_scored.length} suggestions + ${_random.length} random picks loaded`);
     }catch(e){clearInterval(poll);setProgress(0);setProgressLabel('');toast(e.message,'error');}
     finally{setLoading(false);}
@@ -769,6 +771,7 @@ const PlannerPage=({hid})=>{
 
       {/* Step 2 */}
       {step===3&&<div>
+        {loading&&suggestions.length===0&&<div className="spinner"/>}
         <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,flexWrap:'wrap'}}>
           <h3 className="section-title" style={{margin:0,flex:1}}>{suggestions.length} Suggestions — {confirmed.length} selected</h3>
           <input placeholder="🔍 Search recipes…" value={sugSearch}
