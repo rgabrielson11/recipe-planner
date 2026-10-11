@@ -13,6 +13,69 @@ arrive instead of waiting for all 90 cards to render at once.
 
 ---
 
+## Patch 120: static files volume mount in Unraid template
+
+Added /app/app/static path mapping to Unraid template so index.html is served
+from appdata, eliminating docker cp after every container restart.
+
+---
+
+## Patch 119: random_per_category preference configurable in Settings
+
+Added random_per_category to Preference model (default 10). Settings page
+shows input field (0 to disable). Suggest endpoint reads preference.
+
+---
+
+## Patch 118: fix RejectedRecipe model name + remove WeeklySuggestion response_model
+
+Random pool injection was silently failing due to wrong model name. Also
+removed response_model constraint so is_random passes through to frontend.
+
+---
+
+## Patch 114: Pantry Review step embeds full PantryPage
+
+Step 1 now renders full PantryPage inline with add/edit/delete.
+
+---
+
+## Patch 113: remove category and expiry_date from pantry UI
+
+Pantry now shows Name, Qty, Unit only.
+
+---
+
+## Patch 112: fix pantry edit 405 patch to PUT
+
+Pantry edit was calling patch() but backend only has PUT /{item_id}.
+
+---
+
+## Patch 110: fix servings_override key name (plural)
+
+addToWeek sent servings_override but schema expects servings_overrides.
+
+---
+
+## Patch 109: pre-selected recipe shows numPeople servings
+
+Falls back to numPeople rather than base scraped_servings.
+
+---
+
+## Patch 108: print-all uses _base_servings; includes weekSelections
+
+Scale calculation fixed. Print now includes weekSelections recipes too.
+
+---
+
+## Patch 107: pre-selected recipe shows planned servings not base
+
+Card shows servings_override or numPeople instead of scraped base.
+
+---
+
 ## Patch 121: Mealie library as recipe source
 
 Adds POST /meal-plan/mealie/sync-recipes which pulls all 154 Mealie
