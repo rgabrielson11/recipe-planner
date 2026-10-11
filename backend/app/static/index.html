@@ -623,8 +623,13 @@ const PlannerPage=({hid})=>{
       });
       const r=await get(`/meal-plan/suggest?household_id=${hid}&week_start_date=${week}&num=${n}`);
       clearInterval(poll);setProgress(100);setProgressLabel('Done!');
-      setTimeout(()=>{setProgress(0);setProgressLabel('');},800);
-      setSug(r.suggestions||[]);toast(`${r.suggestions?.length||0} suggestions loaded`);setStep(3);
+      // Show scored picks immediately, defer random picks to avoid blocking render
+      const _scored=(r.suggestions||[]).filter(s=>!s.is_random);
+      const _random=(r.suggestions||[]).filter(s=>s.is_random);
+      setSug(_scored);setStep(3);
+      setTimeout(()=>{setProgress(0);setProgressLabel('');},400);
+      setTimeout(()=>setSug(s=>[...s,..._random]),80);
+      toast(`${_scored.length} suggestions + ${_random.length} random picks loaded`);
     }catch(e){clearInterval(poll);setProgress(0);setProgressLabel('');toast(e.message,'error');}
     finally{setLoading(false);}
   };

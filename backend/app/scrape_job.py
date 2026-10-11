@@ -73,6 +73,90 @@ def run_scrape_once(trigger: str = "scheduled") -> dict:
     finally:
         db.close()
 
+    # Sync Mealie library nightly so new recipes appear in search/suggestions
+    try:
+        from app import mealie_client as _mc
+        from app import models as _models
+        import json as _json, re as _re
+        if _mc.MEALIE_BASE_URL and _mc.MEALIE_API_TOKEN:
+            db2 = SessionLocal()
+            mealie_added = mealie_updated = 0
+            page = 1
+            while True:
+                data = _mc.list_recipes(page=page, per_page=50)
+                items = data.get("items", [])
+                if not items:
+                    break
+                for item in items:
+                    slug = item.get("slug"); name = item.get("name")
+                    if not slug or not name:
+                        continue
+                    try:
+                        detail = _mc.get_recipe(slug)
+                    except Exception:
+                        continue
+                    ings = detail.get("recipeIngredient", [])
+                    ing_strings = [i.get("note") or i.get("display") or "" for i in ings]
+                    ing_strings = [s.strip() for s in ing_strings if s.strip()]
+                    tokens = set()
+                    for ing in ing_strings:
+                        tokens.update(w for w in _re.findall(r"[a-z]+", ing.lower()) if len(w) > 2)
+                    nutrition = detail.get("nutrition") or {}
+                    try:
+                        carbs = float(nutrition.get("carbohydrateContent") or 0) or None
+                    except Exception:
+                        carbs = None
+                    time_str = detail.get("totalTime") or detail.get("cookTime") or ""
+                    time_mins = None
+                    if time_str:
+                        try:
+                            h = int((_re.search(r"(\d+)H", time_str) or [None,0])[1] or 0)
+                            m = int((_re.search(r"(\d+)M", time_str) or [None,0])[1] or 0)
+                            time_mins = h*60+m or None
+                        except Exception:
+                            pass
+                    servings = detail.get("recipeServings")
+                    org_url = detail.get("orgURL")
+                    row = db2.query(_models.Recipe).filter(_models.Recipe.mealie_slug == slug).first()
+                    if not row and org_url:
+                        row = db2.query(_models.Recipe).filter(_models.Recipe.source_url == org_url).first()
+                    if not row:
+                        row = db2.query(_models.Recipe).filter(_models.Recipe.title == name).first()
+                    if row:
+                        row.mealie_slug = slug
+                        if ing_strings: row.scraped_ingredients_json = _json.dumps(ing_strings)
+                        if tokens: row.scraped_tokens_json = _json.dumps(list(tokens))
+                        if carbs: row.scraped_carbs = carbs
+                        if time_mins: row.scraped_time_minutes = time_mins
+                        if servings: row.scraped_servings = str(int(servings))
+                        if org_url and (not row.source_url or "mealie" in (row.source_url or "")): row.source_url = org_url
+                        db2.add(row)
+                        mealie_updated += 1
+                    else:
+                        row = _models.Recipe(
+                            source_url=org_url or f"{_mc.MEALIE_BASE_URL}/g/home/r/{slug}",
+                            title=name, mealie_slug=slug,
+                            scraped_time_minutes=time_mins, scraped_carbs=carbs,
+                            scraped_servings=str(int(servings)) if servings else None,
+                            scraped_ingredients_json=_json.dumps(ing_strings) if ing_strings else None,
+                            scraped_tokens_json=_json.dumps(list(tokens)) if tokens else None,
+                        )
+                        db2.add(row)
+                        mealie_added += 1
+                    try:
+                        db2.flush()
+                    except Exception:
+                        db2.rollback()
+                db2.commit()
+                if page >= data.get("total_pages", 1):
+                    break
+                page += 1
+            db2.close()
+            stats["mealie_synced"] = mealie_added + mealie_updated
+            log.info("scrape_job: Mealie sync added=%d updated=%d", mealie_added, mealie_updated)
+    except Exception as e:
+        log.warning("scrape_job: Mealie sync failed: %s", e)
+
     status = {
         "last_run": datetime.now().isoformat(timespec="seconds"),
         "trigger":  trigger,

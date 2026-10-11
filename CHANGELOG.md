@@ -1,5 +1,18 @@
 # Recipe Planner — Changelog
 
+## Patch 122: nightly Mealie sync + faster suggestions render
+
+**Nightly Mealie sync**: scrape_job.run_scrape_once now syncs the full
+Mealie library after each nightly scrape run. New recipes added to Mealie
+during the day are automatically available in search/suggestions by morning.
+
+**Faster suggestions render**: the suggest response is split into scored
+picks (rendered immediately on step 3) and random picks (appended 80ms
+later in a deferred setState). The page appears as soon as scored results
+arrive instead of waiting for all 90 cards to render at once.
+
+---
+
 ## Patch 121: Mealie library as recipe source
 
 Adds POST /meal-plan/mealie/sync-recipes which pulls all 154 Mealie
