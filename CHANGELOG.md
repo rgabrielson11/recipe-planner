@@ -1,5 +1,28 @@
 # Recipe Planner — Changelog
 
+## Patch 133: recipe site vetter tool
+
+New standalone tool at `tools/site_vetter/` that tests every site
+recipe-scrapers supports and reports which are viable recipe sources.
+
+- Runs in a throwaway container from the recipe-planner image (`run.sh`),
+  with `backend/app` mounted read-only, so it uses the same recipe-scrapers
+  version and the app's own `_extract_recipe_urls`, `_scrape_recipe` and
+  non-dinner filter.
+- Per site: homepage fetch with the app User-Agent (browser-UA retry flags
+  bot walls), robots.txt check, listing-page discovery (configured
+  `category_urls` first, then dinner/main-dish category links, then sitemaps),
+  then scrapes a random sample of 10 recipes at 1 req/s per site.
+- Measures parse precision, ingredient-quantity rate, servings/time coverage,
+  dinner share, median time and ingredient count, US units, ratings.
+- Verdicts: viable, viable-with-changes, low-quality, parse-failed,
+  no-recipes-found, robots-disallowed, blocked, non-english, unreachable;
+  plus a 0-100 family-dinner fit score.
+- Outputs `out/report.md`, `out/results.json` and paste-ready
+  `out/suggested_sources.yaml` (git-ignored).
+
+---
+
 ## Patch 132: fix suggestions spinner — setTimeout(0) yield instead of flushSync
 
 ### Bug fix

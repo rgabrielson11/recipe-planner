@@ -6,7 +6,7 @@ Self-hosted household dinner meal planner. Plans weekly dinners using on-hand pa
 **API docs:** `http://<unraid-ip>:8111/docs`  
 **Mobile:** fully responsive — hamburger drawer nav on screens ≤ 639 px  
 **Timezone:** set `TZ` in the Unraid template to match your local timezone for correct week calculation and scrape schedule  
-**Version:** 132
+**Version:** 133
 
 ---
 
@@ -39,6 +39,14 @@ Recipes come from multiple sources, all configurable via the **Sources page** in
 A **nightly background scraper** (`scrape_job.py`) runs at 3 AM (configurable) to keep the recipe cache warm and sync the Mealie library. When you hit "Generate Suggestions" the engine scores from the cache — no network wait.
 
 Additional sources can be added via the Sources page. Sources that block scraping (EatingWell, Serious Eats, The Kitchn) are excluded.
+
+### Finding new recipe sources (site vetter)
+
+`tools/site_vetter/run.sh` tests every recipe-scrapers-supported site
+against the app's own discovery and scraping code and writes
+`tools/site_vetter/out/report.md` (verdicts + family-dinner fit score) and
+`suggested_sources.yaml` (paste-ready `recipe_sources.yaml` entries).
+Run `./run.sh` for all sites (~15 min) or `./run.sh --hosts a.com,b.com`.
 
 ### Suggestion engine
 
