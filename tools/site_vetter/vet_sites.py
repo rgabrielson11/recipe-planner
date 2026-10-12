@@ -55,6 +55,7 @@ BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 DELAY = 1.0            # seconds between requests to the same host
 HOST_DEADLINE = 180    # max seconds spent sampling recipes per host
 MAX_LISTINGS = 5       # listing pages fetched per host
+MAX_ATTEMPTS = 25      # max recipe links tried per host
 
 
 def _find_key(obj, key):
@@ -293,7 +294,8 @@ def vet_host(host, sample_n):
     res["links_found"] = len(links)
 
     # robots check on recipe paths
-    sample = random.sample(links, min(sample_n, len(links)))
+    sample = list(links)
+    random.shuffle(sample)
     if not all(rp.can_fetch(APP_UA, u) for u in sample[:3]):
         res.update(verdict="robots-disallowed", reasons=res["reasons"] + ["robots.txt disallows recipe pages"])
         return res
@@ -302,7 +304,8 @@ def vet_host(host, sample_n):
     t0 = time.time()
     recipes, attempted = [], 0
     for u in sample:
-        if time.time() - t0 > HOST_DEADLINE:
+        # keep sampling until we have sample_n real recipes, max MAX_ATTEMPTS links
+        if time.time() - t0 > HOST_DEADLINE or len(recipes) >= sample_n or attempted >= MAX_ATTEMPTS:
             break
         time.sleep(DELAY)
         attempted += 1
@@ -315,8 +318,8 @@ def vet_host(host, sample_n):
     res["samples"] = recipes
 
     if len(recipes) < 3:
-        res.update(verdict="parse-failed",
-                   reasons=res["reasons"] + [f"only {len(recipes)}/{attempted} sampled links parsed as recipes"])
+        res.update(verdict="few-recipe-links",
+                   reasons=res["reasons"] + [f"listing pages mostly link to non-recipe pages ({len(recipes)}/{attempted} sampled links were recipes)"])
         return res
 
     # 5. aggregate
@@ -353,7 +356,8 @@ def vet_host(host, sample_n):
     else:
         res["verdict"] = "viable-with-changes"
         if res["precision"] < 0.5:
-            res["reasons"].append(f"listing links are noisy: {int(res['precision']*100)}% were recipes")
+            res["reasons"].append(f"noisy links: only {int(res['precision']*100)}% of extracted links were "
+                                  "recipes (rest are nav/category pages) - wastes scrape budget")
 
     # family-dinner fit (0-100)
     mm = agg["median_minutes"]
@@ -367,7 +371,7 @@ def vet_host(host, sample_n):
 
 
 # ── Reporting ─────────────────────────────────────────────────────────────────
-ORDER = ["viable", "viable-with-changes", "low-quality", "parse-failed", "no-recipes-found",
+ORDER = ["viable", "viable-with-changes", "low-quality", "few-recipe-links", "no-recipes-found",
          "robots-disallowed", "blocked", "non-english", "unreachable", "error"]
 
 
@@ -422,7 +426,7 @@ def write_outputs(results, started):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--hosts", default="")
-    ap.add_argument("--sample", type=int, default=10)
+    ap.add_argument("--sample", type=int, default=8)
     ap.add_argument("--workers", type=int, default=16)
     a = ap.parse_args()
     hosts = [h.strip() for h in a.hosts.split(",") if h.strip()] or sorted(SCRAPERS.keys())
