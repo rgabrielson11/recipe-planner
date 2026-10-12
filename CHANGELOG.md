@@ -1,5 +1,26 @@
 # Recipe Planner — Changelog
 
+## Patch 132: fix suggestions spinner — setTimeout(0) yield instead of flushSync
+
+### Bug fix
+
+Patch 131's `ReactDOM.flushSync()` approach caused a blank screen for the
+full API duration (~30 s) because calling `flushSync` inside a React 18 event
+handler is unsupported and results in an unpredictable render.
+
+**Root cause:** React 18 automatic batching coalesces all synchronous state
+updates that happen before an `await` into a single batch.  That batch IS
+committed before the first network request returns, but `flushSync` inside a
+React-managed event handler broke that commitment path.
+
+**Fix:** Remove `flushSync`; instead queue the loading state updates normally
+then immediately `await new Promise(r=>setTimeout(r,0))`.  Yielding to the
+macro-task queue gives React's scheduler time to commit the update and lets
+the browser paint the spinner and progress bar before the first fetch starts.
+This is the correct pattern for showing loading UI in React 18 async handlers.
+
+---
+
 ## Patch 131: fix suggestions spinner — ReactDOM.flushSync for React 18
 
 ### Bug fix

@@ -594,12 +594,13 @@ const PlannerPage=({hid})=>{
 
   const loadSuggestions=async(countOverride)=>{
     const n=countOverride??numSug;
-    // flushSync forces React 18 to paint the loading UI BEFORE async API calls start
-    // (React 18 automatic batching would otherwise batch these updates with the final
-    // loaded state, so the spinner never appears if the API responds quickly)
-    ReactDOM.flushSync(()=>{
-      setSug([]);setStep(3);setLoading(true);setProgress(2);setProgressLabel('Starting...');
-    });
+    // Paint the loading UI before network calls.
+    // Setting state then immediately awaiting a setTimeout(0) yields to the event loop
+    // so React can commit the update and the browser can paint the spinner/progress bar
+    // before the first fetch starts.  flushSync inside a React event handler is
+    // unsupported in React 18 and causes a blank render — this is the correct pattern.
+    setSug([]);setStep(3);setLoading(true);setProgress(2);setProgressLabel('Starting...');
+    await new Promise(r=>setTimeout(r,0));
     const poll=setInterval(async()=>{
       try{
         const p=await get(`/meal-plan/suggest/progress?household_id=${hid}`);
