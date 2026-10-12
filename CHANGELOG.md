@@ -1,5 +1,16 @@
 # Recipe Planner — Changelog
 
+## Patch 135: site vetter — US-only scope, better language/unit checks, --merge
+
+- Default scope is US/generic TLDs (.com/.org/.net/...); `--all-regions` to include others.
+- New `non-us` verdict for metric-unit sites. A line like "1 cup (120 g)" now
+  counts as US, and recipes with no units at all count as US.
+- English check also accepts English food words in the title (meal-kit sites
+  such as Home Chef list bare ingredient names).
+- `--merge` re-vets only `--hosts` and merges into the existing results.
+
+---
+
 ## Patch 134: 20x faster suggestions, simplified planner flow, two-phase loading
 
 ### Performance fix

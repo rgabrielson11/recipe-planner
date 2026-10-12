@@ -182,7 +182,10 @@ EN_WORDS = re.compile(r"\b(cups?|tablespoons?|teaspoons?|tbsp|tsp|ounces?|oz|pou
                       r"cloves?|salt|pepper|chopped|minced|sliced|diced|and|fresh|large|"
                       r"medium|can|or|to taste|grated|olive oil|butter)\b", re.I)
 US_UNITS = re.compile(r"\b(cups?|tablespoons?|teaspoons?|tbsp|tsp|ounces?|oz|pounds?|lbs?)\b", re.I)
-METRIC = re.compile(r"\d\s*(g|kg|ml|l|gr)\b", re.I)
+METRIC = re.compile(r"\d\s*(g|kg|ml|l|gr|grams?|millilit(er|re)s?)\b", re.I)
+EN_TITLE = re.compile(r"\b(with|and|chicken|beef|pork|turkey|shrimp|salmon|fish|rice|sauce|salad|soup|"
+                      r"pasta|cheese|cheesy|garlic|lemon|roasted|baked|grilled|creamy|easy|potatoes?|"
+                      r"tacos?|bowls?|skillet|steak|curry|stew|chili|noodles?|sheet pan)\b", re.I)
 
 
 def minutes(pt):
@@ -207,8 +210,13 @@ def recipe_metrics(d):
         "servings": bool(serv and re.search(r"\d", str(serv))),
         "minutes": minutes(d.get("totalTime")),
         "steps": len(d.get("recipeInstructions") or []),
-        "english": len(EN_WORDS.findall(joined)) >= 3,
-        "us_units": bool(US_UNITS.search(joined)) and not len(METRIC.findall(joined)) > 2,
+        # English: unit/prep words in ingredients, or English food words in the
+        # title (meal-kit sites like Home Chef list bare names: "Chicken Thighs").
+        "english": len(EN_WORDS.findall(joined)) >= 3 or bool(EN_TITLE.search(title)),
+        # US: lines with US units outnumber metric-only lines. "1 cup (120 g)" counts
+        # as US; recipes with no units at all count as US (nothing metric).
+        "us_units": (sum(1 for n in notes if US_UNITS.search(n))
+                     >= sum(1 for n in notes if METRIC.search(n) and not US_UNITS.search(n))),
         "dinner": not (NON_DINNER_RE and NON_DINNER_RE.search(title)),
         "rating": d.get("_rating"),
         "reviews": d.get("_reviews"),
@@ -433,6 +441,8 @@ def main():
     ap.add_argument("--hosts", default="")
     ap.add_argument("--sample", type=int, default=8)
     ap.add_argument("--workers", type=int, default=16)
+    ap.add_argument("--merge", action="store_true",
+                    help="re-vet only --hosts and merge into the existing out/results.json")
     ap.add_argument("--all-regions", action="store_true",
                     help="include non-US country-TLD sites (default: US/generic TLDs only)")
     a = ap.parse_args()
@@ -441,6 +451,12 @@ def main():
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
     print(f"Vetting {len(hosts)} hosts | app UA: {APP_UA} | sample {a.sample} | workers {a.workers}", flush=True)
     results, lock = [], threading.Lock()
+    prior = []
+    if a.merge:
+        with open(f"{OUT}/results.json") as f:
+            prior_doc = json.load(f)
+        started = prior_doc.get("started", started)
+        prior = [r for r in prior_doc["results"] if r["host"] not in set(hosts)]
     done = 0
     with ThreadPoolExecutor(max_workers=a.workers) as ex:
         futs = {ex.submit(vet_host, h, a.sample): h for h in hosts}
@@ -455,9 +471,9 @@ def main():
                 done += 1
                 print(f"[{done}/{len(hosts)}] {h}: {r['verdict']}"
                       f"{' fit=' + str(r['fit']) if r.get('fit') is not None else ''}", flush=True)
-                if done % 25 == 0:
+                if done % 25 == 0 and not a.merge:
                     write_outputs(results, started)
-    write_outputs(results, started)
+    write_outputs(prior + results, started)
     print("DONE", flush=True)
 
 

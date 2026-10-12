@@ -6,7 +6,7 @@ Self-hosted household dinner meal planner. Plans weekly dinners using on-hand pa
 **API docs:** `http://<unraid-ip>:8111/docs`  
 **Mobile:** fully responsive — hamburger drawer nav on screens ≤ 639 px  
 **Timezone:** set `TZ` in the Unraid template to match your local timezone for correct week calculation and scrape schedule  
-**Version:** 134
+**Version:** 135
 
 ---
 
@@ -46,7 +46,8 @@ Additional sources can be added via the Sources page. Sources that block scrapin
 against the app's own discovery and scraping code and writes
 `tools/site_vetter/out/report.md` (verdicts + family-dinner fit score) and
 `suggested_sources.yaml` (paste-ready `recipe_sources.yaml` entries).
-Run `./run.sh` for all sites (~15 min) or `./run.sh --hosts a.com,b.com`.
+Run `./run.sh` for all US-region sites (~12 min), `./run.sh --hosts a.com,b.com`, or
+`./run.sh --merge --hosts a.com` to re-vet a few sites into the existing results.
 
 ### Suggestion engine
 
