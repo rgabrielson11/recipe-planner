@@ -1,5 +1,24 @@
 # Recipe Planner — Changelog
 
+## Patch 136: 14 new recipe sources from the site vetter
+
+Added to `recipe_sources.yaml` (enabled), each with its dinner/main-dish
+category page plus pages 2-3, all validated with the app's link extractor
+(43 listing URLs, ~1,300 dinner recipe links):
+
+The Recipe Critic, Le Creme de la Crumb, Add a Pinch, Chef Savvy,
+Sweet Peas and Saffron, Bowl of Delicious, Just a Taste, Sweet C's Designs,
+Tastes of Lizzy T, Gimme Some Oven, Well Plated, Tastes Better From Scratch,
+Mel's Kitchen Cafe, Number 2 Pencil.
+
+Each was selected for US weeknight family dinners: 8/8 sampled recipes parsed
+with servings, 82%+ ingredient lines with quantities, median 27-47 min.
+
+Note: `backend/app/data/recipe_sources.yaml` is not tracked in git; a backup
+of the previous version is at `recipe_sources.yaml.bak-20261012`.
+
+---
+
 ## Patch 135: site vetter — US-only scope, better language/unit checks, --merge
 
 - Default scope is US/generic TLDs (.com/.org/.net/...); `--all-regions` to include others.
