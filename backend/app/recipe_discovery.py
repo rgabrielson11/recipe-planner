@@ -676,6 +676,32 @@ _OTHER_PROTEIN_KEYWORDS = [
 ]
 
 
+_OTHER_PROTEIN_RE = re.compile(r"\b(" + "|".join(map(re.escape, _OTHER_PROTEIN_KEYWORDS)) + r")\b")
+_protein_matchers_cache: dict = {"src": None, "matchers": []}
+
+
+def _protein_matchers() -> list[tuple]:
+    """
+    (key, lowercase keywords, compiled title regex) per enabled specific
+    category, in config order.  Rebuilt only when the category config object
+    changes (config_files caches it by file mtime).
+    """
+    from app import config_files as _cf
+    cats = _cf.get_protein_categories()
+    if _protein_matchers_cache["src"] is not cats:
+        sorted_cats = sorted(
+            [c for c in cats if c.get("enabled", True) and c.get("key") not in ("other", "vegetarian")],
+            key=lambda c: (c.get("order", 99), c.get("key", "")),
+        )
+        matchers = []
+        for c in sorted_cats:
+            kws = [str(k).lower() for k in (c.get("keywords") or []) if str(k).strip()]
+            rx = re.compile(r"\b(" + "|".join(map(re.escape, kws)) + r")\b") if kws else None
+            matchers.append((c["key"], kws, rx))
+        _protein_matchers_cache.update(src=cats, matchers=matchers)
+    return _protein_matchers_cache["matchers"]
+
+
 def _classify_protein(title: str, tokens: list[str]) -> str:
     """
     Classify a recipe into a protein category by matching keywords against
@@ -686,42 +712,32 @@ def _classify_protein(title: str, tokens: list[str]) -> str:
     by omission. 'Other' is reserved for proteins not listed in the
     categories (lamb, duck, venison, etc.).
     """
-    from app import config_files as _cf
-    categories = _cf.get_protein_categories()
-    if not categories:
+    matchers = _protein_matchers()
+    if not matchers:
         return "vegetarian"
 
-    sorted_cats = sorted(
-        [c for c in categories if c.get("enabled", True) and c.get("key") not in ("other", "vegetarian")],
-        key=lambda c: (c.get("order", 99), c.get("key", "")),
-    )
     title_lower = title.lower()
-    all_text = title_lower + " " + " ".join(t.lower() for t in tokens)
 
-    # Title keyword match — specific protein categories
-    for cat in sorted_cats:
-        for kw in (cat.get("keywords") or []):
-            if re.search(r"\b" + re.escape(kw.lower()) + r"\b", title_lower):
-                return cat["key"]
+    # Title keyword match — first category (in config order) wins
+    for key, _kws, rx in matchers:
+        if rx is not None and rx.search(title_lower):
+            return key
 
     # Token match — most ingredient hits
     if tokens:
         scores: dict = {}
         tokens_lower = [t.lower() for t in tokens]
-        for cat in sorted_cats:
-            hits = sum(
-                1 for kw in (cat.get("keywords") or [])
-                for t in tokens_lower if kw.lower() in t
-            )
+        for key, kws, _rx in matchers:
+            hits = sum(1 for kw in kws for t in tokens_lower if kw in t)
             if hits:
-                scores[cat["key"]] = hits
+                scores[key] = hits
         if scores:
             return max(scores, key=lambda k: scores[k])
 
     # No specific protein matched — check if an unlisted animal protein is present
-    for kw in _OTHER_PROTEIN_KEYWORDS:
-        if re.search(r"\b" + re.escape(kw) + r"\b", all_text):
-            return "other"
+    all_text = title_lower + " " + " ".join(t.lower() for t in tokens)
+    if _OTHER_PROTEIN_RE.search(all_text):
+        return "other"
 
     # Default: no animal protein detected → vegetarian
     return "vegetarian"

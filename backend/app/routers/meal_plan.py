@@ -201,6 +201,11 @@ def suggest(
             "Preference.default_num_suggestions > 10."
         ),
     ),
+    include_random: bool = Query(
+        default=True,
+        description="Append random discovery picks. The planner passes false and "
+                    "fetches them from /suggest/random so scored results render first.",
+    ),
     db: Session = Depends(get_db),
 ):
     """
@@ -233,20 +238,43 @@ def suggest(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    # ── Random discovery pool ─────────────────────────────────────────────────
-    # Add up to RANDOM_PER_CATEGORY random recipes per protein category that
-    # are not already in the scored suggestions.  These surface variety and
-    # give users a way to browse the full catalogue without just seeing the
-    # top-scored items every week.
+    if not include_random:
+        return result
+    existing_ids = {s["recipe_id"] for s in result["suggestions"]}
+    random_picks = _random_pool(household_id, db, existing_ids)
+    if random_picks is not None:
+        result["suggestions"] = result["suggestions"] + random_picks
+        result["random_pool_added"] = len(random_picks)
+    return result
+
+
+@router.get("/suggest/random")
+def suggest_random(
+    household_id: str,
+    exclude: str = Query(default="", description="Comma-separated recipe IDs already shown"),
+    db: Session = Depends(get_db),
+):
+    """
+    Random discovery picks only.  The planner calls this right after the scored
+    suggestions render so random picks load in as a second batch.
+    """
+    ids = {x for x in exclude.split(",") if x}
+    return {"suggestions": _random_pool(household_id, db, ids) or []}
+
+
+def _random_pool(household_id: str, db: Session, existing_ids: set) -> Optional[list]:
+    """
+    Up to Preference.random_per_category random cached recipes per protein
+    category, excluding existing_ids and rejected recipes.  These surface
+    variety beyond the top-scored items.  Returns None if the pool is disabled.
+    """
     prefs_obj = db.query(models.Preference).filter(models.Preference.household_id == household_id).first()
     RANDOM_PER_CATEGORY = (prefs_obj.random_per_category if prefs_obj and prefs_obj.random_per_category is not None else 10)
     if RANDOM_PER_CATEGORY == 0:
-        return result  # random pool disabled
+        return None
     try:
         import random as _random
         import json as _json
-
-        existing_ids = {s["recipe_id"] for s in result["suggestions"]}
 
         # Get rejected/suppressed IDs to exclude
         rejected_ids = {
@@ -307,14 +335,12 @@ def suggest(
                     "is_random": True,
                 })
 
-        result["suggestions"] = result["suggestions"] + random_picks
-        result["random_pool_added"] = len(random_picks)
         log.info("Random pool: added %d recipes across %d categories",
                  len(random_picks), len(cat_buckets))
+        return random_picks
     except Exception as e:
         log.warning("Random pool injection failed: %s", e)
-
-    return result
+        return []
 
 
 # ── 5. Confirm selections ─────────────────────────────────────────────────────

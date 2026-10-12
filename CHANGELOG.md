@@ -1,5 +1,35 @@
 # Recipe Planner — Changelog
 
+## Patch 134: 20x faster suggestions, simplified planner flow, two-phase loading
+
+### Performance fix
+`_classify_protein()` re-read and re-parsed `protein_categories.yaml` from
+disk on every recipe (~12 ms/call). With ~1,700 cached recipes this cost
+~16 s in scoring and ~23 s in the random pool, and the random pool ran
+*after* the progress bar showed "Done!", which caused the long blank wait.
+- `config_files.get_protein_categories()` is now cached by file mtime
+  (cleared on save).
+- `_classify_protein()` uses precompiled per-category regexes.
+- Result: scored suggestions ~38 s → ~2 s; random picks 23 s → 0.1 s.
+
+### Planner flow
+- Removed the **Week Intent** step (and ingredient hints). Steps are now
+  Select Week → Pantry Review → Suggestions → Confirm → Shopping List.
+- Number of suggestions + **Generate Suggestions** moved to the Pantry step.
+- The planner no longer calls `POST /week-intent`; the count is passed
+  directly to `/suggest`.
+
+### Two-phase loading
+- Generate switches to the Suggestions page immediately with a progress bar.
+- `GET /meal-plan/suggest` gains `include_random` (default true, unchanged
+  for other callers). The planner fetches scored results with
+  `include_random=false`, renders them, then fetches the new
+  `GET /meal-plan/suggest/random?exclude=...` and appends the random picks.
+- Already-selected recipes for the week are kept across Refresh.
+- A stale "Done!" progress message is shown as "Finishing up…".
+
+---
+
 ## Patch 133: recipe site vetter tool
 
 New standalone tool at `tools/site_vetter/` that tests every site

@@ -56,6 +56,7 @@ DELAY = 1.0            # seconds between requests to the same host
 HOST_DEADLINE = 180    # max seconds spent sampling recipes per host
 MAX_LISTINGS = 5       # listing pages fetched per host
 MAX_ATTEMPTS = 25      # max recipe links tried per host
+US_TLDS = {"com", "org", "net", "gov", "info", "co", "us"}   # skip .de/.uk/.au etc.
 
 
 def _find_key(obj, key):
@@ -344,6 +345,10 @@ def vet_host(host, sample_n):
     if agg["english_rate"] < 0.5:
         res["verdict"] = "non-english"
         return res
+    if agg["us_units_rate"] < 0.5:
+        res["verdict"] = "non-us"
+        res["reasons"].append(f"mostly metric/non-US recipes ({int(agg['us_units_rate']*100)}% US units)")
+        return res
     quality_ok = agg["qty_rate"] >= 0.7 and agg["servings_rate"] >= 0.6
     if not quality_ok:
         res["verdict"] = "low-quality"
@@ -372,7 +377,7 @@ def vet_host(host, sample_n):
 
 # ── Reporting ─────────────────────────────────────────────────────────────────
 ORDER = ["viable", "viable-with-changes", "low-quality", "few-recipe-links", "no-recipes-found",
-         "robots-disallowed", "blocked", "non-english", "unreachable", "error"]
+         "robots-disallowed", "blocked", "non-us", "non-english", "unreachable", "error"]
 
 
 def write_outputs(results, started):
@@ -428,8 +433,11 @@ def main():
     ap.add_argument("--hosts", default="")
     ap.add_argument("--sample", type=int, default=8)
     ap.add_argument("--workers", type=int, default=16)
+    ap.add_argument("--all-regions", action="store_true",
+                    help="include non-US country-TLD sites (default: US/generic TLDs only)")
     a = ap.parse_args()
-    hosts = [h.strip() for h in a.hosts.split(",") if h.strip()] or sorted(SCRAPERS.keys())
+    hosts = [h.strip() for h in a.hosts.split(",") if h.strip()] or sorted(
+        h for h in SCRAPERS if a.all_regions or h.rsplit(".", 1)[-1] in US_TLDS)
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
     print(f"Vetting {len(hosts)} hosts | app UA: {APP_UA} | sample {a.sample} | workers {a.workers}", flush=True)
     results, lock = [], threading.Lock()

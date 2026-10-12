@@ -181,17 +181,34 @@ _PROTEIN_DEFAULTS = [
 ]
 
 
+_protein_cache: dict = {"mtime": None, "data": None}
+
+
 def get_protein_categories() -> list[dict]:
-    """Load protein category config, falling back to built-in defaults."""
+    """
+    Load protein category config, falling back to built-in defaults.
+
+    Cached by file mtime.  This is called once per recipe while scoring and
+    building the random pool; re-parsing the YAML on every call cost ~12 ms
+    each (~35 s per suggestion run with ~1,700 cached recipes).
+    """
     path = _path("protein_categories.yaml")
-    if path.exists():
+    try:
+        mtime = path.stat().st_mtime if path.exists() else None
+    except OSError:
+        mtime = None
+    if _protein_cache["data"] is not None and _protein_cache["mtime"] == mtime:
+        return _protein_cache["data"]
+    cats = _PROTEIN_DEFAULTS
+    if mtime is not None:
         try:
             data = load_yaml(path)
-            if isinstance(data, dict) and "categories" in data and data["categories"]:
-                return data["categories"]
+            if isinstance(data, dict) and data.get("categories"):
+                cats = _to_plain(data["categories"])
         except Exception:
             pass
-    return _PROTEIN_DEFAULTS
+    _protein_cache.update(mtime=mtime, data=cats)
+    return cats
 
 
 def save_protein_categories(categories: list[dict]) -> None:
@@ -201,4 +218,5 @@ def save_protein_categories(categories: list[dict]) -> None:
     _yaml = _make_yaml()
     with open(path, "w", encoding="utf-8") as f:
         _yaml.dump({"categories": categories}, f)
+    _protein_cache["data"] = None   # force reload on next read
 

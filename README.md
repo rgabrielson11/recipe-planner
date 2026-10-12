@@ -6,7 +6,7 @@ Self-hosted household dinner meal planner. Plans weekly dinners using on-hand pa
 **API docs:** `http://<unraid-ip>:8111/docs`  
 **Mobile:** fully responsive — hamburger drawer nav on screens ≤ 639 px  
 **Timezone:** set `TZ` in the Unraid template to match your local timezone for correct week calculation and scrape schedule  
-**Version:** 133
+**Version:** 134
 
 ---
 
@@ -52,7 +52,7 @@ Run `./run.sh` for all sites (~15 min) or `./run.sh --hosts a.com,b.com`.
 
 Every suggestions load combines:
 
-**Scored picks** — recipes ranked by pantry overlap, weekly intent hints, ratings, cook time, and rejection history. Grouped by protein category.
+**Scored picks** — recipes ranked by pantry overlap, ratings, cook time, and rejection history. Grouped by protein category.
 
 **Random picks** — 10 random recipes per protein category appended below a dashed divider. Gives full catalogue visibility beyond the top-scored items. Count configurable in Settings (0 to disable).
 
@@ -62,14 +62,15 @@ Every suggestions load combines:
 
 ```
 0. Select Week        — pick current, next, or upcoming week
-1. Pantry Review      — full pantry view with add/edit inline; update what's on hand
-2. Week Intent        — ingredient hints boost matching scores
-3. Suggestions        — scored + random picks grouped by protein category;
+1. Pantry Review      — full pantry view with add/edit inline; set the number
+                        of suggestions and press Generate Suggestions
+2. Suggestions        — opens immediately; scored picks load first (~2 s), then
+                        random picks append; grouped by protein category;
                         pre-selected recipes shown at top; search/filter;
                         ingredient actions (staple / exclude / dislike)
-4. Confirm            — adjust servings per recipe; Print All scales ingredients;
+3. Confirm            — adjust servings per recipe; Print All scales ingredients;
                         "Lock In & Import →" imports to Mealie and advances
-5. Shopping List      — pantry-first, package-rounded, section-grouped list;
+4. Shopping List      — pantry-first, package-rounded, section-grouped list;
                         push to Bring! and/or Home Assistant in one click;
                         pantry-check items promotable to buy list
 ```
@@ -95,7 +96,7 @@ Every suggestions load combines:
 | Signal | Points |
 |---|---|
 | Pantry overlap (% of ingredients on hand + staples) | 0 – 50 |
-| Weekly intent hints | +15 each, max +45 |
+| Weekly intent hints (API only; no longer set by the planner) | +15 each, max +45 |
 | Long-term liked items | +5 each, max +20 |
 | Soft disliked items | −15 each, max −45 |
 | Cook time over household max | −20 |

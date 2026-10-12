@@ -516,7 +516,7 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,onRemove,confirmed,rejected,
 };
 
 // ── Weekly Planner ────────────────────────────────────────────────────────────
-const STEPS=['Select Week','Pantry Review','Week Intent','Suggestions','Confirm','Shopping List'];
+const STEPS=['Select Week','Pantry Review','Suggestions','Confirm','Shopping List'];
 
 const PlannerPage=({hid})=>{
   const [step,setStep]=useState(0);
@@ -527,7 +527,6 @@ const PlannerPage=({hid})=>{
   const [feedbackDone,setFeedbackDone]=useState({});
   const [pantry,setPantry]=useState([]);
   const [prefs,setPrefs]=useState(null);
-  const [hints,setHints]=useState('');
   const [numSug,setNumSug]=useState(10);
   const [suggestions,setSug]=useState([]);
   const [confirmed,setConf]=useState([]);
@@ -535,6 +534,7 @@ const PlannerPage=({hid})=>{
   const [shoppingList,setSL]=useState(null);
   const [extraBuyItems,setExtraBuyItems]=useState([]);
   const [loading,setLoading]=useState(false);
+  const [loadingRandom,setLoadingRandom]=useState(false);
   const [importResults,setImportResults]=useState(null);
   const [weekSelections,setWeekSelections]=useState([]);
   const [mealieUrl,setMealieUrl]=useState('');
@@ -561,7 +561,7 @@ const PlannerPage=({hid})=>{
   },[hid]);
 
   useEffect(()=>{
-    if(step===3){
+    if(step===2){
       get(`/meal-plan/selections?household_id=${hid}&week_start_date=${week}`)
         .then(existingSels=>{
           if(!existingSels||!existingSels.length)return;
@@ -585,7 +585,7 @@ const PlannerPage=({hid})=>{
           });
         }).catch(()=>{});
     }
-    if(step===4){
+    if(step===3){
       get(`/meal-plan/selections?household_id=${hid}&week_start_date=${week}`)
         .then(rows=>setWeekSelections(rows||[]))
         .catch(()=>{});
@@ -594,34 +594,44 @@ const PlannerPage=({hid})=>{
 
   const loadSuggestions=async(countOverride)=>{
     const n=countOverride??numSug;
-    // Paint the loading UI before network calls.
-    // Setting state then immediately awaiting a setTimeout(0) yields to the event loop
-    // so React can commit the update and the browser can paint the spinner/progress bar
-    // before the first fetch starts.  flushSync inside a React event handler is
-    // unsupported in React 18 and causes a blank render — this is the correct pattern.
-    setSug([]);setStep(3);setLoading(true);setProgress(2);setProgressLabel('Starting...');
+    // Show the Suggestions page immediately, then load in two batches:
+    //   1. scored suggestions  (/suggest?include_random=false)
+    //   2. random discovery picks (/suggest/random), appended when they arrive
+    // The setTimeout(0) yield lets React paint the page before the first fetch.
+    setSug(s=>s.filter(x=>x._pre_selected));setStep(2);setLoading(true);setLoadingRandom(false);
+    setProgress(5);setProgressLabel('Finding recipes that match your pantry…');
     await new Promise(r=>setTimeout(r,0));
     const poll=setInterval(async()=>{
       try{
         const p=await get(`/meal-plan/suggest/progress?household_id=${hid}`);
-        if(p.pct!=null)setProgress(p.pct);
-        if(p.message)setProgressLabel(p.message);
+        if(p.pct!=null)setProgress(Math.max(p.pct,5));
+        if(p.message)setProgressLabel(p.message==='Done!'?'Finishing up…':p.message);
       }catch(_){}
     },800);
+    let scoredIds=[];
     try{
-      await post(`/meal-plan/week-intent/${hid}/${week}`,{
-        ingredient_hints:hints.split(',').map(s=>s.trim()).filter(Boolean),
-        num_suggestions:n,
+      const r=await get(`/meal-plan/suggest?household_id=${hid}&week_start_date=${week}&num=${n}&include_random=false`);
+      const scored=r.suggestions||[];
+      scoredIds=scored.map(x=>x.recipe_id);
+      setSug(prev=>{
+        const keep=prev.filter(x=>x._pre_selected);
+        const ids=new Set(keep.map(x=>x.recipe_id));
+        return[...keep,...scored.filter(x=>!ids.has(x.recipe_id))];
       });
-      const r=await get(`/meal-plan/suggest?household_id=${hid}&week_start_date=${week}&num=${n}`);
-      clearInterval(poll);setProgress(0);setProgressLabel('');
-      const _scored=(r.suggestions||[]).filter(s=>!s.is_random);
-      const _random=(r.suggestions||[]).filter(s=>s.is_random);
-      setSug(_scored);
-      setTimeout(()=>setSug(s=>[...s,..._random]),80);
-      toast(`${_scored.length} suggestions + ${_random.length} random picks loaded`);
-    }catch(e){clearInterval(poll);setProgress(0);setProgressLabel('');toast(e.message,'error');setStep(2);}
-    finally{setLoading(false);}
+    }catch(e){
+      toast(e.message,'error');setStep(1);return;
+    }finally{clearInterval(poll);setProgress(0);setProgressLabel('');setLoading(false);}
+    setLoadingRandom(true);
+    try{
+      const rr=await get(`/meal-plan/suggest/random?household_id=${hid}&exclude=${scoredIds.join(',')}`);
+      const random=rr.suggestions||[];
+      setSug(prev=>{
+        const ids=new Set(prev.map(x=>x.recipe_id));
+        return[...prev,...random.filter(x=>!ids.has(x.recipe_id))];
+      });
+      toast(`${scoredIds.length} suggestions + ${random.length} random picks loaded`);
+    }catch(e){toast(`Random picks failed: ${e.message}`,'error');}
+    finally{setLoadingRandom(false);}
   };
 
   const toggleConfirm=(id,undo=false)=>{
@@ -642,7 +652,7 @@ const PlannerPage=({hid})=>{
     setLoading(true);
     try{
       const r=await post('/meal-plan/selections',{household_id:hid,week_start_date:week,recipe_ids:confirmed,servings_overrides:servingOverrides});
-      setImportResults(r.mealie_imports||[]);toast(`${confirmed.length} meals confirmed — importing to Mealie in background`);setStep(4);
+      setImportResults(r.mealie_imports||[]);toast(`${confirmed.length} meals confirmed — importing to Mealie in background`);setStep(3);
     }catch(e){toast(e.message,'error');}
     finally{setLoading(false);}
   };
@@ -661,7 +671,7 @@ const PlannerPage=({hid})=>{
     setLoading(true);
     try{
       const r=await get(`/meal-plan/shopping-list?household_id=${hid}&week_start_date=${week}`);
-      setSL(r);setExtraBuyItems([]);setStep(5);
+      setSL(r);setExtraBuyItems([]);setStep(4);
     }catch(e){toast(e.message,'error');}
     finally{setLoading(false);}
   };
@@ -672,7 +682,7 @@ const PlannerPage=({hid})=>{
     <div>
       <div className="page-header"><h1 className="page-title">📅 Weekly Planner</h1><p className="page-sub">Week of {fmt(week)}</p></div>
       <div className="step-bar">{STEPS.map((s,i)=>{
-        const canJump=step>i||(i<=5&&step>=1)||(confirmed.length>0&&i===4)||(confirmed.length>0&&i===5&&step>=4);
+        const canJump=step>i||(i<=4&&step>=1)||(confirmed.length>0&&i===3)||(confirmed.length>0&&i===4&&step>=3);
         const isActive=step===i;const isDone=step>i;
         return(
           <div key={i} className={`step${isActive?' active':isDone?' done':''}`}
@@ -682,9 +692,9 @@ const PlannerPage=({hid})=>{
           </div>
         );
       })}</div>
-      {confirmed.length>0&&step<4&&(
+      {confirmed.length>0&&step<3&&(
         <div style={{textAlign:'right',marginBottom:8}}>
-          <button className="btn-secondary btn-sm" onClick={()=>setStep(4)}>
+          <button className="btn-secondary btn-sm" onClick={()=>setStep(3)}>
             Skip to Confirm ({confirmed.length} recipe{confirmed.length!==1?'s':''} queued) →
           </button>
         </div>
@@ -714,51 +724,32 @@ const PlannerPage=({hid})=>{
         <button className="btn-primary" onClick={()=>setStep(1)}>Continue →</button>
       </div>}
 
-      {/* Step 1: Pantry */}
+      {/* Step 1: Pantry — suggestions are generated from here */}
       {step===1&&<div>
         <PantryPage hid={hid} embedded={true}/>
-        <div style={{marginTop:16}}>
-          <button className="btn-primary" onClick={()=>setStep(2)}>Continue →</button>
-        </div>
-      </div>}
-
-      {/* Step 2: Intent */}
-      {step===2&&<div>
-        <div className="card" style={{marginBottom:16}}>
-          <h3 className="section-title">What's on the menu this week?</h3>
-          <div style={{display:'grid',gap:14}}>
-            <div>
-              <label>Ingredient hints (comma-separated — boosts matching scores by +15 each)</label>
-              <input placeholder="e.g. chicken thighs, salmon, italian, quick weeknight" value={hints} onChange={e=>setHints(e.target.value)}/>
-            </div>
-            <div style={{maxWidth:200}}>
-              <label>Number of suggestions</label>
-              <input type="number" min={1} value={numSug} onChange={e=>setNumSug(+e.target.value)}/>
-            </div>
+        <div className="card" style={{marginTop:16,display:'flex',alignItems:'flex-end',gap:12,flexWrap:'wrap'}}>
+          <div style={{width:180}}>
+            <label>Number of suggestions</label>
+            <input type="number" min={1} max={500} value={numSug} onChange={e=>setNumSug(Math.max(1,+e.target.value||1))}/>
           </div>
+          <button className="btn-primary" disabled={scrapeActive||loading} onClick={async()=>{
+            // Don't start while the background scrape holds the recipe cache
+            try{const st=await get('/config/scrape-status');if(st?.running===true){setScrapeActive(true);return;}}catch(e){}
+            setScrapeActive(false);
+            loadSuggestions();
+          }}>🔍 Generate Suggestions →</button>
         </div>
-        {scrapeActive&&<div className="alert alert-warning" style={{marginBottom:12}}>
+        {scrapeActive&&<div className="alert alert-warning" style={{marginTop:12}}>
           ⏳ Recipe scraping is in progress — suggestions will be available once it completes.
           <button className="btn-secondary btn-sm" style={{marginLeft:8}}
-            onClick={async()=>{try{const s=await get('/config/scrape-status');setScrapeActive(s?.running===true);}catch(e){}}}>
+            onClick={async()=>{try{const st=await get('/config/scrape-status');setScrapeActive(st?.running===true);}catch(e){}}}>
             Check
           </button>
         </div>}
-        {loading?(<div>
-          <div style={{background:'var(--border)',borderRadius:8,height:8,margin:'16px 0 6px',overflow:'hidden'}}>
-            <div style={{height:'100%',borderRadius:8,background:'var(--primary)',width:`${progress}%`,transition:'width .5s ease'}}/>
-          </div>
-          <p style={{fontSize:12,color:'var(--gray)',textAlign:'center',marginBottom:0}}>{progressLabel||'Loading...'}</p>
-        </div>):<button className="btn-primary" disabled={scrapeActive} onClick={async()=>{
-          // Check if a scrape is running before generating suggestions
-          try{const s=await get('/config/scrape-status');if(s?.running===true){setScrapeActive(true);return;}}catch(e){}
-          setScrapeActive(false);
-          loadSuggestions();
-        }}>🔍 Generate Suggestions →</button>}
       </div>}
 
-      {/* Step 2 */}
-      {step===3&&<div>
+      {/* Step 2: Suggestions */}
+      {step===2&&<div>
         {loading&&suggestions.length===0&&(<div style={{padding:'32px 0'}}>
           <div style={{background:'var(--border)',borderRadius:8,height:8,margin:'0 0 6px',overflow:'hidden'}}>
             <div style={{height:'100%',borderRadius:8,background:'var(--primary)',width:`${Math.max(progress||0,3)}%`,transition:'width .5s ease'}}/>
@@ -771,10 +762,11 @@ const PlannerPage=({hid})=>{
             onChange={e=>setSugSearch(e.target.value)}
             style={{padding:'5px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:13,minWidth:180}}/>}
           {!loading&&sugSearch&&<button className="btn-icon" onClick={()=>setSugSearch('')} title="Clear search">✕</button>}
-          <button className="btn-secondary btn-sm" onClick={()=>loadSuggestions()} disabled={loading}>&#x21BA; Refresh</button>
-          <button className="btn-secondary btn-sm" onClick={()=>{const next=numSug+5;setNumSug(next);loadSuggestions(next);}} disabled={loading}>&#x2795; Load {numSug+5} suggestions</button>
+          <button className="btn-secondary btn-sm" onClick={()=>loadSuggestions()} disabled={loading||loadingRandom}>&#x21BA; Refresh</button>
+          <button className="btn-secondary btn-sm" onClick={()=>{const next=numSug+5;setNumSug(next);loadSuggestions(next);}} disabled={loading||loadingRandom}>&#x2795; Load {numSug+5} suggestions</button>
         </div>
-        {suggestions.length===0&&!loading&&<div style={{textAlign:'center',padding:48,color:'var(--gray)'}}>
+        {loadingRandom&&<div style={{fontSize:12,color:'var(--gray)',marginBottom:12}}>⏳ Loading random picks…</div>}
+        {suggestions.length===0&&!loading&&!loadingRandom&&<div style={{textAlign:'center',padding:48,color:'var(--gray)'}}>
           <div style={{fontSize:48}}>🍽️</div>
           <p>No suggestions. Check Recipe Sources to ensure sources are enabled.</p>
         </div>}
@@ -853,13 +845,13 @@ const PlannerPage=({hid})=>{
           <strong>✓ Selected ({confirmed.length}):</strong>{' '}
           {suggestions.filter(s=>confirmed.includes(s.recipe_id)).map(s=>s.title).join(', ')}
           <div style={{marginTop:12}}>
-            <button className="btn-success" onClick={()=>setStep(4)}>Confirm {confirmed.length} Selection{confirmed.length!==1?'s':''} →</button>
+            <button className="btn-success" onClick={()=>setStep(3)}>Confirm {confirmed.length} Selection{confirmed.length!==1?'s':''} →</button>
           </div>
         </div>}
       </div>}
 
-      {/* Step 3 */}
-      {step===4&&<div>
+      {/* Step 3: Confirm */}
+      {step===3&&<div>
         <div className="card" style={{marginBottom:16}}>
           <h3 className="section-title">Confirm Your Selections</h3>
           <p style={{fontSize:12,color:'var(--gray)',marginBottom:12}}>
@@ -996,8 +988,8 @@ const PlannerPage=({hid})=>{
           {confirmed.length>0&&!importResults&&<div className="card" style={{marginTop:16,borderLeft:'3px solid var(--green)'}}>
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,flexWrap:'wrap'}}>
               <span style={{fontWeight:600,fontSize:14}}>✅ {confirmed.length} recipe{confirmed.length!==1?'s':''} selected</span>
-              {step<4
-                ?<button className="btn-primary btn-sm" style={{marginLeft:'auto'}} onClick={()=>setStep(4)}>Review & Confirm →</button>
+              {step<3
+                ?<button className="btn-primary btn-sm" style={{marginLeft:'auto'}} onClick={()=>setStep(3)}>Review & Confirm →</button>
                 :<button className="btn-success btn-sm" style={{marginLeft:'auto'}} disabled={!confirmed.length&&!weekSelections.length} onClick={confirmSelections}>✓ Lock In & Import →</button>}
             </div>
             {suggestions.filter(s=>confirmed.includes(s.recipe_id)).map(s=>(
@@ -1014,7 +1006,7 @@ const PlannerPage=({hid})=>{
       </div>}
 
       {/* Step 4: Shopping List */}
-      {step===5&&<div>
+      {step===4&&<div>
         {!shoppingList?(loading?<div className="spinner"/>:<button className="btn-primary" onClick={loadShoppingList}>🛒 Load Shopping List</button>):<>
           {(shoppingList.warnings||[]).map((w,i)=><div key={i} className="alert alert-warning">⚠️ {w}</div>)}
 
