@@ -6,7 +6,7 @@ Self-hosted household dinner meal planner. Plans weekly dinners using on-hand pa
 **API docs:** `http://<unraid-ip>:8111/docs`  
 **Mobile:** fully responsive — hamburger drawer nav on screens ≤ 639 px  
 **Timezone:** set `TZ` in the Unraid template to match your local timezone for correct week calculation and scrape schedule  
-**Version:** 136
+**Version:** 137
 
 ---
 
@@ -242,6 +242,8 @@ discovery:
   max_scraped_per_run: 60
   request_delay_seconds: 1.5
   stub_rescrape_days: 7
+  min_scraped_rating: 4.0     # quality gate where a page publishes ratings
+  min_scraped_reviews: 10     # min review count where published (blogs get far fewer than meal kits)
   background_scrape_enabled: true
   background_scrape_hour: 3     # 0-23, server local time
   non_dinner_title_keywords:

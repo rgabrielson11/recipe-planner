@@ -1,5 +1,15 @@
 # Recipe Planner — Changelog
 
+## Patch 137: minimum scraped reviews lowered to 10
+
+`min_scraped_reviews` (recipe_sources.yaml → discovery; also editable on the
+Recipe Sources page) changed from 50 to 10, and the API default in
+`routers/config.py` now matches. Food blogs collect far fewer reviews than
+HelloFresh, so the 50-review gate rejected most well-rated blog recipes.
+Eligible cached recipes: 1,352 → 1,509. The 4.0★ minimum is unchanged.
+
+---
+
 ## Patch 136: 14 new recipe sources from the site vetter
 
 Added to `recipe_sources.yaml` (enabled), each with its dinner/main-dish

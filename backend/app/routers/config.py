@@ -99,7 +99,7 @@ class DiscoverySettingsIn(BaseModel):
     mealie_min_rating:          int   = 4
     mealie_favorites_count:     int   = 2
     min_scraped_rating:         float = 4.0
-    min_scraped_reviews:        int   = 50
+    min_scraped_reviews:        int   = 10
     stub_rescrape_days:         int   = 7
     background_scrape_enabled:  bool  = True
     background_scrape_hour:     int   = 3
