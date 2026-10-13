@@ -548,7 +548,22 @@ const PlannerPage=({hid})=>{
   const [progress,setProgress]=useState(0);
   const [progressLabel,setProgressLabel]=useState('');
   const [scrapeActive,setScrapeActive]=useState(false);
+  const [pushingShop,setPushingShop]=useState(false);
   const toast=useToast();
+
+  // Push the shopping list (plus any items added from the pantry check) to the
+  // destinations configured in Settings → Preferences (Home Assistant todo list).
+  const pushShopping=async()=>{
+    setPushingShop(true);
+    try{
+      const r=await post(`/meal-plan/shopping-list/push?household_id=${hid}&week_start_date=${week}`,{extra_items:extraBuyItems});
+      const dest=r.destinations?.join(' & ')||'shopping list';
+      const errs=Object.values(r.results||{}).filter(x=>x.status==='error');
+      if(errs.length) toast(`Push errors: ${errs.map(x=>x.detail).join('; ')}`,'error');
+      else toast(`✓ Pushed to ${dest}`,'success');
+    }catch(e){toast(e.message,'error');}
+    finally{setPushingShop(false);}
+  };
 
 
   useEffect(()=>{
@@ -1117,6 +1132,9 @@ const PlannerPage=({hid})=>{
                 </body></html>`);
               w.document.close();
             }}>&#x1F5A8;&#xFE0F; Print / Save PDF</button>
+            <button className="btn-primary" onClick={pushShopping} disabled={pushingShop}>
+              {pushingShop?'Pushing…':'🏠 Push to Home Assistant'}
+            </button>
           </div>
         </>}
       </div>}

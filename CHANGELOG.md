@@ -1,5 +1,16 @@
 # Recipe Planner — Changelog
 
+## Patch 140: restore "Push to Home Assistant" on the shopping list
+
+Patch 130 (Bring! removal) deleted the shopping-list push button, but that
+button also drove the Home Assistant todo-list push. The button is back on
+the Shopping List step as **🏠 Push to Home Assistant**, calling the unchanged
+`POST /meal-plan/shopping-list/push` (destination configured in
+Settings → Preferences → Home Assistant). Items added from the pantry check
+are included.
+
+---
+
 ## Patch 139: configurable Kitchen Display links (Pinterest)
 
 - New **Settings → Kitchen Display** tab: add, edit, remove and recolour the
