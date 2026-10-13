@@ -164,6 +164,7 @@ const useToast=()=>React.useContext(ToastCtx);
 // ── Nav ───────────────────────────────────────────────────────────────────────
 const NAV=[
   {section:'Planning'},{key:'planner',icon:'📅',label:'Weekly Planner'},
+  {key:'kitchen',icon:'🧑‍🍳',label:'Kitchen Display',href:'/kitchen'},
   {key:'pantry',icon:'🥫',label:'Pantry'},
   {section:'Configuration'},{key:'settings',icon:'⚙️',label:'Preferences'},
   {key:'sources',icon:'🌐',label:'Recipe Sources'},{key:'keywords',icon:'🔍',label:'Dinner Filter'},
@@ -177,7 +178,7 @@ const Nav=({page,setPage,navOpen,onClose,version})=>(
       <div className="nav-logo">🍽️ <span>Recipe</span> Planner</div>
       {NAV.map((item,i)=>item.section
         ?<div key={i} className="nav-section">{item.section}</div>
-        :<div key={item.key} className={`nav-item${page===item.key?' active':''}`} onClick={()=>{setPage(item.key);onClose();}}>
+        :<div key={item.key} className={`nav-item${page===item.key?' active':''}`} onClick={()=>{if(item.href){window.location.href=item.href;return;}setPage(item.key);onClose();}}>
           <span className="icon">{item.icon}</span>{item.label}
         </div>)}
       {version&&<div style={{padding:'16px 20px 8px',fontSize:11}}>
@@ -2312,6 +2313,113 @@ const RecipeSearchPage=({hid})=>{
   );
 };
 
+
+// ── Kitchen display (/kitchen) ────────────────────────────────────────────────
+// Full-screen, touch-first view of the week's confirmed dinners for the kitchen
+// tablet.  Each card opens the recipe in Mealie (or the original site if it was
+// never imported).  Refreshes every 10 minutes and rolls to the new week on Monday.
+const KitchenPage=({hid})=>{
+  const [offset,setOffset]=useState(0);
+  const [data,setData]=useState(null);
+  const [err,setErr]=useState('');
+  const [now,setNow]=useState(new Date());
+  const [proteins,setProteins]=useState({});
+  // ?week=YYYY-MM-DD pins a specific week (any day in it); otherwise follow the clock
+  const pinned=new URLSearchParams(window.location.search).get('week');
+  const week=(()=>{const d=pinned?new Date(pinned+'T00:00:00'):new Date(now);d.setDate(d.getDate()+offset*7);return weekMonday(d);})();
+  const load=useCallback(()=>{
+    get(`/meal-plan/kitchen?household_id=${hid}&week_start_date=${week}`)
+      .then(d=>{setData(d);setErr('');})
+      .catch(e=>setErr(e.message));
+  },[hid,week]);
+  useEffect(()=>{setData(null);load();},[load]);
+  useEffect(()=>{
+    const clock=setInterval(()=>setNow(new Date()),30000);
+    const refresh=setInterval(load,10*60*1000);
+    return()=>{clearInterval(clock);clearInterval(refresh);};
+  },[load]);
+  useEffect(()=>{
+    get('/config/protein-categories').then(d=>{
+      const m={};(d.categories||[]).forEach(c=>{m[c.key]=c.label||c.key;});setProteins(m);
+    }).catch(()=>{});
+  },[]);
+  const weekEnd=(()=>{const d=new Date(week+'T00:00:00');d.setDate(d.getDate()+6);return localISO(d);})();
+  const meals=data?.meals||[];
+  const emojiOf=k=>(proteins[k]||'').split(' ')[0]||'🍽️';
+  const btn={minHeight:56,padding:'0 22px',fontSize:18,fontWeight:600,borderRadius:14,border:'none',cursor:'pointer',
+             display:'inline-flex',alignItems:'center',gap:8,textDecoration:'none'};
+  return(
+    <div style={{minHeight:'100vh',background:'#f8fafc',padding:'20px 24px 32px',boxSizing:'border-box',
+                 userSelect:'none',WebkitTapHighlightColor:'transparent'}}>
+      <div style={{display:'flex',alignItems:'center',gap:16,flexWrap:'wrap',marginBottom:20}}>
+        <div style={{flex:1,minWidth:260}}>
+          <div style={{fontSize:30,fontWeight:800,color:'#0f172a'}}>
+            {pinned?'Dinners':offset===0?"This Week's Dinners":"Next Week's Dinners"}
+          </div>
+          <div style={{fontSize:18,color:'var(--gray)'}}>{fmt(week)} – {fmt(weekEnd)}</div>
+        </div>
+        <div style={{textAlign:'right',marginRight:8}}>
+          <div style={{fontSize:30,fontWeight:700,color:'#0f172a',fontVariantNumeric:'tabular-nums'}}>
+            {now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
+          </div>
+          <div style={{fontSize:16,color:'var(--gray)'}}>{now.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}</div>
+        </div>
+        {!pinned&&<div style={{display:'flex',background:'#e2e8f0',borderRadius:16,padding:4}}>
+          {[0,1].map(o=>(
+            <button key={o} onClick={()=>setOffset(o)}
+              style={{...btn,minHeight:48,background:offset===o?'#fff':'transparent',
+                      color:offset===o?'#0f172a':'#475569',boxShadow:offset===o?'0 1px 3px rgba(0,0,0,.15)':'none'}}>
+              {o===0?'This week':'Next week'}
+            </button>
+          ))}
+        </div>}
+        {data?.mealie_base_url&&<a href={data.mealie_base_url} style={{...btn,background:'#e85d2a',color:'#fff'}}>📖 Mealie</a>}
+        <a href="/" style={{...btn,background:'var(--brand)',color:'#fff'}}>📅 Planner</a>
+      </div>
+
+      {err&&<div style={{fontSize:18,color:'var(--red)',padding:16}}>Couldn't load meals: {err}</div>}
+      {!data&&!err&&<div style={{fontSize:20,color:'var(--gray)',padding:40,textAlign:'center'}}>Loading…</div>}
+      {data&&meals.length===0&&(
+        <div style={{textAlign:'center',padding:'80px 20px',color:'var(--gray)'}}>
+          <div style={{fontSize:64}}>🍽️</div>
+          <div style={{fontSize:24,fontWeight:600,margin:'12px 0 20px'}}>No dinners planned for this week yet</div>
+          <a href="/" style={{...btn,background:'var(--brand)',color:'#fff'}}>Plan this week →</a>
+        </div>
+      )}
+
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(290px,1fr))',gap:20}}>
+        {meals.map(m=>{
+          const href=m.mealie_url||m.source_url;
+          const serv=m.servings?`${m.servings} servings`:m.scraped_servings;
+          return(
+            <a key={m.recipe_id} href={href||undefined}
+              style={{display:'flex',flexDirection:'column',background:'#fff',borderRadius:20,overflow:'hidden',
+                      textDecoration:'none',color:'inherit',boxShadow:'0 2px 8px rgba(15,23,42,.08)',
+                      border:'1px solid #e2e8f0'}}>
+              <div style={{aspectRatio:'16/10',background:'#f1f5f9',display:'flex',alignItems:'center',
+                           justifyContent:'center',fontSize:64,overflow:'hidden'}}>
+                {m.image_url
+                  ?<img src={m.image_url} alt="" loading="lazy" style={{width:'100%',height:'100%',objectFit:'cover'}}
+                      onError={e=>{e.currentTarget.style.display='none';}}/>
+                  :emojiOf(m.protein_category)}
+              </div>
+              <div style={{padding:'14px 18px 18px',display:'flex',flexDirection:'column',gap:10,flex:1}}>
+                <div style={{fontSize:21,fontWeight:700,lineHeight:1.25,color:'#0f172a'}}>{m.title}</div>
+                <div style={{display:'flex',gap:14,flexWrap:'wrap',fontSize:16,color:'#475569',marginTop:'auto'}}>
+                  {m.total_time_minutes&&<span>⏱ {m.total_time_minutes} min</span>}
+                  {serv&&<span>🍽 {serv}</span>}
+                  {proteins[m.protein_category]&&<span>{proteins[m.protein_category]}</span>}
+                </div>
+                {!m.mealie_url&&<div style={{fontSize:14,color:'var(--amber)'}}>Not in Mealie yet — opens original recipe</div>}
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const App=()=>{
   const [page,setPage]=useState('planner');
   const [hid,setHid]=useState(()=>localStorage.getItem('householdId')||'');
@@ -2325,6 +2433,8 @@ const App=()=>{
     get(`/households/${hid}`).then(()=>setValid(true)).catch(()=>{setValid(false);saveHid('');});
   },[hid]);
   if(!hid||!valid)return<ToastProvider><HouseholdGate onSave={saveHid}/></ToastProvider>;
+  if(window.location.pathname.replace(/\/+$/,'')==='/kitchen')
+    return<ToastProvider><KitchenPage hid={hid}/></ToastProvider>;
   const pageLabel=NAV.find(n=>n.key===page)?.label||'';
   const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,history:<HistoryPage hid={hid}/>,blocked:<BlockedPage hid={hid}/>,search:<RecipeSearchPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage hid={hid}/>};
   return(

@@ -1,5 +1,22 @@
 # Recipe Planner — Changelog
 
+## Patch 138: Kitchen Display page (/kitchen)
+
+Full-screen, touch-first page for a kitchen tablet (Surface Pro 7) at
+`http://<server>:8111/kitchen`. Also in the sidebar as **Kitchen Display**.
+
+- Shows the week's confirmed dinners as large photo cards: title, total time,
+  servings, protein.  Tapping a card opens the recipe in Mealie (or the
+  original site if it was never imported, flagged on the card).
+- Header: live clock, This week / Next week toggle, big buttons to open Mealie
+  and the Planner.  Auto-refreshes every 10 minutes and rolls over on Monday.
+- `?week=YYYY-MM-DD` pins a specific week.
+- New `GET /meal-plan/kitchen?household_id=&week_start_date=` returns the
+  meals with `mealie_url` and `image_url`.  Mealie recipe ids are cached per
+  slug; photos load straight from Mealie's public media endpoint.
+
+---
+
 ## Patch 137: minimum scraped reviews lowered to 10
 
 `min_scraped_reviews` (recipe_sources.yaml → discovery; also editable on the

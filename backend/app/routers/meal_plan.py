@@ -607,6 +607,75 @@ def get_selections(
     return result
 
 
+# ── Kitchen display ───────────────────────────────────────────────────────────
+
+# mealie_slug -> (mealie recipe id, image version). Recipe ids never change and
+# the image version only changes when a photo is replaced, so a process-lifetime
+# cache keeps the kitchen page to zero Mealie calls after the first load.
+_kitchen_mealie_cache: dict = {}
+
+
+@router.get("/kitchen")
+def kitchen_view(
+    household_id: str,
+    week_start_date: date,
+    db: Session = Depends(get_db),
+):
+    """
+    The week's confirmed meals for the kitchen display page (/kitchen):
+    title, time, servings, protein, plus a Mealie deep link and photo URL for
+    recipes that have been imported into Mealie.  Mealie's media endpoint is
+    public, so the browser loads photos directly from Mealie.
+    """
+    import os
+    base = os.getenv("MEALIE_BASE_URL", "").rstrip("/")
+    sels = (
+        db.query(models.WeeklySelection)
+        .filter(
+            models.WeeklySelection.household_id == household_id,
+            models.WeeklySelection.week_start_date == week_start_date,
+        )
+        .order_by(models.WeeklySelection.created_at)
+        .all()
+    )
+    from app.recipe_discovery import _classify_protein
+
+    meals = []
+    for s in sels:
+        r = s.recipe
+        if not r:
+            continue
+        mealie_url = image_url = None
+        if r.mealie_slug and base:
+            mealie_url = f"{base}/g/home/r/{r.mealie_slug}"
+            info = _kitchen_mealie_cache.get(r.mealie_slug)
+            if info is None:
+                try:
+                    d = mealie_client.get_recipe(r.mealie_slug)
+                    info = (d.get("id"), d.get("image"))
+                    if info[0]:
+                        _kitchen_mealie_cache[r.mealie_slug] = info
+                except Exception as e:
+                    log.warning("Kitchen: Mealie lookup failed for %s: %s", r.mealie_slug, e)
+                    info = (None, None)
+            if info[0]:
+                image_url = f"{base}/api/media/recipes/{info[0]}/images/min-original.webp"
+                if info[1]:
+                    image_url += f"?version={info[1]}"
+        meals.append({
+            "recipe_id":          r.id,
+            "title":              r.title,
+            "total_time_minutes": r.scraped_time_minutes,
+            "servings":           s.servings_override,
+            "scraped_servings":   r.scraped_servings,
+            "protein_category":   _classify_protein(r.title or "", []),
+            "mealie_url":         mealie_url,
+            "image_url":          image_url,
+            "source_url":         r.source_url,
+        })
+    return {"week_start_date": str(week_start_date), "mealie_base_url": base, "meals": meals}
+
+
 # ── 6. Shopping list ──────────────────────────────────────────────────────────
 
 @router.get("/shopping-list", response_model=schemas.ShoppingList)

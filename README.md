@@ -6,7 +6,7 @@ Self-hosted household dinner meal planner. Plans weekly dinners using on-hand pa
 **API docs:** `http://<unraid-ip>:8111/docs`  
 **Mobile:** fully responsive — hamburger drawer nav on screens ≤ 639 px  
 **Timezone:** set `TZ` in the Unraid template to match your local timezone for correct week calculation and scrape schedule  
-**Version:** 137
+**Version:** 138
 
 ---
 
@@ -75,6 +75,14 @@ Every suggestions load combines:
                         push to Bring! and/or Home Assistant in one click;
                         pantry-check items promotable to buy list
 ```
+
+### Kitchen Display
+
+`http://<server>:8111/kitchen` is a full-screen, touch-friendly view of the
+week's confirmed dinners for a kitchen tablet. Cards show the Mealie photo,
+time and servings, and open the recipe in Mealie. Buttons switch between this
+week and next and jump to Mealie or the Planner. It refreshes every 10 minutes
+and follows the calendar; `?week=YYYY-MM-DD` pins a week.
 
 ### Recipe Search
 
