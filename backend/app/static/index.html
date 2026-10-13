@@ -1206,6 +1206,8 @@ const SettingsPage=({hid})=>{
   const [vocab,setVocab]=useState({methods:[],cookware:[],skill_levels:[]});
   const [proteinCats,setProteinCats]=useState([]);
   const [savingProtein,setSavingProtein]=useState(false);
+  const [kitchenLinks,setKitchenLinks]=useState(null);
+  const [savingKitchen,setSavingKitchen]=useState(false);
   const toast=useToast();
   const loadPrefs=()=>{
     setPrefsError(null);
@@ -1216,6 +1218,7 @@ const SettingsPage=({hid})=>{
     get('/pantry/staples').then(d=>setStaples(d.staples||[])).catch(()=>{});
     get('/config/cooking-methods').then(d=>setVocab({methods:d.methods||[],cookware:d.cookware||[],skill_levels:d.skill_levels||[]})).catch(()=>{});
     get('/config/protein-categories').then(d=>setProteinCats(d.categories||[])).catch(()=>{});
+    get('/config/kitchen-links').then(d=>setKitchenLinks(d.links||[])).catch(()=>setKitchenLinks([]));
   },[hid]);
   const savePrefs=async()=>{try{await put(`/preferences/${hid}`,prefs);toast('Saved');}catch(e){toast(e.message,'error');}};
   const addStaple=async()=>{if(!newStaple.trim())return;try{const r=await post('/pantry/staples',{name:newStaple});setStaples(r.staples||[]);setNewStaple('');toast('Added');}catch(e){toast(e.message,'error');}};
@@ -1240,7 +1243,7 @@ const SettingsPage=({hid})=>{
   return(
     <div>
       <div className="page-header"><h1 className="page-title">⚙️ Settings</h1></div>
-      <div className="tabs">{[['prefs','Preferences'],['equipment','Equipment'],['staples','Pantry Staples'],['protein','Protein Groups']].map(([k,l])=><div key={k} className={`tab${tab===k?' active':''}`} onClick={()=>setTab(k)}>{l}</div>)}</div>
+      <div className="tabs">{[['prefs','Preferences'],['equipment','Equipment'],['staples','Pantry Staples'],['protein','Protein Groups'],['kitchen','Kitchen Display']].map(([k,l])=><div key={k} className={`tab${tab===k?' active':''}`} onClick={()=>setTab(k)}>{l}</div>)}</div>
       {(tab==='prefs'||tab==='equipment')&&!prefs&&<div className="card">
         {prefsError
           ? <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
@@ -1354,6 +1357,36 @@ const SettingsPage=({hid})=>{
             {savingProtein?'Saving…':'Save Order'}
           </button>
         )}
+      </div>}
+
+      {tab==='kitchen'&&<div className="card">
+        <h3 className="section-title">🧑‍🍳 Kitchen Display Links</h3>
+        <p style={{fontSize:13,color:'var(--gray)',marginBottom:12}}>
+          Extra buttons shown at the top of the <a href="/kitchen" style={{color:'var(--brand)'}}>Kitchen Display</a>, next to Mealie and Planner — e.g. a Pinterest profile or board.
+        </p>
+        {kitchenLinks===null&&<div className="spinner"/>}
+        {(kitchenLinks||[]).map((l,i)=>{
+          const set=(k,v)=>setKitchenLinks(a=>a.map((x,j)=>j===i?{...x,[k]:v}:x));
+          return(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',borderBottom:'1px solid var(--border)',flexWrap:'wrap'}}>
+              <input value={l.icon||''} onChange={e=>set('icon',e.target.value)} placeholder="📌" title="Icon (emoji)" style={{width:56,textAlign:'center'}}/>
+              <input value={l.label||''} onChange={e=>set('label',e.target.value)} placeholder="Label" style={{width:160}}/>
+              <input value={l.url||''} onChange={e=>set('url',e.target.value)} placeholder="https://www.pinterest.com/…" style={{flex:1,minWidth:240}}/>
+              <input type="color" value={l.color||'#475569'} onChange={e=>set('color',e.target.value)} title="Button colour" style={{width:44,height:36,padding:2}}/>
+              <span style={{background:l.color||'#475569',color:'#fff',borderRadius:8,padding:'6px 12px',fontSize:13,fontWeight:600,whiteSpace:'nowrap'}}>{l.icon} {l.label||'Preview'}</span>
+              <button className="btn-icon" title="Remove" onClick={()=>setKitchenLinks(a=>a.filter((_,j)=>j!==i))}>✕</button>
+            </div>
+          );
+        })}
+        {kitchenLinks!==null&&<div style={{display:'flex',gap:8,marginTop:12}}>
+          <button className="btn-secondary" onClick={()=>setKitchenLinks(a=>[...a,{icon:'🔗',label:'',url:'https://',color:'#475569'}])}>+ Add link</button>
+          <button className="btn-primary" disabled={savingKitchen} onClick={async()=>{
+            setSavingKitchen(true);
+            try{const r=await put('/config/kitchen-links',{links:kitchenLinks});setKitchenLinks(r.links||[]);toast('Kitchen links saved');}
+            catch(e){toast(e.message,'error');}
+            finally{setSavingKitchen(false);}
+          }}>{savingKitchen?'Saving…':'Save Links'}</button>
+        </div>}
       </div>}
 
       {tab==='staples'&&<div className="card">
@@ -2373,6 +2406,9 @@ const KitchenPage=({hid})=>{
             </button>
           ))}
         </div>}
+        {(data?.links||[]).map((l,i)=>(
+          <a key={i} href={l.url} style={{...btn,background:l.color||'#475569',color:'#fff'}}>{l.icon} {l.label}</a>
+        ))}
         {data?.mealie_base_url&&<a href={data.mealie_base_url} style={{...btn,background:'#e85d2a',color:'#fff'}}>📖 Mealie</a>}
         <a href="/" style={{...btn,background:'var(--brand)',color:'#fff'}}>📅 Planner</a>
       </div>

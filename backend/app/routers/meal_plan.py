@@ -673,7 +673,9 @@ def kitchen_view(
             "image_url":          image_url,
             "source_url":         r.source_url,
         })
-    return {"week_start_date": str(week_start_date), "mealie_base_url": base, "meals": meals}
+    from app import config_files as _cf
+    return {"week_start_date": str(week_start_date), "mealie_base_url": base,
+            "links": _cf.get_kitchen_links(), "meals": meals}
 
 
 # ── 6. Shopping list ──────────────────────────────────────────────────────────

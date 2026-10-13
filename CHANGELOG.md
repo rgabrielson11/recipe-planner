@@ -1,5 +1,17 @@
 # Recipe Planner — Changelog
 
+## Patch 139: configurable Kitchen Display links (Pinterest)
+
+- New **Settings → Kitchen Display** tab: add, edit, remove and recolour the
+  extra buttons shown in the Kitchen Display header (icon, label, URL, colour),
+  with a live preview. Ships with a Pinterest button by default.
+- Stored in `backend/app/data/kitchen.yaml` (user-owned, not overwritten on
+  update). `GET/PUT /api/config/kitchen-links`; URLs must be http(s).
+- `GET /meal-plan/kitchen` now also returns `links`; the Kitchen page renders
+  them next to Mealie and Planner.
+
+---
+
 ## Patch 138: Kitchen Display page (/kitchen)
 
 Full-screen, touch-first page for a kitchen tablet (Surface Pro 7) at

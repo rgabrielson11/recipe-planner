@@ -459,6 +459,35 @@ def save_protein_categories(payload: dict):
     return {"categories": cats}
 
 
+# ── Kitchen Display links ─────────────────────────────────────────────────────
+
+class KitchenLink(BaseModel):
+    label: str
+    url:   str
+    icon:  str = ""
+    color: str = "#475569"
+
+
+class KitchenLinksPayload(BaseModel):
+    links: list[KitchenLink]
+
+
+@router.get("/kitchen-links")
+def get_kitchen_links():
+    """Header buttons shown on the Kitchen Display (/kitchen)."""
+    return {"links": config_files.get_kitchen_links()}
+
+
+@router.put("/kitchen-links")
+def save_kitchen_links(payload: KitchenLinksPayload):
+    for l in payload.links:
+        if not l.label.strip():
+            raise HTTPException(status_code=422, detail="Every link needs a label")
+        if not l.url.strip().lower().startswith(("http://", "https://")):
+            raise HTTPException(status_code=422, detail=f"'{l.label}': URL must start with http:// or https://")
+    return {"links": config_files.save_kitchen_links([l.model_dump() for l in payload.links])}
+
+
 # ── Home Assistant ─────────────────────────────────────────────────────────────
 
 @router.get("/ha-lists")

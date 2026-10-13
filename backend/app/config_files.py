@@ -220,3 +220,36 @@ def save_protein_categories(categories: list[dict]) -> None:
         _yaml.dump({"categories": categories}, f)
     _protein_cache["data"] = None   # force reload on next read
 
+
+
+_KITCHEN_LINK_DEFAULTS = [
+    {"label": "Pinterest", "icon": "📌", "url": "https://www.pinterest.com/", "color": "#e60023"},
+]
+
+
+def get_kitchen_links() -> list[dict]:
+    """Extra header buttons for the Kitchen Display, from kitchen.yaml."""
+    path = _path("kitchen.yaml")
+    if path.exists():
+        try:
+            data = load_yaml("kitchen.yaml")
+            links = data.get("links") if isinstance(data, dict) else None
+            if isinstance(links, list):
+                return [
+                    {k: str(l.get(k, "")) for k in ("label", "icon", "url", "color")}
+                    for l in _to_plain(links) if isinstance(l, dict) and l.get("url")
+                ]
+        except Exception as e:
+            log.warning("kitchen.yaml unreadable, using defaults: %s", e)
+    return _KITCHEN_LINK_DEFAULTS
+
+
+def save_kitchen_links(links: list[dict]) -> list[dict]:
+    """Persist Kitchen Display header links (edited in Settings → Kitchen Display)."""
+    clean = [
+        {"label": l["label"].strip(), "icon": l.get("icon", "").strip(),
+         "url": l["url"].strip(), "color": l.get("color", "").strip() or "#475569"}
+        for l in links
+    ]
+    save_yaml("kitchen.yaml", {"links": clean})
+    return clean
