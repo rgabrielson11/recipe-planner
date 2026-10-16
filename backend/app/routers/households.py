@@ -1,3 +1,11 @@
+"""
+Household endpoints.
+
+The app is single-household: one Household row holds the family name and
+number of people (used for serving scaling).  The household id is still the
+key on pantry, preferences, selections, etc., but the frontend never asks for
+it — it loads GET /households/current on start-up.
+"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -7,26 +15,25 @@ from app.database import get_db
 router = APIRouter(prefix="/households", tags=["households"])
 
 
-@router.post("", response_model=schemas.HouseholdOut)
-def create_household(payload: schemas.HouseholdCreate, db: Session = Depends(get_db)):
-    household = models.Household(name=payload.name, num_people=payload.num_people)
-    db.add(household)
+def get_or_create_household(db: Session) -> models.Household:
+    """Return the household (oldest if several exist), creating it on first run."""
+    hh = db.query(models.Household).order_by(models.Household.created_at).first()
+    if hh:
+        return hh
+    hh = models.Household(name="Household", num_people=4)
+    db.add(hh)
     db.commit()
-    db.refresh(household)
-
-    # Patch 14: create a default Preference row up front so the Settings
-    # page's Preferences/Equipment tabs never hit a 404 for a brand-new
-    # household. GET /preferences/{id} also auto-creates on first read as
-    # a fallback for households that predate this change.
-    db.add(models.Preference(household_id=household.id))
+    db.refresh(hh)
+    # Default Preference row so Settings never 404s on a fresh install.
+    db.add(models.Preference(household_id=hh.id))
     db.commit()
+    return hh
 
-    return household
 
-
-@router.get("", response_model=list[schemas.HouseholdOut])
-def list_households(db: Session = Depends(get_db)):
-    return db.query(models.Household).all()
+@router.get("/current", response_model=schemas.HouseholdOut)
+def get_current_household(db: Session = Depends(get_db)):
+    """The single household this install plans for."""
+    return get_or_create_household(db)
 
 
 @router.get("/{household_id}", response_model=schemas.HouseholdOut)
@@ -43,7 +50,7 @@ def update_household(
     payload: schemas.HouseholdCreate,
     db: Session = Depends(get_db),
 ):
-    """Update household name and/or number of people."""
+    """Update household name and/or number of people (Settings → Preferences)."""
     hh = db.query(models.Household).filter(models.Household.id == household_id).first()
     if not hh:
         raise HTTPException(status_code=404, detail="Household not found")
@@ -52,13 +59,3 @@ def update_household(
     db.commit()
     db.refresh(hh)
     return hh
-
-
-@router.delete("/{household_id}", status_code=204)
-def delete_household(household_id: str, db: Session = Depends(get_db)):
-    """Delete a household and all related data (cascades via FK)."""
-    hh = db.query(models.Household).filter(models.Household.id == household_id).first()
-    if not hh:
-        raise HTTPException(status_code=404, detail="Household not found")
-    db.delete(hh)
-    db.commit()

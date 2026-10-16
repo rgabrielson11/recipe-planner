@@ -1,5 +1,29 @@
 # Recipe Planner — Changelog
 
+## Patch 141: single-household app
+
+Multiple-household support removed. The app now always plans for one
+household and never asks which one.
+
+- New `GET /api/households/current` returns the household (oldest, if more
+  than one row exists) and creates it, with a default Preference row, on a
+  fresh install.
+- Removed `POST /households`, `GET /households` and `DELETE /households/{id}`.
+  `GET`/`PUT /households/{id}` remain.
+- Frontend: the Household Gate (pick/create) screen and the per-browser
+  `localStorage.householdId` are gone — any device, including the kitchen
+  tablet, opens straight into the app. The Database page's household list and
+  delete controls are removed.
+- Household name and number of people are now edited in
+  Settings → Preferences (they were previously only set at creation).
+- Data: 9 meal-history rows (Jul–Aug 2026) belonging to a deleted earlier
+  household were reassigned to the current household so they appear in Past
+  Meals. DB backup: `data/db/recipe_planner.db.pre-single-household-20261015`.
+- `household_id` remains as an internal key on pantry, preferences,
+  selections etc.; API query parameters are unchanged.
+
+---
+
 ## Patch 140: restore "Push to Home Assistant" on the shopping list
 
 Patch 130 (Bring! removal) deleted the shopping-list push button, but that

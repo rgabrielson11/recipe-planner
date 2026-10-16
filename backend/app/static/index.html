@@ -193,25 +193,6 @@ const Nav=({page,setPage,navOpen,onClose,version})=>(
 );
 
 // ── Household gate ────────────────────────────────────────────────────────────
-const HouseholdGate=({onSave})=>{
-  const [list,setList]=useState([]);const [name,setName]=useState('My Household');const [num,setNum]=useState(4);const toast=useToast();
-  useEffect(()=>{get('/households').then(setList).catch(()=>{});},[]);
-  const create=async()=>{try{const h=await post('/households',{name,num_people:num});onSave(h.id);toast('Household created');}catch(e){toast(e.message,'error');}};
-  return(
-    <div style={{maxWidth:460,margin:'80px auto',padding:32}}>
-      <div className="card">
-        <h2 style={{fontSize:20,fontWeight:700,marginBottom:16}}>🍽️ Recipe Planner</h2>
-        {list.length>0&&<>{list.map(h=><button key={h.id} className="btn-primary" style={{width:'100%',marginBottom:8,textAlign:'left'}} onClick={()=>onSave(h.id)}>{h.name} — {h.num_people} people</button>)}<hr style={{margin:'16px 0',borderColor:'var(--border)'}}/></>}
-        <div style={{display:'grid',gap:10}}>
-          <div><label>Household name</label><input value={name} onChange={e=>setName(e.target.value)}/></div>
-          <div><label>Number of people</label><input type="number" min={1} max={20} value={num} onChange={e=>setNum(+e.target.value)}/></div>
-          <button className="btn-primary" onClick={create}>Create & Continue →</button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // ── Rejection feedback modal ──────────────────────────────────────────────────
 const _EQUIP_KEYS=new Set(['cook_method_unavailable','cookware_unavailable']);
 const _DISLIKE_KEYS=new Set(['dislike','allergy','disliked_ingredient']);
@@ -1225,6 +1206,7 @@ const SettingsPage=({hid})=>{
   const [proteinCats,setProteinCats]=useState([]);
   const [savingProtein,setSavingProtein]=useState(false);
   const [kitchenLinks,setKitchenLinks]=useState(null);
+  const [household,setHousehold]=useState(null);
   const [savingKitchen,setSavingKitchen]=useState(false);
   const toast=useToast();
   const loadPrefs=()=>{
@@ -1237,6 +1219,7 @@ const SettingsPage=({hid})=>{
     get('/config/cooking-methods').then(d=>setVocab({methods:d.methods||[],cookware:d.cookware||[],skill_levels:d.skill_levels||[]})).catch(()=>{});
     get('/config/protein-categories').then(d=>setProteinCats(d.categories||[])).catch(()=>{});
     get('/config/kitchen-links').then(d=>setKitchenLinks(d.links||[])).catch(()=>setKitchenLinks([]));
+    get(`/households/${hid}`).then(setHousehold).catch(()=>{});
   },[hid]);
   const savePrefs=async()=>{try{await put(`/preferences/${hid}`,prefs);toast('Saved');}catch(e){toast(e.message,'error');}};
   const addStaple=async()=>{if(!newStaple.trim())return;try{const r=await post('/pantry/staples',{name:newStaple});setStaples(r.staples||[]);setNewStaple('');toast('Added');}catch(e){toast(e.message,'error');}};
@@ -1269,6 +1252,21 @@ const SettingsPage=({hid})=>{
               <button className="btn-secondary btn-sm" onClick={loadPrefs}>Retry</button>
             </div>
           : <div className="spinner"/>}
+      </div>}
+      {tab==='prefs'&&household&&<div className="card" style={{marginBottom:16}}>
+        <h3 className="section-title">🏠 Household</h3>
+        <div style={{display:'flex',gap:12,alignItems:'flex-end',flexWrap:'wrap'}}>
+          <div style={{flex:1,minWidth:200}}><label>Name</label>
+            <input value={household.name||''} onChange={e=>setHousehold(h=>({...h,name:e.target.value}))}/></div>
+          <div style={{width:160}}><label>Number of people</label>
+            <input type="number" min={1} max={20} value={household.num_people||''}
+              onChange={e=>setHousehold(h=>({...h,num_people:Math.max(1,+e.target.value||1)}))}/></div>
+          <button className="btn-primary" onClick={async()=>{
+            try{const h=await put(`/households/${hid}`,{name:household.name||'Household',num_people:household.num_people||4});
+              setHousehold(h);toast('Household saved');}catch(e){toast(e.message,'error');}
+          }}>Save</button>
+        </div>
+        <p style={{fontSize:12,color:'var(--gray)',marginTop:8}}>Number of people sets the default servings for confirmed recipes and the shopping list.</p>
       </div>}
       {tab==='prefs'&&prefs&&<div className="card"><div style={{display:'grid',gap:16}}>
         <ArrayEditor label="Liked items" fk="liked_items"/>
@@ -1707,30 +1705,7 @@ const DatabasePage=({hid})=>{
   const [showConfirm,setShowConfirm]=useState(false);
   const [stats,setStats]=useState(null);
   const [statsLoading,setStatsLoading]=useState(true);
-  const [households,setHouseholds]=useState([]);
-  const [confirmDeleteHid,setConfirmDeleteHid]=useState(null);
   const toast=useToast();
-
-  const loadHouseholds=async()=>{
-    try{const h=await get('/households');setHouseholds(h||[]);}
-    catch(e){}
-  };
-  useEffect(()=>{loadHouseholds();},[]);
-
-  const deleteHousehold=async id=>{
-    try{
-      await del(`/households/${id}`);
-      setConfirmDeleteHid(null);
-      toast('Household deleted');
-      loadHouseholds();
-      // If the deleted household is the active one, clear localStorage so the
-      // gate re-appears and the user can pick or create another.
-      if(localStorage.getItem('householdId')===id){
-        localStorage.removeItem('householdId');
-        window.location.reload();
-      }
-    }catch(e){toast(e.message,'error');}
-  };
 
   const loadStats=async()=>{
     setStatsLoading(true);
@@ -1842,32 +1817,6 @@ const DatabasePage=({hid})=>{
         {result&&<div style={{marginTop:16,padding:12,background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,fontSize:13}}>
           ✅ {result.message}
         </div>}
-      </div>
-
-      {/* Household Management */}
-      <div className="card" style={{marginTop:16,borderLeft:'4px solid #6366f1'}}>
-        <h3 className="section-title">🏠 Households</h3>
-        {households.length===0&&<p style={{fontSize:13,color:'var(--gray)'}}>No households found.</p>}
-        {households.map(hh=>(
-          <div key={hh.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:600,fontSize:14}}>{hh.name}</div>
-              <div style={{fontSize:12,color:'var(--gray)'}}>{hh.num_people} people · ID: {hh.id.slice(0,8)}…</div>
-            </div>
-            {confirmDeleteHid===hh.id
-              ?<span style={{display:'inline-flex',gap:6,alignItems:'center'}}>
-                  <span style={{fontSize:13,color:'#b91c1c',fontWeight:500}}>Delete all data?</span>
-                  <button className="btn-danger btn-sm" onClick={()=>deleteHousehold(hh.id)}>Yes, delete</button>
-                  <button className="btn-secondary btn-sm" onClick={()=>setConfirmDeleteHid(null)}>Cancel</button>
-                </span>
-              :<button className="btn-icon" onClick={()=>setConfirmDeleteHid(hh.id)} title="Delete household and all its data">🗑️</button>
-            }
-          </div>
-        ))}
-        <p style={{fontSize:12,color:'var(--gray)',marginTop:10}}>
-          ⚠️ Deleting a household permanently removes its pantry, preferences, selections, and meal plan history.
-          Recipe stubs in the shared cache are unaffected.
-        </p>
       </div>
 
     </div>
@@ -2476,17 +2425,23 @@ const KitchenPage=({hid})=>{
 
 const App=()=>{
   const [page,setPage]=useState('planner');
-  const [hid,setHid]=useState(()=>localStorage.getItem('householdId')||'');
-  const [valid,setValid]=useState(false);
+  const [hid,setHid]=useState('');
+  const [hhError,setHhError]=useState(null);
   const [navOpen,setNavOpen]=useState(false);
   const [appVersion,setAppVersion]=useState('');
   useEffect(()=>{get('/config/version').then(d=>setAppVersion(`v${d.version}${d.git_hash?' ('+d.git_hash+')':''}`)).catch(()=>{});},[]);
-  const saveHid=id=>{localStorage.setItem('householdId',id);setHid(id);};
+  // Single-household app: the server returns (or creates) the one household.
   useEffect(()=>{
-    if(!hid){setValid(false);return;}
-    get(`/households/${hid}`).then(()=>setValid(true)).catch(()=>{setValid(false);saveHid('');});
-  },[hid]);
-  if(!hid||!valid)return<ToastProvider><HouseholdGate onSave={saveHid}/></ToastProvider>;
+    get('/households/current')
+      .then(h=>{setHid(h.id);try{localStorage.removeItem('householdId');}catch(_){}})
+      .catch(e=>setHhError(e.message||'Could not reach the server'));
+  },[]);
+  if(!hid)return(
+    <div style={{textAlign:'center',padding:'120px 20px',color:'var(--gray)',fontSize:16}}>
+      {hhError?<>Couldn't load Recipe Planner: {hhError}<br/>
+        <button className="btn-primary" style={{marginTop:16}} onClick={()=>window.location.reload()}>Retry</button></>
+        :'Loading…'}
+    </div>);
   if(window.location.pathname.replace(/\/+$/,'')==='/kitchen')
     return<ToastProvider><KitchenPage hid={hid}/></ToastProvider>;
   const pageLabel=NAV.find(n=>n.key===page)?.label||'';
