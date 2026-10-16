@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -56,6 +56,14 @@ class PreferenceUpdate(BaseModel):
     ha_shopping_enabled: Optional[bool] = False        # Phase 11
     ha_shopping_list_entity: Optional[str] = None     # Phase 11
     notes: Optional[str] = None
+
+
+class PreferenceListChange(BaseModel):
+    """Add/remove items in one preference list, applied server-side."""
+    field: Literal["liked_items", "disliked_items", "excluded_items",
+                   "available_methods", "available_cookware"]
+    add: list[str] = []
+    remove: list[str] = []
 
 
 class PreferenceOut(BaseModel):

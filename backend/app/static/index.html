@@ -131,6 +131,9 @@ const get=p=>API('GET',p);
 const post=(p,b)=>API('POST',p,b);
 const put=(p,b)=>API('PUT',p,b);
 const del=p=>API('DELETE',p);
+// Add/remove items in one preference list server-side (never send whole lists —
+// other pages may have changed them since this page loaded).
+const patchPrefList=(hid,field,add=[],remove=[])=>API('PATCH',`/preferences/${hid}/lists`,{field,add,remove});
 const patch=(p,b)=>API('PATCH',p,b);
 
 // Escapes text for safe interpolation into document.write()'d HTML.
@@ -236,17 +239,12 @@ const RejectionModal=({recipe,reason,hid,prefs,cookingMethods,onDone,onCancel})=
     let changed=false;
     try{
       if(isDislike&&selIngredients.length>0&&prefs){
-        const cur=prefs[ingAction]||[];
-        const next=[...new Set([...cur,...selIngredients])];
-        const updated={...prefs,[ingAction]:next};
-        await put(`/preferences/${hid}`,updated);
+        await patchPrefList(hid,ingAction,selIngredients);
         toast(`Added ${selIngredients.length} item(s) to ${ingAction==='excluded_items'?'excluded':'disliked'} list`);
         changed=true;
       }
       if(isEquip&&selMethods.length>0&&prefs){
-        const cur=prefs.available_methods||[];
-        const next=cur.filter(m=>!selMethods.includes(m));
-        await put(`/preferences/${hid}`,{...prefs,available_methods:next});
+        await patchPrefList(hid,'available_methods',[],selMethods);
         toast(`Removed ${selMethods.length} method(s) from available equipment`);
         changed=true;
       }
@@ -432,30 +430,22 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,onRemove,confirmed,rejected,
                       <button onClick={async e=>{e.stopPropagation();
                         setActiveIngPop(null);
                         if(!prefs||!hid)return;
-                        const cur=prefs.excluded_items||[];
-                        if(!cur.includes(ing)){
-                          const next={...prefs,excluded_items:[...cur,ing]};
-                          try{
-                            await put(`/preferences/${hid}`,next);
-                            toast(`🚫 '${ing}' excluded — recipe removed`);
-                            onRemove&&onRemove(r.recipe_id);
-                          }catch(e2){toast(e2.message,'error');}
-                        }else{toast(`'${ing}' already excluded`,'warning');onRemove&&onRemove(r.recipe_id);}
+                        try{
+                          await patchPrefList(hid,'excluded_items',[ing]);
+                          toast(`🚫 '${ing}' excluded — recipe removed`);
+                          onRemove&&onRemove(r.recipe_id);
+                        }catch(e2){toast(e2.message,'error');}
                       }} style={{background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:99,padding:'2px 8px',fontSize:11,cursor:'pointer',fontWeight:600,color:'#991b1b'}}>
                         🚫 Exclude
                       </button>
                       <button onClick={async e=>{e.stopPropagation();
                         setActiveIngPop(null);
                         if(!prefs||!hid)return;
-                        const cur=prefs.disliked_items||[];
-                        if(!cur.includes(ing)){
-                          const next={...prefs,disliked_items:[...cur,ing]};
-                          try{
-                            await put(`/preferences/${hid}`,next);
-                            toast(`👎 '${ing}' disliked — recipe removed`);
-                            onRemove&&onRemove(r.recipe_id);
-                          }catch(e2){toast(e2.message,'error');}
-                        }else{toast(`'${ing}' already disliked`,'warning');onRemove&&onRemove(r.recipe_id);}
+                        try{
+                          await patchPrefList(hid,'disliked_items',[ing]);
+                          toast(`👎 '${ing}' disliked — recipe removed`);
+                          onRemove&&onRemove(r.recipe_id);
+                        }catch(e2){toast(e2.message,'error');}
                       }} style={{background:'#fef3c7',border:'1px solid #fcd34d',borderRadius:99,padding:'2px 8px',fontSize:11,cursor:'pointer',fontWeight:600,color:'#92400e'}}>
                         👎 Dislike
                       </button>
@@ -1221,23 +1211,30 @@ const SettingsPage=({hid})=>{
     get('/config/kitchen-links').then(d=>setKitchenLinks(d.links||[])).catch(()=>setKitchenLinks([]));
     get(`/households/${hid}`).then(setHousehold).catch(()=>{});
   },[hid]);
-  const savePrefs=async()=>{try{await put(`/preferences/${hid}`,prefs);toast('Saved');}catch(e){toast(e.message,'error');}};
+  // List fields save instantly via listChange; Save sends only the other fields so it
+  // can never overwrite list edits made elsewhere since this page loaded.
+  const LIST_FIELDS=['liked_items','disliked_items','excluded_items','available_methods','available_cookware'];
+  const savePrefs=async()=>{try{const body={...prefs};LIST_FIELDS.forEach(k=>delete body[k]);await put(`/preferences/${hid}`,body);toast('Saved');}catch(e){toast(e.message,'error');}};
+  const listChange=async(fk,add,remove=[])=>{
+    try{const r=await patchPrefList(hid,fk,add,remove);setPrefs(p=>({...p,[fk]:r[fk]}));toast(add.length?'Saved':'Removed');}
+    catch(e){toast(e.message,'error');}
+  };
   const addStaple=async()=>{if(!newStaple.trim())return;try{const r=await post('/pantry/staples',{name:newStaple});setStaples(r.staples||[]);setNewStaple('');toast('Added');}catch(e){toast(e.message,'error');}};
   const rmStaple=async n=>{try{const r=await del(`/pantry/staples/${encodeURIComponent(n)}`);setStaples(r.staples||[]);toast('Removed');}catch(e){toast(e.message,'error');}};
-  const toggleMethod=m=>{if(!prefs)return;const cur=prefs.available_methods||[];setPrefs(p=>({...p,available_methods:cur.includes(m)?cur.filter(x=>x!==m):[...cur,m]}));};
-  const toggleCookware=c=>{if(!prefs)return;const cur=prefs.available_cookware||[];setPrefs(p=>({...p,available_cookware:cur.includes(c)?cur.filter(x=>x!==c):[...cur,c]}));};
+  const toggleMethod=m=>{if(!prefs)return;const on=(prefs.available_methods||[]).includes(m);listChange('available_methods',on?[]:[m],on?[m]:[]);};
+  const toggleCookware=c=>{if(!prefs)return;const on=(prefs.available_cookware||[]).includes(c);listChange('available_cookware',on?[]:[c],on?[c]:[]);};
   const ArrayEditor=({label,fk})=>{
     const [v,setV]=useState('');const items=prefs?.[fk]||[];
     return(<div style={{marginBottom:16}}>
       <label>{label}</label>
       <div className="chip-list" style={{marginBottom:8}}>
-        {items.map((it,i)=><span key={i} className="tag">{it}<button onClick={()=>setPrefs(p=>({...p,[fk]:items.filter((_,j)=>j!==i)}))}>×</button></span>)}
+        {items.map((it,i)=><span key={i} className="tag">{it}<button onClick={()=>listChange(fk,[],[it])}>×</button></span>)}
         {!items.length&&<span style={{fontSize:13,color:'var(--gray)'}}>None</span>}
       </div>
       <div style={{display:'flex',gap:8}}>
         <input style={{maxWidth:280}} value={v} onChange={e=>setV(e.target.value)} placeholder={`Add to ${label.toLowerCase()}...`}
-          onKeyDown={e=>{if(e.key==='Enter'&&v.trim()){setPrefs(p=>({...p,[fk]:[...items,v.trim()]}));setV('');}}}/>
-        <button className="btn-secondary btn-sm" onClick={()=>{if(v.trim()){setPrefs(p=>({...p,[fk]:[...items,v.trim()]}));setV('');}}} >Add</button>
+          onKeyDown={e=>{if(e.key==='Enter'&&v.trim()){listChange(fk,[v.trim()]);setV('');}}}/>
+        <button className="btn-secondary btn-sm" onClick={()=>{if(v.trim()){listChange(fk,[v.trim()]);setV('');}}} >Add</button>
       </div>
     </div>);
   };
@@ -1628,9 +1625,9 @@ const KeywordsPage=()=>{
 const RejectionsPage=({hid})=>{
   const [prefs,setPrefs]=useState(null);const toast=useToast();
   useEffect(()=>{get(`/preferences/${hid}`).then(setPrefs).catch(()=>{});},[hid]);
-  const removeExcluded=async item=>{if(!prefs)return;const next={...prefs,excluded_items:(prefs.excluded_items||[]).filter(x=>x!==item)};try{await put(`/preferences/${hid}`,next);setPrefs(next);toast('Removed');}catch(e){toast(e.message,'error');}};
-  const removeDisliked=async item=>{if(!prefs)return;const next={...prefs,disliked_items:(prefs.disliked_items||[]).filter(x=>x!==item)};try{await put(`/preferences/${hid}`,next);setPrefs(next);toast('Removed');}catch(e){toast(e.message,'error');}};
-  const addToList=async(field,val)=>{if(!val.trim()||!prefs)return;const cur=prefs[field]||[];if(cur.includes(val.trim()))return;const next={...prefs,[field]:[...cur,val.trim()]};try{await put(`/preferences/${hid}`,next);setPrefs(next);toast('Added');}catch(e){toast(e.message,'error');}};
+  const removeExcluded=async item=>{try{setPrefs(await patchPrefList(hid,'excluded_items',[],[item]));toast('Removed');}catch(e){toast(e.message,'error');}};
+  const removeDisliked=async item=>{try{setPrefs(await patchPrefList(hid,'disliked_items',[],[item]));toast('Removed');}catch(e){toast(e.message,'error');}};
+  const addToList=async(field,val)=>{if(!val.trim())return;try{setPrefs(await patchPrefList(hid,field,[val.trim()]));toast('Added');}catch(e){toast(e.message,'error');}};
   const [newExcl,setNewExcl]=useState('');const [newDisl,setNewDisl]=useState('');
   return(
     <div>
@@ -2114,16 +2111,14 @@ const SearchResultCard=({r,inPlan,done,adding,searchServings,setSearchServings,a
                           <button onClick={async()=>{
                             setActiveIngPop(null);
                             if(!prefs||!hid)return;
-                            const cur=prefs.excluded_items||[];
-                            if(!cur.includes(ing)){await put(`/preferences/${hid}`,{...prefs,excluded_items:[...cur,ing]});toast(`🚫 '${ing}' excluded`);}
-                            else toast(`'${ing}' already excluded`,'warning');
+                            try{await patchPrefList(hid,'excluded_items',[ing]);toast(`🚫 '${ing}' excluded`);}
+                            catch(e){toast(e.message,'error');}
                           }} style={{background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:99,padding:'2px 8px',fontSize:11,cursor:'pointer',fontWeight:600,color:'#991b1b'}}>🚫 Exclude</button>
                           <button onClick={async()=>{
                             setActiveIngPop(null);
                             if(!prefs||!hid)return;
-                            const cur=prefs.disliked_items||[];
-                            if(!cur.includes(ing)){await put(`/preferences/${hid}`,{...prefs,disliked_items:[...cur,ing]});toast(`👎 '${ing}' disliked`);}
-                            else toast(`'${ing}' already disliked`,'warning');
+                            try{await patchPrefList(hid,'disliked_items',[ing]);toast(`👎 '${ing}' disliked`);}
+                            catch(e){toast(e.message,'error');}
                           }} style={{background:'#fef3c7',border:'1px solid #fcd34d',borderRadius:99,padding:'2px 8px',fontSize:11,cursor:'pointer',fontWeight:600,color:'#92400e'}}>👎 Dislike</button>
                           <button onClick={()=>setActiveIngPop(null)} style={{background:'none',border:'none',cursor:'pointer',fontSize:13,color:'var(--gray)',padding:'0 4px'}}>✕</button>
                         </span>

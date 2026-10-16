@@ -92,3 +92,40 @@ def update_preferences(household_id: str, payload: schemas.PreferenceUpdate, db:
     db.commit()
     db.refresh(prefs)
     return prefs
+
+
+@router.patch("/{household_id}/lists", response_model=schemas.PreferenceOut)
+def change_preference_list(
+    household_id: str,
+    payload: schemas.PreferenceListChange,
+    db: Session = Depends(get_db),
+):
+    """
+    Add and/or remove items in one list (liked/disliked/excluded items,
+    available methods/cookware) against the CURRENT stored list.
+
+    Callers send only the change, never the whole list, so edits made from
+    different pages (suggestion cards, search, the reject dialog, Settings)
+    can't overwrite each other with stale copies.  Matching is
+    case-insensitive and duplicates are ignored.
+    """
+    prefs = db.query(models.Preference).filter(
+        models.Preference.household_id == household_id
+    ).first()
+    if not prefs:
+        raise HTTPException(status_code=404, detail="No preferences set for this household yet")
+
+    remove = {x.strip().lower() for x in payload.remove if x and x.strip()}
+    items = [x for x in (getattr(prefs, payload.field) or []) if x.lower() not in remove]
+    seen = {x.lower() for x in items}
+    for x in payload.add:
+        x = (x or "").strip()
+        if x and x.lower() not in seen:
+            items.append(x)
+            seen.add(x.lower())
+
+    # JSON columns aren't mutation-tracked: assign a new list object.
+    setattr(prefs, payload.field, items)
+    db.commit()
+    db.refresh(prefs)
+    return prefs

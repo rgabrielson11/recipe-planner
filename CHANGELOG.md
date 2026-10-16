@@ -1,5 +1,27 @@
 # Recipe Planner — Changelog
 
+## Patch 143: fix excluded/disliked ingredients being lost
+
+### Bug
+Five places edit preference lists — suggestion-card and search-result
+🚫 Exclude / 👎 Dislike buttons, the reject dialog, the Rejections page and
+Settings — and every one sent the WHOLE preferences object from a copy loaded
+when that page opened. The card buttons never refreshed their copy, so
+excluding a second ingredient wiped the first, and Settings → Save wrote back
+whatever lists it had loaded, erasing exclusions added elsewhere since.
+
+### Fix
+- New `PATCH /preferences/{household_id}/lists` with
+  `{field, add: [...], remove: [...]}` applies the change to the CURRENT stored
+  list server-side (case-insensitive, duplicates ignored). Fields: liked,
+  disliked and excluded items, available methods and cookware.
+- All list edits now use it: card/search Exclude & Dislike, reject dialog
+  (ingredients and missing equipment), Rejections page add/remove, and
+  Settings list editors and equipment toggles, which now save instantly.
+- Settings → Save no longer sends list fields, so it can't overwrite them.
+
+---
+
 ## Patch 142: fix `www.` stripping that mangled hosts starting with "w"
 
 `str.lstrip("www.")` strips any leading `w`/`.` characters, not the prefix,
