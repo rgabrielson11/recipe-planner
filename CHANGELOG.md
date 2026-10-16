@@ -1,5 +1,18 @@
 # Recipe Planner — Changelog
 
+## Patch 142: fix `www.` stripping that mangled hosts starting with "w"
+
+`str.lstrip("www.")` strips any leading `w`/`.` characters, not the prefix,
+so `www.wellplated.com` became `ellplated.com`. Replaced with
+`removeprefix("www.")` in three places:
+- Database page per-source stats (showed "ellplated.com").
+- Per-source stub deletion by bare host name.
+- `_looks_like_recipe_url`: supported-site check failed for any host starting
+  with "w", falling back to the stricter generic rule and rejecting valid
+  recipe links.
+
+---
+
 ## Patch 141: single-household app
 
 Multiple-household support removed. The app now always plans for one

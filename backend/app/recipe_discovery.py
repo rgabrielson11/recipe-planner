@@ -199,7 +199,7 @@ def _looks_like_recipe_url(url: str) -> bool:
     if _is_homechef_host(parsed.netloc):
         return bool(_HOMECHEF_MEAL_RE.match(path))
 
-    host = parsed.netloc.lstrip("www.")
+    host = parsed.netloc.removeprefix("www.")
     if host in SUPPORTED_SCRAPERS:
         return True
 

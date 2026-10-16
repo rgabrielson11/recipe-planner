@@ -326,7 +326,7 @@ def get_recipe_stats(db: Session = Depends(get_db)):
             host = "mealie (local)"
         else:
             try:
-                host = urlparse(url).netloc.lstrip("www.") or "unknown"
+                host = urlparse(url).netloc.removeprefix("www.") or "unknown"
             except Exception:
                 host = "unknown"
         by_source[host] += 1
@@ -428,7 +428,7 @@ def delete_source_stubs(source_name: str, db: Session = Depends(get_db)):
             try: domains.add(urlparse(cu).netloc)
             except Exception: pass
     else:
-        bare = source_name.lstrip("www.")
+        bare = source_name.removeprefix("www.")
         domains.add(bare)
         domains.add("www." + bare)
     stubs = db.query(models.Recipe).filter(
