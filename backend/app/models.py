@@ -144,5 +144,6 @@ class MealPlanEntry(Base):
     is_favorite     = Column(Boolean, nullable=False, default=False)
     reviewed_at     = Column(DateTime, nullable=True)
     created_at      = Column(DateTime, default=datetime.utcnow)
+    mealie_rating_synced_at = Column(DateTime, nullable=True)  # when this rating last reached Mealie
 
     recipe = relationship("Recipe", back_populates="meal_plan_entries")

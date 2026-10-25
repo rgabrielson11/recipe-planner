@@ -484,6 +484,11 @@ def confirm_selections(
                         _apply_mealie_metadata(slug, dinner_tag, recipe, str(payload.week_start_date))
                     except Exception as e:
                         log.warning("[BG] Mealie import FAILED for '%s': %s", recipe.title, e)
+                try:
+                    from app import rating_sync
+                    rating_sync.sync_pending_ratings(bg_db)
+                except Exception as e:
+                    log.warning("[BG] rating sync failed: %s", e)
             finally:
                 bg_db.close()
 
@@ -761,17 +766,20 @@ def review_entry(
     db.commit()
     db.refresh(entry)
 
-    if entry.is_favorite:
-        recipe = db.query(models.Recipe).filter(
-            models.Recipe.id == entry.recipe_id
-        ).first()
-        if recipe and recipe.mealie_slug:
-            try:
-                mealie_client.set_recipe_rating(recipe.mealie_slug, payload.rating)
-            except mealie_client.MealieError:
-                pass   # local rating saved; Mealie sync is best-effort
-
+    # Send every rating to Mealie (favorites also get Mealie's favorite flag).
+    # If the recipe isn't in Mealie yet or Mealie is down, sync_pending_ratings()
+    # retries after the background import and nightly.
+    from app import rating_sync
+    rating_sync.push_entry_rating(db, entry)
+    db.refresh(entry)
     return entry
+
+
+@router.post("/ratings/sync-to-mealie")
+def sync_ratings_to_mealie(db: Session = Depends(get_db)):
+    """Push any Past Meals ratings Mealie hasn't received yet."""
+    from app import rating_sync
+    return rating_sync.sync_pending_ratings(db)
 
 
 @router.get("/favorites", response_model=list[schemas.RecipeOut])

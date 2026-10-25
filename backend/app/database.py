@@ -47,6 +47,7 @@ def run_migrations():
         ("preferences", "ha_shopping_enabled",      "BOOLEAN DEFAULT 0"),  # Phase 11
         ("preferences", "ha_shopping_list_entity",  "TEXT"),                  # Phase 11
         ("weekly_selections", "servings_override", "INTEGER"),   # Patch 69
+        ("meal_plan_entries", "mealie_rating_synced_at", "DATETIME"),  # Patch 144
     ]
     with engine.connect() as conn:
         for table, column, col_type in migrations:

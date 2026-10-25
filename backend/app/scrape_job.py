@@ -157,6 +157,17 @@ def run_scrape_once(trigger: str = "scheduled") -> dict:
     except Exception as e:
         log.warning("scrape_job: Mealie sync failed: %s", e)
 
+    # Deliver any Past Meals ratings Mealie hasn't received yet
+    try:
+        from app import rating_sync
+        db3 = SessionLocal()
+        try:
+            stats["ratings_synced"] = rating_sync.sync_pending_ratings(db3).get("synced", 0)
+        finally:
+            db3.close()
+    except Exception as e:
+        log.warning("scrape_job: rating sync failed: %s", e)
+
     status = {
         "last_run": datetime.now().isoformat(timespec="seconds"),
         "trigger":  trigger,

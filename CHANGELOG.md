@@ -1,5 +1,28 @@
 # Recipe Planner — Changelog
 
+## Patch 144: Past Meals star ratings now reach Mealie
+
+### Bugs
+- Ratings were sent with `PATCH /api/recipes/{slug} {"rating": n}`. Mealie v2+
+  stores ratings per user and silently ignores that field (returns 200), so
+  no rating from the planner ever reached Mealie.
+- Only ratings at/above the favorite threshold (4★) were sent at all.
+- A recipe rated before its background Mealie import finished had no slug,
+  so its rating was skipped and never retried; failures were swallowed.
+
+### Fix
+- `mealie_client.set_recipe_rating()` uses
+  `POST /api/users/{token user id}/ratings/{slug}`; favorites also set
+  `isFavorite`, lower ratings never clear a favorite set in Mealie.
+- Every rating is sent (new `rating_sync.push_entry_rating`).
+- New `meal_plan_entries.mealie_rating_synced_at` (auto-migrated) records
+  delivery. `rating_sync.sync_pending_ratings()` re-sends undelivered ratings
+  (latest per recipe) after each background Mealie import, in the nightly job,
+  and via `POST /api/meal-plan/ratings/sync-to-mealie`. Delivered ratings are
+  never re-sent, so ratings edited directly in Mealie aren't overwritten.
+
+---
+
 ## Patch 143: fix excluded/disliked ingredients being lost
 
 ### Bug

@@ -291,15 +291,41 @@ def recipe_has_tag(detail: dict, tag_name: str) -> bool:
     return False
 
 
-def set_recipe_rating(slug: str, rating: int) -> None:
+_self_user_id: Optional[str] = None
+
+
+def _current_user_id() -> str:
+    """Id of the Mealie user that owns MEALIE_API_TOKEN (cached)."""
+    global _self_user_id
+    if _self_user_id is None:
+        r = requests.get(f"{MEALIE_BASE_URL}/api/users/self", headers=_headers(), timeout=_TIMEOUT)
+        r.raise_for_status()
+        _self_user_id = r.json()["id"]
+    return _self_user_id
+
+
+def set_recipe_rating(slug: str, rating: int, favorite: bool = False) -> None:
+    """
+    Set the token user's star rating for a recipe.
+
+    Mealie v2+ stores ratings per user (POST /api/users/{id}/ratings/{slug});
+    the recipe's displayed rating is computed from them.  The old
+    PATCH /api/recipes/{slug} {"rating": n} returns 200 but is ignored.
+
+    favorite=True also marks the recipe a favorite; False never clears a
+    favorite the user set in Mealie themselves.
+    """
     _check_configured()
+    body: dict = {"rating": rating}
+    if favorite:
+        body["isFavorite"] = True
     try:
-        r = requests.patch(
-            f"{MEALIE_BASE_URL}/api/recipes/{slug}",
-            headers=_headers(), json={"rating": rating}, timeout=_TIMEOUT,
+        r = requests.post(
+            f"{MEALIE_BASE_URL}/api/users/{_current_user_id()}/ratings/{slug}",
+            headers=_headers(), json=body, timeout=_TIMEOUT,
         )
         r.raise_for_status()
-    except requests.RequestException as e:
+    except (requests.RequestException, KeyError, ValueError) as e:
         raise MealieError(f"Failed to set rating for {slug}: {e}") from e
 
 
