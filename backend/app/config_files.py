@@ -253,3 +253,26 @@ def save_kitchen_links(links: list[dict]) -> list[dict]:
     ]
     save_yaml("kitchen.yaml", {"links": clean})
     return clean
+
+
+def get_ai_config() -> dict:
+    """
+    Ollama settings chosen in Settings → AI Model (data/ai.yaml).
+    Keys: model (str|None), think (bool), timeout (int|None).
+    None/missing means fall back to the OLLAMA_* environment variables.
+    """
+    cfg = {"model": None, "think": False, "timeout": None}
+    if _path("ai.yaml").exists():
+        try:
+            data = load_yaml("ai.yaml")
+            if isinstance(data, dict):
+                cfg.update({k: data.get(k) for k in cfg if k in data})
+        except Exception as e:
+            log.warning("ai.yaml unreadable, using defaults: %s", e)
+    return cfg
+
+
+def save_ai_config(model: str | None, think: bool, timeout: int | None) -> dict:
+    cfg = {"model": model or None, "think": bool(think), "timeout": int(timeout) if timeout else None}
+    save_yaml("ai.yaml", cfg)
+    return cfg

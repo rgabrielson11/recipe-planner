@@ -1,7 +1,9 @@
 """
 Ollama client for local LLM inference.
 
-Reads OLLAMA_BASE_URL and OLLAMA_MODEL from environment.
+OLLAMA_BASE_URL comes from the environment.  Model, thinking and timeout
+come from Settings → AI Model (data/ai.yaml), falling back to the
+OLLAMA_MODEL / OLLAMA_TIMEOUT environment variables.
 All functions are best-effort — if Ollama is unavailable or returns
 malformed output, they log a warning and return None so the calling
 code can fall back to deterministic behaviour.
@@ -17,12 +19,45 @@ import requests
 log = logging.getLogger(__name__)
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "").rstrip("/")
-OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "qwen3:latest")
+OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
 _TIMEOUT        = int(os.getenv("OLLAMA_TIMEOUT", "60"))
 
 
 def is_configured() -> bool:
     return bool(OLLAMA_BASE_URL)
+
+
+def _ui_settings() -> dict:
+    try:
+        from app import config_files
+        return config_files.get_ai_config()
+    except Exception:
+        return {}
+
+
+def current_model() -> str:
+    return _ui_settings().get("model") or OLLAMA_MODEL
+
+
+def current_timeout() -> int:
+    return int(_ui_settings().get("timeout") or _TIMEOUT)
+
+
+def current_think() -> bool:
+    """Thinking models (qwen3.x) reason before answering — far slower; off by default."""
+    return bool(_ui_settings().get("think", False))
+
+
+def list_models() -> list[str]:
+    """Model names installed in Ollama ([] if unreachable)."""
+    if not OLLAMA_BASE_URL:
+        return []
+    try:
+        r = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
+        r.raise_for_status()
+        return sorted(m["name"] for m in r.json().get("models", []) if m.get("name"))
+    except Exception:
+        return []
 
 
 def is_available() -> bool:
@@ -43,20 +78,21 @@ def generate(prompt: str, model: Optional[str] = None, expect_json: bool = False
     """
     if not OLLAMA_BASE_URL:
         return None
-    m = model or OLLAMA_MODEL
+    m = model or current_model()
     payload: dict = {
         "model":  m,
         "prompt": prompt,
         "stream": False,
+        "think":  current_think(),
     }
     if expect_json:
         payload["format"] = "json"
     try:
-        r = requests.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
-            json=payload,
-            timeout=_TIMEOUT,
-        )
+        r = requests.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload, timeout=current_timeout())
+        if r.status_code == 400 and "think" in r.text.lower():
+            # Model without thinking support rejects the flag — retry without it
+            payload.pop("think", None)
+            r = requests.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload, timeout=current_timeout())
         r.raise_for_status()
         return r.json().get("response", "")
     except Exception as e:

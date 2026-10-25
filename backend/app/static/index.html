@@ -1197,6 +1197,8 @@ const SettingsPage=({hid})=>{
   const [savingProtein,setSavingProtein]=useState(false);
   const [kitchenLinks,setKitchenLinks]=useState(null);
   const [household,setHousehold]=useState(null);
+  const [ai,setAi]=useState(null);
+  const [aiTest,setAiTest]=useState(null);
   const [savingKitchen,setSavingKitchen]=useState(false);
   const toast=useToast();
   const loadPrefs=()=>{
@@ -1210,6 +1212,7 @@ const SettingsPage=({hid})=>{
     get('/config/protein-categories').then(d=>setProteinCats(d.categories||[])).catch(()=>{});
     get('/config/kitchen-links').then(d=>setKitchenLinks(d.links||[])).catch(()=>setKitchenLinks([]));
     get(`/households/${hid}`).then(setHousehold).catch(()=>{});
+    get('/config/ollama').then(setAi).catch(()=>setAi({reachable:false,models:[]}));
   },[hid]);
   // List fields save instantly via listChange; Save sends only the other fields so it
   // can never overwrite list edits made elsewhere since this page loaded.
@@ -1241,7 +1244,7 @@ const SettingsPage=({hid})=>{
   return(
     <div>
       <div className="page-header"><h1 className="page-title">⚙️ Settings</h1></div>
-      <div className="tabs">{[['prefs','Preferences'],['equipment','Equipment'],['staples','Pantry Staples'],['protein','Protein Groups'],['kitchen','Kitchen Display']].map(([k,l])=><div key={k} className={`tab${tab===k?' active':''}`} onClick={()=>setTab(k)}>{l}</div>)}</div>
+      <div className="tabs">{[['prefs','Preferences'],['equipment','Equipment'],['staples','Pantry Staples'],['protein','Protein Groups'],['kitchen','Kitchen Display'],['ai','AI Model']].map(([k,l])=><div key={k} className={`tab${tab===k?' active':''}`} onClick={()=>setTab(k)}>{l}</div>)}</div>
       {(tab==='prefs'||tab==='equipment')&&!prefs&&<div className="card">
         {prefsError
           ? <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
@@ -1370,6 +1373,45 @@ const SettingsPage=({hid})=>{
             {savingProtein?'Saving…':'Save Order'}
           </button>
         )}
+      </div>}
+
+      {tab==='ai'&&<div className="card">
+        <h3 className="section-title">🤖 AI Model (Ollama)</h3>
+        <p style={{fontSize:13,color:'var(--gray)',marginBottom:12}}>
+          Used to tidy ingredient names on the shopping list before it's pushed to Home Assistant. If Ollama is slow or offline the list is still pushed, just with the original names.
+        </p>
+        {!ai&&<div className="spinner"/>}
+        {ai&&!ai.base_url&&<div className="alert alert-warning">Ollama isn't configured — set OLLAMA_BASE_URL on the container.</div>}
+        {ai&&ai.base_url&&<>
+          <div style={{fontSize:13,marginBottom:12}}>Server: <code>{ai.base_url}</code> · {ai.reachable?<span style={{color:'var(--green)'}}>● reachable</span>:<span style={{color:'var(--red)'}}>● not reachable</span>}</div>
+          <div style={{display:'flex',gap:12,alignItems:'flex-end',flexWrap:'wrap'}}>
+            <div style={{minWidth:240}}><label>Model</label>
+              <select value={ai.model||''} onChange={e=>setAi(a=>({...a,model:e.target.value}))}>
+                {!(ai.models||[]).includes(ai.model)&&<option value={ai.model}>{ai.model} (not installed)</option>}
+                {(ai.models||[]).map(m=><option key={m} value={m}>{m}</option>)}
+              </select></div>
+            <div style={{width:150}}><label>Timeout (seconds)</label>
+              <input type="number" min={5} max={600} value={ai.timeout||60} onChange={e=>setAi(a=>({...a,timeout:+e.target.value||60}))}/></div>
+            <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,paddingBottom:8}}>
+              <input type="checkbox" checked={!!ai.think} onChange={e=>setAi(a=>({...a,think:e.target.checked}))}/>
+              Let the model "think" first (much slower)
+            </label>
+          </div>
+          <div style={{display:'flex',gap:8,marginTop:14,alignItems:'center',flexWrap:'wrap'}}>
+            <button className="btn-primary" onClick={async()=>{
+              try{const r=await put('/config/ollama',{model:ai.model,think:!!ai.think,timeout:ai.timeout||60});setAi(r);setAiTest(null);toast('AI settings saved');}
+              catch(e){toast(e.message,'error');}
+            }}>Save</button>
+            <button className="btn-secondary" disabled={aiTest==='running'} onClick={async()=>{
+              setAiTest('running');
+              try{setAiTest(await post('/config/ollama/test',{}));}catch(e){setAiTest({ok:false,detail:e.message});}
+            }}>{aiTest==='running'?'Testing…':'Test saved model'}</button>
+            {aiTest&&aiTest!=='running'&&<span style={{fontSize:13,color:aiTest.ok?'var(--green)':'var(--red)'}}>
+              {aiTest.ok?`✓ ${aiTest.model} answered in ${aiTest.seconds}s`:`✗ ${aiTest.detail||'Failed'}`}
+            </span>}
+          </div>
+          <p style={{fontSize:12,color:'var(--gray)',marginTop:10}}>Container default: <code>{ai.env_model}</code> (OLLAMA_MODEL) — used until you save a choice here.</p>
+        </>}
       </div>}
 
       {tab==='kitchen'&&<div className="card">

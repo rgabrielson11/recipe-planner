@@ -6,7 +6,7 @@ Self-hosted household dinner meal planner. Plans weekly dinners using on-hand pa
 **API docs:** `http://<unraid-ip>:8111/docs`  
 **Mobile:** fully responsive — hamburger drawer nav on screens ≤ 639 px  
 **Timezone:** set `TZ` in the Unraid template to match your local timezone for correct week calculation and scrape schedule  
-**Version:** 144
+**Version:** 145
 
 ---
 
@@ -227,7 +227,7 @@ bash deploy.sh         # backs up DB + YAML, pulls, rebuilds, restarts
 | `BRING_PASSWORD` | No | Bring! account password |
 | `RECIPE_PLANNER_URL` | No | LAN URL for Homepage dashboard label |
 | `OLLAMA_BASE_URL` | No | Local Ollama URL for ingredient normalisation |
-| `OLLAMA_MODEL` | No | Ollama model (default `qwen3:latest`) |
+| `OLLAMA_MODEL` | No | Fallback Ollama model (default `qwen3.5:9b`); choose the model in Settings → AI Model |
 | `OLLAMA_TIMEOUT` | No | Ollama timeout in seconds (default `30`) |
 | `TZ` | No | Container timezone (default `America/Los_Angeles`) |
 

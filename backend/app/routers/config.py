@@ -7,6 +7,7 @@ All writes use ruamel.yaml round-trip mode so comments are preserved.
 import logging
 from typing import Any, Optional
 
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -378,7 +379,7 @@ def get_version():
         "version":         ver,
         "git_hash":        git_hash,
         "ollama_url":      _oc.OLLAMA_BASE_URL or None,
-        "ollama_model":    _oc.OLLAMA_MODEL if _oc.OLLAMA_BASE_URL else None,
+        "ollama_model":    _oc.current_model() if _oc.OLLAMA_BASE_URL else None,
         "ollama_available": _oc.is_available() if _oc.OLLAMA_BASE_URL else False,
     }
 
@@ -457,6 +458,64 @@ def save_protein_categories(payload: dict):
     cats = payload.get("categories", [])
     config_files.save_protein_categories(cats)
     return {"categories": cats}
+
+
+# ── AI model (Ollama) ─────────────────────────────────────────────────────────
+
+class AiConfigPayload(BaseModel):
+    model:   str
+    think:   bool = False
+    timeout: int  = 60
+
+
+@router.get("/ollama")
+def get_ollama_config():
+    """Current Ollama settings plus the models installed in Ollama."""
+    from app import ollama_client as _oc
+    models = _oc.list_models()
+    return {
+        "base_url":   _oc.OLLAMA_BASE_URL or None,
+        "reachable":  bool(models) or _oc.is_available(),
+        "models":     models,
+        "model":      _oc.current_model(),
+        "think":      _oc.current_think(),
+        "timeout":    _oc.current_timeout(),
+        "env_model":  _oc.OLLAMA_MODEL,
+    }
+
+
+@router.put("/ollama")
+def save_ollama_config(payload: AiConfigPayload):
+    from app import ollama_client as _oc
+    models = _oc.list_models()
+    if models and payload.model not in models:
+        raise HTTPException(status_code=422, detail=f"'{payload.model}' isn't installed in Ollama")
+    if not 5 <= payload.timeout <= 600:
+        raise HTTPException(status_code=422, detail="Timeout must be between 5 and 600 seconds")
+    config_files.save_ai_config(payload.model, payload.think, payload.timeout)
+    return get_ollama_config()
+
+
+@router.post("/ollama/test")
+def test_ollama():
+    """Run the real ingredient-name clean-up on a few samples and time it."""
+    import time
+    from app import ollama_client as _oc
+    sample = ["boneless skinless chicken breast", "yellow onion", "parmigiano-reggiano", "fresh basil"]
+    t0 = time.time()
+    raw = _oc.generate(
+        "Return a JSON object mapping each ingredient name to its short canonical form: "
+        + json.dumps(sample), expect_json=True)
+    secs = round(time.time() - t0, 1)
+    if raw is None:
+        return {"ok": False, "seconds": secs, "model": _oc.current_model(),
+                "detail": f"No answer within {_oc.current_timeout()}s (or Ollama error) — see Logs"}
+    try:
+        mapping = json.loads(raw)
+    except Exception:
+        mapping = None
+    return {"ok": isinstance(mapping, dict), "seconds": secs, "model": _oc.current_model(),
+            "sample": mapping if isinstance(mapping, dict) else raw[:200]}
 
 
 # ── Kitchen Display links ─────────────────────────────────────────────────────

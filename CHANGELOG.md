@@ -1,5 +1,21 @@
 # Recipe Planner — Changelog
 
+## Patch 145: Ollama model is now a Settings option (qwen3.5:9b)
+
+- The configured model `qwen3:latest` was no longer installed, so every
+  shopping-list name clean-up failed. Default is now `qwen3.5:9b` (code,
+  Unraid template `OLLAMA_MODEL`, repo template, README).
+- New **Settings → AI Model** tab: pick from the models installed in Ollama,
+  set the timeout, toggle thinking, and **Test** (runs the real clean-up
+  prompt and shows the time). Saved to `data/ai.yaml`; the container's
+  `OLLAMA_MODEL` / `OLLAMA_TIMEOUT` are only fallbacks.
+- `GET/PUT /api/config/ollama`, `POST /api/config/ollama/test`.
+- Ollama calls now send `think: false` by default. With thinking on,
+  qwen3.5:9b ran over 5 minutes on a 25-ingredient list without finishing,
+  far beyond the timeout. Models that reject the flag are retried without it.
+
+---
+
 ## Patch 144: Past Meals star ratings now reach Mealie
 
 ### Bugs
