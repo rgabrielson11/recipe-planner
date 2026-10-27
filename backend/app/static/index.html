@@ -2383,16 +2383,16 @@ const ImportPage=()=>{
     }catch(e){setErr(e.message);}
     finally{setBusy(null);}
   };
-  const save=async()=>{
+  const save=async(replaceSlug=null)=>{
     setBusy('save');setErr('');
     try{
-      const res=await post('/import/save',{
+      const res=await post('/import/save',{replace_slug:replaceSlug,
         source_url:r.source_url,name:r.name||'',description:r.description||'',image:r.image||null,
         servings:r.servings||'',prep_minutes:r.prep_minutes||null,cook_minutes:r.cook_minutes||null,
         total_minutes:r.total_minutes||null,ingredient_groups:textToGroups(ingText),
         instructions:stepText.split('\n').map(x=>x.trim()).filter(Boolean)});
       setSaved(res);
-      toast(res.already_existed?'Already in Mealie — linked it to the planner':'Saved to Mealie','success');
+      toast(res.replaced?'Replaced the Mealie recipe with this version':res.already_existed?'Already in Mealie — linked it to the planner':'Saved to Mealie','success');
     }catch(e){setErr(e.message);}
     finally{setBusy(null);}
   };
@@ -2436,11 +2436,18 @@ const ImportPage=()=>{
             <textarea value={stepText} onChange={e=>setStepText(e.target.value)} rows={16} style={{width:'100%',fontSize:13,fontFamily:'inherit'}}/></div>
         </div>
         <div style={{display:'flex',gap:10,marginTop:14,alignItems:'center',flexWrap:'wrap'}}>
-          <button className="btn-primary" disabled={!!busy||!nIng||!nSteps||!!saved} onClick={save}>
+          <button className="btn-primary" disabled={!!busy||!nIng||!nSteps||!!saved} onClick={()=>save()}>
             {busy==='save'?'Saving…':saved?'✓ Saved':'Save to Mealie'}</button>
           {saved&&saved.mealie_url&&<a href={saved.mealie_url} target="_blank" rel="noopener" style={{color:'var(--brand)'}}>Open in Mealie ↗</a>}
-          {saved&&<span style={{fontSize:13,color:'var(--gray)'}}>{saved.already_existed?'It was already in Mealie, so nothing was duplicated. ':''}Now in Recipe Search and suggestions.</span>}
+          {saved&&!saved.already_existed&&<span style={{fontSize:13,color:'var(--gray)'}}>{saved.replaced?'Mealie now has this version. ':''}Now in Recipe Search and suggestions.</span>}
         </div>
+        {saved&&saved.already_existed&&<div className="alert alert-warning" style={{marginTop:12}}>
+          This link is already in Mealie as <strong>{saved.existing_name||saved.slug}</strong>, so nothing was duplicated.
+          If that copy is incomplete, replace its ingredients, steps, servings and times with what's shown above.
+          <div style={{marginTop:8}}>
+            <button className="btn-primary btn-sm" disabled={!!busy} onClick={()=>save(saved.slug)}>{busy==='save'?'Replacing…':'Replace it with this version'}</button>
+          </div>
+        </div>}
       </div>}
     </div>
   );

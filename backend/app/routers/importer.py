@@ -39,6 +39,7 @@ class SaveIn(BaseModel):
     total_minutes: Optional[int] = None
     ingredient_groups: list[GroupIn]
     instructions: list[str]
+    replace_slug: Optional[str] = None      # user chose "Replace it with this version"
 
 
 def _check_url(url: str) -> str:
@@ -82,7 +83,11 @@ def save(payload: SaveIn, db: Session = Depends(get_db)):
         "ingredient_groups": groups, "instructions": steps,
     }
     try:
-        slug, existed = ri.save_to_mealie(r)
+        if payload.replace_slug:
+            ri.replace_in_mealie(payload.replace_slug, r)
+            slug, existed = payload.replace_slug, False
+        else:
+            slug, existed = ri.save_to_mealie(r)
     except ri.RecipeImportError as e:
         raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
@@ -103,5 +108,13 @@ def save(payload: SaveIn, db: Session = Depends(get_db)):
 
     base = os.getenv("MEALIE_BASE_URL", "").rstrip("/")
     log.info("Import saved: '%s' → Mealie %s (existed=%s), recipe_id=%s", r["name"], slug, existed, row.id)
-    return {"slug": slug, "already_existed": existed, "recipe_id": row.id,
+    existing_name = None
+    if existed:
+        try:
+            from app import mealie_client
+            existing_name = mealie_client.get_recipe(slug).get("name")
+        except Exception:
+            pass
+    return {"slug": slug, "already_existed": existed, "replaced": bool(payload.replace_slug),
+            "existing_name": existing_name, "recipe_id": row.id,
             "mealie_url": f"{base}/g/home/r/{slug}" if base else None}

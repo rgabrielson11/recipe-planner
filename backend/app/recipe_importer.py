@@ -511,6 +511,15 @@ def save_to_mealie(r: dict) -> tuple[str, bool]:
         if url and not detail.get("orgURL"):
             detail["orgURL"] = url
             changed = True
+        # Mealie's html-or-json import drops yield and times — set them directly
+        if r.get("yield") and not detail.get("recipeYield"):
+            detail["recipeYield"] = r["yield"]
+            changed = True
+        for key, field in (("prepTime", "prep_minutes"), ("cookTime", "cook_minutes"), ("totalTime", "total_minutes")):
+            v = _pt(r.get(field))
+            if v and not detail.get(key):
+                detail[key] = v
+                changed = True
         if changed:
             requests.patch(f"{mc.MEALIE_BASE_URL}/api/recipes/{slug}", headers=mc._headers(),
                            json=detail, timeout=30).raise_for_status()
@@ -521,6 +530,47 @@ def save_to_mealie(r: dict) -> tuple[str, bool]:
         log.warning("Importer: post-create touch-ups for %s skipped: %s", slug, e)
     log.info("Importer: created Mealie recipe %s from %s", slug, url)
     return slug, False
+
+
+def replace_in_mealie(slug: str, r: dict) -> None:
+    """Overwrite an existing Mealie recipe's content with this import (user-confirmed)."""
+    import uuid
+    from app import mealie_client as mc
+    detail = mc.get_recipe(slug)
+    ings = []
+    for g in r.get("ingredient_groups", []):
+        for n, text in enumerate(g["items"]):
+            ings.append({"title": g["title"] if (n == 0 and g.get("title")) else None,
+                         "note": text, "originalText": text, "display": text,
+                         "quantity": 0, "unit": None, "food": None,
+                         "referenceId": str(uuid.uuid4())})
+    detail["recipeIngredient"] = ings
+    detail["recipeInstructions"] = [{"id": str(uuid.uuid4()), "title": "", "text": s, "ingredientReferences": []}
+                                    for s in r.get("instructions", [])]
+    detail["name"] = r.get("name") or detail.get("name")
+    if r.get("yield"):
+        detail["recipeYield"] = r["yield"]
+    if r.get("description"):
+        detail["description"] = r["description"]
+    for key, field in (("prepTime", "prep_minutes"), ("cookTime", "cook_minutes"), ("totalTime", "total_minutes")):
+        v = _pt(r.get(field))
+        if v:
+            detail[key] = v
+    if r.get("source_url"):
+        detail["orgURL"] = r["source_url"]
+    try:
+        requests.patch(f"{mc.MEALIE_BASE_URL}/api/recipes/{slug}", headers=mc._headers(),
+                       json=detail, timeout=30).raise_for_status()
+    except requests.RequestException as e:
+        body = getattr(getattr(e, "response", None), "text", "")[:200]
+        raise RecipeImportError(f"Mealie rejected the update: {e} {body}") from e
+    if r.get("image") and not detail.get("image"):
+        try:
+            requests.post(f"{mc.MEALIE_BASE_URL}/api/recipes/{slug}/image", headers=mc._headers(),
+                          json={"url": r["image"]}, timeout=60).raise_for_status()
+        except Exception as e:
+            log.warning("Importer: photo for %s skipped: %s", slug, e)
+    log.info("Importer: replaced content of Mealie recipe %s", slug)
 
 
 def to_planner_detail(r: dict) -> dict:

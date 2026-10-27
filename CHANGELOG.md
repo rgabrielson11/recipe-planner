@@ -1,5 +1,18 @@
 # Recipe Planner — Changelog
 
+## Patch 147: Import Recipe — replace an existing Mealie copy; keep servings/times
+
+- If the link is already in Mealie, the Import page now says so (with the
+  existing recipe's name) and offers **Replace it with this version**, which
+  overwrites that recipe's ingredients (with section titles), steps,
+  servings and times instead of silently keeping a weaker copy.
+  `POST /api/import/save` gained `replace_slug`; responses include
+  `replaced` and `existing_name`.
+- Mealie's html-or-json import drops `recipeYield` and prep/cook/total
+  times; they are now set right after creation.
+
+---
+
 ## Patch 146: Import Recipe — reads pages Mealie's importer can't
 
 New **Import Recipe** page (sidebar). Paste a link → editable preview →
