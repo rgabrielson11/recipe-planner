@@ -1,5 +1,33 @@
 # Recipe Planner — Changelog
 
+## Patch 146: Import Recipe — reads pages Mealie's importer can't
+
+New **Import Recipe** page (sidebar). Paste a link → editable preview →
+**Save to Mealie** (also added to the planner catalog / Recipe Search).
+
+Why: Mealie's URL importer needs schema.org Recipe data. Many blogs
+(e.g. Wix sites like sivanskitchen.com) have none — the recipe is just
+headings, lists and paragraphs — so the import fails.
+
+`recipe_importer.py` tries, in order, keeping the first result with ≥2
+ingredients and ≥1 step:
+1. schema.org JSON-LD (incl. @graph, HowToSection)
+2. recipe-scrapers (site rules, microdata, generic schema)
+3. Page layout: "Ingredients" / "Instructions|Method|Preparation" headings,
+   bullet lists, bold sub-group labels ("For the sauce"), bold step labels;
+   site header/footer/nav/sign-up forms ignored; Prep/Cook/Total time and
+   Yields/Serves lines and og:image picked up from the page
+4. Local AI (Ollama) reading the page text — last resort, ~2 min
+   (`ollama_client.generate` gained a per-call `timeout`; this uses 240 s)
+
+Saving builds a schema.org Recipe and posts it to Mealie's
+`POST /api/recipes/create/html-or-json` (Mealie downloads the photo), then
+sets ingredient section titles. Existing Mealie recipes with the same link
+are reused, not duplicated. API: `POST /api/import/preview`,
+`POST /api/import/save`.
+
+---
+
 ## Patch 145: Ollama model is now a Settings option (qwen3.5:9b)
 
 - The configured model `qwen3:latest` was no longer installed, so every

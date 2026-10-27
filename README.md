@@ -6,7 +6,7 @@ Self-hosted household dinner meal planner. Plans weekly dinners using on-hand pa
 **API docs:** `http://<unraid-ip>:8111/docs`  
 **Mobile:** fully responsive — hamburger drawer nav on screens ≤ 639 px  
 **Timezone:** set `TZ` in the Unraid template to match your local timezone for correct week calculation and scrape schedule  
-**Version:** 145
+**Version:** 146
 
 ---
 
@@ -75,6 +75,14 @@ Every suggestions load combines:
                         push to Bring! and/or Home Assistant in one click;
                         pantry-check items promotable to buy list
 ```
+
+### Import Recipe
+
+Sidebar → **Import Recipe**: paste any recipe link, review/edit the preview,
+then **Save to Mealie**. It reads standard recipe data when a page has it and
+otherwise reads the page layout (headings, lists, time/serving lines), with
+the local AI as a last resort — so it works on many blogs Mealie's own URL
+import can't read.
 
 ### Kitchen Display
 

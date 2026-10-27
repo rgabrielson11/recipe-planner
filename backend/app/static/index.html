@@ -168,6 +168,7 @@ const useToast=()=>React.useContext(ToastCtx);
 const NAV=[
   {section:'Planning'},{key:'planner',icon:'📅',label:'Weekly Planner'},
   {key:'kitchen',icon:'🧑‍🍳',label:'Kitchen Display',href:'/kitchen'},
+  {key:'import',icon:'📥',label:'Import Recipe'},
   {key:'pantry',icon:'🥫',label:'Pantry'},
   {section:'Configuration'},{key:'settings',icon:'⚙️',label:'Preferences'},
   {key:'sources',icon:'🌐',label:'Recipe Sources'},{key:'keywords',icon:'🔍',label:'Dinner Filter'},
@@ -2351,6 +2352,100 @@ const RecipeSearchPage=({hid})=>{
 };
 
 
+// ── Import Recipe ─────────────────────────────────────────────────────────────
+// Reads a recipe from any link — including pages Mealie's own importer can't
+// (no recipe data, e.g. Wix/Squarespace blogs) — shows an editable preview,
+// then creates it in Mealie and adds it to the planner catalog.
+const groupsToText=gs=>(gs||[]).map(g=>(g.title?`## ${g.title}\n`:'')+g.items.join('\n')).join('\n\n');
+const textToGroups=t=>{
+  const gs=[{title:'',items:[]}];
+  t.split('\n').map(l=>l.trim()).filter(Boolean).forEach(l=>{
+    if(l.startsWith('##'))gs.push({title:l.replace(/^#+\s*/,''),items:[]});
+    else gs[gs.length-1].items.push(l.replace(/^[-•*]\s+/,''));
+  });
+  return gs.filter(g=>g.items.length);
+};
+const ImportPage=()=>{
+  const [url,setUrl]=useState('');
+  const [busy,setBusy]=useState(null);           // 'read' | 'save'
+  const [r,setR]=useState(null);
+  const [ingText,setIngText]=useState('');
+  const [stepText,setStepText]=useState('');
+  const [saved,setSaved]=useState(null);
+  const [err,setErr]=useState('');
+  const toast=useToast();
+  const read=async()=>{
+    if(!url.trim())return;
+    setBusy('read');setErr('');setR(null);setSaved(null);
+    try{
+      const d=await post('/import/preview',{url:url.trim(),use_ai:true});
+      setR(d);setIngText(groupsToText(d.ingredient_groups));setStepText((d.instructions||[]).join('\n'));
+    }catch(e){setErr(e.message);}
+    finally{setBusy(null);}
+  };
+  const save=async()=>{
+    setBusy('save');setErr('');
+    try{
+      const res=await post('/import/save',{
+        source_url:r.source_url,name:r.name||'',description:r.description||'',image:r.image||null,
+        servings:r.servings||'',prep_minutes:r.prep_minutes||null,cook_minutes:r.cook_minutes||null,
+        total_minutes:r.total_minutes||null,ingredient_groups:textToGroups(ingText),
+        instructions:stepText.split('\n').map(x=>x.trim()).filter(Boolean)});
+      setSaved(res);
+      toast(res.already_existed?'Already in Mealie — linked it to the planner':'Saved to Mealie','success');
+    }catch(e){setErr(e.message);}
+    finally{setBusy(null);}
+  };
+  const set=(k,v)=>setR(x=>({...x,[k]:v}));
+  const nIng=textToGroups(ingText).reduce((a,g)=>a+g.items.length,0);
+  const nSteps=stepText.split('\n').filter(x=>x.trim()).length;
+  return(
+    <div>
+      <div className="page-header"><h1 className="page-title">📥 Import Recipe</h1>
+        <p className="page-sub">Paste a recipe link — works on many pages Mealie's own import can't read</p></div>
+      <div className="card" style={{marginBottom:16}}>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          <input style={{flex:1,minWidth:260}} value={url} placeholder="https://…" onChange={e=>setUrl(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&read()}/>
+          <button className="btn-primary" disabled={!!busy||!url.trim()} onClick={read}>{busy==='read'?'Reading…':'Read recipe'}</button>
+        </div>
+        {busy==='read'&&<p style={{fontSize:12,color:'var(--gray)',marginTop:8}}>If the page has no recipe data, the local AI reads it — that can take a minute or two.</p>}
+        {err&&<div style={{marginTop:10,color:'var(--red)',fontSize:14}}>{err}</div>}
+      </div>
+
+      {r&&<div className="card">
+        <div style={{display:'flex',gap:16,flexWrap:'wrap',alignItems:'flex-start'}}>
+          {r.image&&<img src={r.image} alt="" style={{width:220,height:150,objectFit:'cover',borderRadius:10}}
+            onError={e=>{e.currentTarget.style.display='none';}}/>}
+          <div style={{flex:1,minWidth:260,display:'grid',gap:10}}>
+            <div style={{fontSize:12,color:'var(--gray)'}}>Read using: <strong>{r.method}</strong></div>
+            {(r.warnings||[]).map((w,i)=><div key={i} style={{fontSize:13,color:'var(--amber)'}}>⚠️ {w}</div>)}
+            <div><label>Name</label><input value={r.name||''} onChange={e=>set('name',e.target.value)}/></div>
+            <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+              <div style={{width:160}}><label>Servings</label><input value={r.servings||''} placeholder="e.g. 4 servings" onChange={e=>set('servings',e.target.value)}/></div>
+              <div style={{width:110}}><label>Prep (min)</label><input type="number" min={0} value={r.prep_minutes||''} onChange={e=>set('prep_minutes',+e.target.value||null)}/></div>
+              <div style={{width:110}}><label>Cook (min)</label><input type="number" min={0} value={r.cook_minutes||''} onChange={e=>set('cook_minutes',+e.target.value||null)}/></div>
+              <div style={{width:110}}><label>Total (min)</label><input type="number" min={0} value={r.total_minutes||''} onChange={e=>set('total_minutes',+e.target.value||null)}/></div>
+            </div>
+          </div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))',gap:16,marginTop:16}}>
+          <div><label>Ingredients ({nIng}) — one per line; <code>## Title</code> starts a group</label>
+            <textarea value={ingText} onChange={e=>setIngText(e.target.value)} rows={16} style={{width:'100%',fontSize:13,fontFamily:'inherit'}}/></div>
+          <div><label>Steps ({nSteps}) — one per line</label>
+            <textarea value={stepText} onChange={e=>setStepText(e.target.value)} rows={16} style={{width:'100%',fontSize:13,fontFamily:'inherit'}}/></div>
+        </div>
+        <div style={{display:'flex',gap:10,marginTop:14,alignItems:'center',flexWrap:'wrap'}}>
+          <button className="btn-primary" disabled={!!busy||!nIng||!nSteps||!!saved} onClick={save}>
+            {busy==='save'?'Saving…':saved?'✓ Saved':'Save to Mealie'}</button>
+          {saved&&saved.mealie_url&&<a href={saved.mealie_url} target="_blank" rel="noopener" style={{color:'var(--brand)'}}>Open in Mealie ↗</a>}
+          {saved&&<span style={{fontSize:13,color:'var(--gray)'}}>{saved.already_existed?'It was already in Mealie, so nothing was duplicated. ':''}Now in Recipe Search and suggestions.</span>}
+        </div>
+      </div>}
+    </div>
+  );
+};
+
 // ── Kitchen display (/kitchen) ────────────────────────────────────────────────
 // Full-screen, touch-first view of the week's confirmed dinners for the kitchen
 // tablet.  Each card opens the recipe in Mealie (or the original site if it was
@@ -2482,7 +2577,7 @@ const App=()=>{
   if(window.location.pathname.replace(/\/+$/,'')==='/kitchen')
     return<ToastProvider><KitchenPage hid={hid}/></ToastProvider>;
   const pageLabel=NAV.find(n=>n.key===page)?.label||'';
-  const pages={planner:<PlannerPage hid={hid}/>,pantry:<PantryPage hid={hid}/>,history:<HistoryPage hid={hid}/>,blocked:<BlockedPage hid={hid}/>,search:<RecipeSearchPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage hid={hid}/>};
+  const pages={planner:<PlannerPage hid={hid}/>,import:<ImportPage/>,pantry:<PantryPage hid={hid}/>,history:<HistoryPage hid={hid}/>,blocked:<BlockedPage hid={hid}/>,search:<RecipeSearchPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage hid={hid}/>};
   return(
     <ToastProvider>
       <div className="topbar">

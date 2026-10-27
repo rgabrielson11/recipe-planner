@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from app.database import Base, engine, run_migrations, tune_sqlite
 from app.routers import households, pantry, preferences, recipes, meal_plan
 from app.routers import config as config_router
+from app.routers import importer as importer_router
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 LOG_FMT  = "%(asctime)s %(levelname)-8s %(name)-35s %(message)s"
@@ -91,6 +92,7 @@ app.include_router(preferences.router,   prefix="/api")
 app.include_router(recipes.router,       prefix="/api")
 app.include_router(meal_plan.router,     prefix="/api")
 app.include_router(config_router.router, prefix="/api")
+app.include_router(importer_router.router, prefix="/api")
 
 _LEVEL_ORDER = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
 

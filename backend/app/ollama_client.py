@@ -71,7 +71,8 @@ def is_available() -> bool:
         return False
 
 
-def generate(prompt: str, model: Optional[str] = None, expect_json: bool = False) -> Optional[str]:
+def generate(prompt: str, model: Optional[str] = None, expect_json: bool = False,
+             timeout: Optional[int] = None) -> Optional[str]:
     """
     Send a prompt to Ollama and return the response text.
     Returns None on any error.
@@ -88,11 +89,11 @@ def generate(prompt: str, model: Optional[str] = None, expect_json: bool = False
     if expect_json:
         payload["format"] = "json"
     try:
-        r = requests.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload, timeout=current_timeout())
+        r = requests.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload, timeout=timeout or current_timeout())
         if r.status_code == 400 and "think" in r.text.lower():
             # Model without thinking support rejects the flag — retry without it
             payload.pop("think", None)
-            r = requests.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload, timeout=current_timeout())
+            r = requests.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload, timeout=timeout or current_timeout())
         r.raise_for_status()
         return r.json().get("response", "")
     except Exception as e:
