@@ -1,6 +1,6 @@
 {
   "name": "Recipe Planner",
-  "short_name": "Meals",
+  "short_name": "Recipe Planner",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8fafc",

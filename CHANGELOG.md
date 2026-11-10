@@ -1,5 +1,12 @@
 # Recipe Planner — Changelog
 
+## Patch 150: Home Screen label is "Recipe Planner"
+
+- iOS Home Screen title and the manifest `short_name` changed from "Meals" to
+  "Recipe Planner".
+
+---
+
 ## Patch 149: App icon (iOS Home Screen) + real version everywhere
 
 - New app icon (plate, fork and knife) in `static/assets/`: favicon (SVG +
