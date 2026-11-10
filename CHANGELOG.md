@@ -1,5 +1,16 @@
 # Recipe Planner — Changelog
 
+## Patch 148: Weekly Planner shows locked-in meals when you pick a week
+
+- **Select Week** now lists the recipes already locked in for the chosen week
+  (title, time, servings), loaded from `GET /meal-plan/selections`.
+- They're pre-selected (with their saved servings), and two shortcuts appear:
+  **Review locked meals →** (Confirm step) and **🛒 Shopping list →**.
+- Switching weeks clears the previous week's picks, so one week's selections
+  no longer carry over into another.
+
+---
+
 ## Patch 147: Import Recipe — replace an existing Mealie copy; keep servings/times
 
 - If the link is already in Mealie, the Import page now says so (with the

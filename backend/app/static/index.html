@@ -521,7 +521,34 @@ const PlannerPage=({hid})=>{
   const [progressLabel,setProgressLabel]=useState('');
   const [scrapeActive,setScrapeActive]=useState(false);
   const [pushingShop,setPushingShop]=useState(false);
+  const [weekLocked,setWeekLocked]=useState(null); // locked-in recipes for the chosen week (null = loading)
+  const prevWeek=useRef(week);
   const toast=useToast();
+
+  // When the week changes, drop the previous week's picks so they aren't carried
+  // over, then load whatever is already locked in for the newly chosen week.
+  useEffect(()=>{
+    if(prevWeek.current!==week){
+      prevWeek.current=week;
+      setConf([]);setRej([]);setServingOverrides({});setImportResults(null);
+      setWeekSelections([]);setSL(null);setExtraBuyItems([]);
+      setSug(s=>s.filter(x=>!x._pre_selected));
+    }
+    let cancelled=false;
+    setWeekLocked(null);
+    get(`/meal-plan/selections?household_id=${hid}&week_start_date=${week}`)
+      .then(rows=>{
+        if(cancelled)return;
+        rows=rows||[];
+        setWeekLocked(rows);
+        if(rows.length){
+          setConf(c=>[...new Set([...c,...rows.map(r=>r.recipe_id)])]);
+          setServingOverrides(o=>{const n={...o};rows.forEach(r=>{if(r.servings_override&&!n[r.recipe_id])n[r.recipe_id]=r.servings_override;});return n;});
+        }
+      })
+      .catch(()=>{if(!cancelled)setWeekLocked([]);});
+    return()=>{cancelled=true;};
+  },[hid,week]);
 
   // Push the shopping list (plus any items added from the pantry check) to the
   // destinations configured in Settings → Preferences (Home Assistant todo list).
@@ -709,7 +736,34 @@ const PlannerPage=({hid})=>{
             })}
           </div>
         </div>
-        <button className="btn-primary" onClick={()=>setStep(1)}>Continue →</button>
+        {weekLocked===null&&<div style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>Checking for locked-in meals…</div>}
+        {weekLocked&&weekLocked.length>0&&(
+          <div className="card" style={{marginBottom:16,borderLeft:'3px solid var(--green)'}}>
+            <h3 className="section-title">🔒 Already locked in for the week of {fmt(week)} ({weekLocked.length})</h3>
+            {weekLocked.map(r=>(
+              <div key={r.recipe_id} style={{padding:'8px 0',borderBottom:'1px solid var(--border)',display:'flex',gap:10,alignItems:'baseline',flexWrap:'wrap'}}>
+                <div style={{flex:1,fontWeight:600,fontSize:14}}>
+                  {r.source_url?<a href={r.source_url} target="_blank" rel="noopener noreferrer">{r.title}</a>:r.title}
+                </div>
+                <div style={{fontSize:12,color:'var(--gray)',display:'flex',gap:10}}>
+                  {r.total_time_minutes&&<span>⏱ {r.total_time_minutes}m</span>}
+                  <span>🍽 {r.servings_override||numPeople} servings</span>
+                </div>
+              </div>
+            ))}
+            <p style={{fontSize:12,color:'var(--gray)',margin:'10px 0 0'}}>
+              These stay selected. Continue to add more, or jump straight to Confirm / Shopping List.
+            </p>
+          </div>
+        )}
+        {weekLocked&&weekLocked.length===0&&<div style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>Nothing locked in for this week yet.</div>}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          <button className="btn-primary" onClick={()=>setStep(1)}>Continue →</button>
+          {weekLocked&&weekLocked.length>0&&<>
+            <button className="btn-secondary" onClick={()=>{setWeekSelections(weekLocked);setStep(3);}}>Review locked meals →</button>
+            <button className="btn-secondary" disabled={loading} onClick={loadShoppingList}>🛒 Shopping list →</button>
+          </>}
+        </div>
       </div>}
 
       {/* Step 1: Pantry — suggestions are generated from here */}
