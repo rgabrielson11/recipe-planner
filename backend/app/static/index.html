@@ -537,8 +537,8 @@ const MealieListPicker=({value,onChange})=>{
       {state.lists.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
     </select>
     <div style={{fontSize:12,color:'var(--gray)',marginTop:4}}>
-      The Shopping List step's <b>Send Shopping List</b> button adds the week's items here. Sending the same week
-      again replaces that week's unchecked items; checked items and anything added by hand are left alone.
+      The Shopping List step's <b>Send Shopping List</b> button adds the week's items to this list. Nothing is
+      removed, and items already on the list (not yet checked off) are skipped.
     </div>
   </div>);
 };
@@ -610,7 +610,7 @@ const PlannerPage=({hid})=>{
     try{
       const r=await post(`/meal-plan/shopping-list/push?household_id=${hid}&week_start_date=${week}`,{extra_items:extraBuyItems});
       const m=r.results?.mealie||{};
-      toast(`✓ Sent ${m.sent??0} item${m.sent===1?'':'s'} to ${m.list||'Mealie'}${m.replaced?` (replaced ${m.replaced} from earlier)`:''}`,'success');
+      toast(`✓ Added ${m.sent??0} item${m.sent===1?'':'s'} to ${m.list||'Mealie'}${m.skipped?` · ${m.skipped} already on the list`:''}`,'success');
     }catch(e){toast(e.message,'error');}
     finally{setPushingShop(false);}
   };

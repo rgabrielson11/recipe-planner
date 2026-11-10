@@ -8,9 +8,10 @@
   list (the Mealie iOS app syncs that list to Reminders).
 - Items are plain text, e.g. "Chicken breast (1.5 lb)", with a Mealie label
   (aisle) when the food or section has one. Pantry-check additions included.
-- Re-sending the same week replaces that week's *unchecked* planner items;
-  checked items and items added by hand are never touched (items are tagged
-  in Mealie `extras.recipe_planner_week`).
+- Appends only: nothing on the Mealie list is removed. Items already on the
+  list and not checked off are skipped (matched by name, ignoring quantities,
+  units and plurals — "Chicken Breast-1.5 lbs" = "chicken breast"; "red onion"
+  does not hide "onion"), so re-sending doesn't duplicate. Items are tagged `extras.recipe_planner_week`.
 - Settings → Preferences: the Home Assistant section is replaced by a Mealie
   list picker. Default is the list named "Groceries".
   New column `preferences.mealie_shopping_list_id`;

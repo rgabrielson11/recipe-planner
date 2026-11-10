@@ -642,26 +642,52 @@ def _fmt_qty(q) -> str:
     return str(int(q)) if q == int(q) else f"{q:g}"
 
 
+_UNIT_WORDS = {"lb", "lbs", "pound", "pounds", "oz", "ounce", "ounces", "g", "kg", "gram", "grams",
+               "ml", "l", "cup", "cups", "tsp", "tbsp", "teaspoon", "teaspoons", "tablespoon",
+               "tablespoons", "pt", "pint", "qt", "quart", "can", "cans", "pkg", "package", "bag",
+               "bunch", "head", "jar", "bottle", "box", "multi", "x", "of", "a", "the", "fresh"}
+
+
+def _words(text: str) -> set:
+    """Comparable words for 'already on the list' checks: lower-case, singular,
+    quantities / units / punctuation dropped."""
+    import re as _re
+    out = set()
+    for w in _re.findall(r"[a-z]+", (text or "").lower()):
+        if w in _UNIT_WORDS:
+            continue
+        if len(w) > 3 and w.endswith("es") and w[:-2].endswith(("o", "ch", "sh")):
+            w = w[:-2]
+        elif len(w) > 3 and w.endswith("s") and not w.endswith("ss"):
+            w = w[:-1]
+        out.add(w)
+    return out
+
+
 def push_shopping_list(list_id: str, shopping_list: dict, week_start: str) -> dict:
     """
-    Send the planner's shopping list to a Mealie shopping list.
+    Append the planner's shopping list to a Mealie shopping list.
 
-    Each item is plain text ("Chicken breast (1.5 lb)"), tagged in `extras` with
-    the week. Re-sending the same week first removes that week's unchecked
-    planner items, so nothing is duplicated; checked items and items people
-    added by hand are never touched.
+    Items are plain text ("Chicken breast (1.5 lb)"). Nothing on the list is
+    removed. An item is skipped when an unchecked item already on the list
+    names the same thing once quantities, units and plurals are ignored
+    ("Chicken Breast-1.5 lbs" = "chicken breast"). Matching is exact on the
+    remaining words, so "red onion" on the list does not hide "onion" — a
+    duplicate is better than a missing item.
     """
     _check_configured()
     r = requests.get(f"{MEALIE_BASE_URL}/api/households/shopping/lists/{list_id}",
                      headers=_headers(), timeout=_TIMEOUT)
     r.raise_for_status()
-    existing = r.json().get("listItems") or []
-    stale = [i["id"] for i in existing
-             if (i.get("extras") or {}).get(_PLANNER_TAG) == week_start and not i.get("checked")]
-    if stale:
-        d = requests.delete(f"{MEALIE_BASE_URL}/api/households/shopping/items", headers=_headers(),
-                            params=[("ids", x) for x in stale], timeout=_TIMEOUT)
-        d.raise_for_status()
+    on_list = []
+    for i in r.json().get("listItems") or []:
+        if i.get("checked"):
+            continue
+        txt = " ".join(filter(None, [i.get("note"), i.get("display"), (i.get("food") or {}).get("name")]))
+        ws = _words(txt)
+        if ws:
+            on_list.append(ws)
+    skipped = []
 
     labels = _labels_by_name()
     food_labels = _food_labels()
@@ -671,6 +697,11 @@ def push_shopping_list(list_id: str, shopping_list: dict, week_start: str) -> di
             name = (it.get("item") or "").strip()
             if not name:
                 continue
+            key = _words(name)
+            if key and key in on_list:
+                skipped.append(name)
+                continue
+            on_list.append(key)
             parts = []
             qty = _fmt_qty(it.get("quantity"))
             if qty and qty != "0":
@@ -692,6 +723,6 @@ def push_shopping_list(list_id: str, shopping_list: dict, week_start: str) -> di
                           headers=_headers(), json=items, timeout=_TIMEOUT)
         if not c.ok:
             raise MealieError(f"Mealie {c.status_code} adding items: {c.text[:300]}")
-    log.info("Mealie shopping list %s: sent %d items for week %s (replaced %d)",
-             list_id, len(items), week_start, len(stale))
-    return {"sent": len(items), "replaced": len(stale)}
+    log.info("Mealie shopping list %s: added %d items for week %s (skipped %d already on the list)",
+             list_id, len(items), week_start, len(skipped))
+    return {"sent": len(items), "skipped": len(skipped), "skipped_items": skipped}
