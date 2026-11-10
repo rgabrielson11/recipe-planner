@@ -528,6 +528,8 @@ def save_to_mealie(r: dict) -> tuple[str, bool]:
                           json={"url": r["image"]}, timeout=60).raise_for_status()
     except Exception as e:
         log.warning("Importer: post-create touch-ups for %s skipped: %s", slug, e)
+    from app import ingredient_parsing
+    ingredient_parsing.parse_recipe_safe(slug)
     log.info("Importer: created Mealie recipe %s from %s", slug, url)
     return slug, False
 
@@ -570,6 +572,8 @@ def replace_in_mealie(slug: str, r: dict) -> None:
                           json={"url": r["image"]}, timeout=60).raise_for_status()
         except Exception as e:
             log.warning("Importer: photo for %s skipped: %s", slug, e)
+    from app import ingredient_parsing
+    ingredient_parsing.parse_recipe_safe(slug)
     log.info("Importer: replaced content of Mealie recipe %s", slug)
 
 

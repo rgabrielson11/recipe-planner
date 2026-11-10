@@ -1799,6 +1799,59 @@ const LogsPage=()=>{
 };
 
 // ── App ───────────────────────────────────────────────────────────────────────
+// ── Mealie ingredient parsing (patch 151) ─────────────────────────────────────
+const IngredientParsingCard=()=>{
+  const [audit,setAudit]=useState(null);
+  const [auditing,setAuditing]=useState(false);
+  const [job,setJob]=useState(null);
+  const [showSkipped,setShowSkipped]=useState(false);
+  const toast=useToast();
+  const runAudit=async()=>{setAuditing(true);try{setAudit(await get('/meal-plan/mealie/ingredient-audit'));}catch(e){toast(e.message,'error');}finally{setAuditing(false);}};
+  const poll=useCallback(async()=>{try{const s=await get('/meal-plan/mealie/parse-ingredients/status');setJob(s);if(s.audit)setAudit(s.audit);return s;}catch(e){return null;}},[]);
+  useEffect(()=>{poll().then(s=>{if(!s?.audit)runAudit();});},[]);
+  useEffect(()=>{if(!job?.running)return;const t=setInterval(poll,1500);return()=>clearInterval(t);},[job?.running]);
+  const start=async(dry)=>{
+    if(!dry&&!window.confirm('Parse ingredients in every Mealie recipe that still has unparsed lines? Missing foods/units are created in Mealie. Already-parsed lines are not touched.'))return;
+    try{setShowSkipped(false);setJob(await post(`/meal-plan/mealie/parse-ingredients?dry_run=${dry}`,{}));}catch(e){toast(e.message,'error');}
+  };
+  const c=audit?.counts;
+  const running=job?.running;
+  const skipped=(job?.results||[]).filter(r=>r.skipped?.length);
+  return(
+    <div className="card" style={{marginBottom:16}}>
+      <h3 className="section-title">🥕 Mealie Ingredient Parsing</h3>
+      <p style={{fontSize:12,color:'var(--gray)',marginBottom:12}}>
+        Turns plain-text ingredient lines into Mealie quantity / unit / food using Mealie's parser.
+        New imports are parsed automatically; low-confidence lines are left as text.
+      </p>
+      {auditing&&!c&&<div className="spinner"/>}
+      {c&&<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:12}}>
+        {[['Parsed',c.parsed,'var(--green)'],['Partly parsed',c.partial,'var(--amber)'],['Unparsed',c.unparsed,'var(--red)']].map(([l,v,col])=>(
+          <div key={l} style={{textAlign:'center',padding:'12px 8px',border:'1px solid var(--border)',borderRadius:8}}>
+            <div style={{fontSize:28,fontWeight:700,color:col}}>{v}</div>
+            <div style={{fontSize:12,color:'var(--gray)'}}>{l}</div>
+          </div>))}
+      </div>}
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+        <button className="btn-secondary btn-sm" disabled={auditing||running} onClick={runAudit}>{auditing?'Checking…':'↺ Re-check'}</button>
+        <button className="btn-secondary btn-sm" disabled={running} onClick={()=>start(true)}>👁 Preview</button>
+        <button className="btn-primary btn-sm" disabled={running||(c&&!c.partial&&!c.unparsed)} onClick={()=>start(false)}>Parse all</button>
+        {running&&<span style={{fontSize:12,color:'var(--gray)'}}>{job.dry_run?'Previewing':'Parsing'} {job.done}/{job.total||'…'}</span>}
+      </div>
+      {job&&!running&&job.finished&&<div className="alert alert-info" style={{marginTop:12,fontSize:13}}>
+        {job.dry_run?'Preview: would parse':'Parsed'} <b>{job.lines_parsed}</b> lines in <b>{job.recipes_changed}</b> recipes.
+        {job.lines_skipped>0&&<> {job.lines_skipped} low-confidence lines left as text <a href="#" onClick={e=>{e.preventDefault();setShowSkipped(v=>!v);}}>({showSkipped?'hide':'show'})</a>.</>}
+        {job.errors?.length>0&&<div style={{color:'var(--red)',marginTop:6}}>{job.errors.length} error(s): {job.errors.slice(0,3).join('; ')}</div>}
+      </div>}
+      {showSkipped&&<div style={{marginTop:8,maxHeight:300,overflow:'auto',fontSize:12}}>
+        {skipped.map(r=>(<div key={r.slug} style={{padding:'6px 0',borderBottom:'1px solid var(--border)'}}>
+          <b>{r.name}</b>{r.skipped.map((x,i)=>(<div key={i} style={{color:'var(--gray)'}}>· {x.text} <span style={{opacity:.7}}>({Math.round(x.confidence*100)}%)</span></div>))}
+        </div>))}
+      </div>}
+    </div>
+  );
+};
+
 const DatabasePage=({hid})=>{
   const [wiping,setWiping]=useState(false);
   const [result,setResult]=useState(null);
@@ -1832,6 +1885,8 @@ const DatabasePage=({hid})=>{
         <h1 className="page-title">🗄️ Database</h1>
         <p className="page-sub">Maintenance tools — use with caution</p>
       </div>
+
+      <IngredientParsingCard/>
 
       {/* Recipe cache stats */}
       <div className="card" style={{marginBottom:16}}>

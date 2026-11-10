@@ -233,6 +233,10 @@ def import_recipe_from_url(url: str) -> str:
     except Exception as e:
         log.debug("Cost-strip step skipped for '%s': %s", slug, e)
 
+    # Turn Mealie's plain-text ingredient notes into parsed food/unit/quantity
+    from app import ingredient_parsing
+    ingredient_parsing.parse_recipe_safe(slug)
+
     return slug
 
 

@@ -1,5 +1,31 @@
 # Recipe Planner — Changelog
 
+## Patch 151: Mealie ingredients are parsed (quantity / unit / food)
+
+Mealie's importers store every ingredient as a plain note (quantity 0, no
+unit or food), so ~75% of recipes showed as unparsed.
+
+- New `ingredient_parsing.py` runs Mealie's NLP parser
+  (`POST /api/parser/ingredients`) on unparsed lines, links the result to
+  Mealie foods/units (creating missing ones) and saves the recipe, then reads
+  it back to confirm what Mealie stored.
+  - Lines under 70% confidence stay as plain text (better unparsed than wrong).
+  - A unit is kept only if it appears in the original text (the model turned
+    "1 pkg" into kilograms).
+  - Prices like "($1.12)" and markdown links are stripped before parsing;
+    original text, section titles and step links are kept.
+- Runs automatically after every import: planner Lock In, Recipe Search
+  import, and the Import Recipe page (save and replace). Replaces the old
+  regex quantity patch.
+- **Database → Mealie Ingredient Parsing** card: parsed / partly / unparsed
+  counts, **Preview** (dry run), **Parse all** (background, with progress) and
+  a list of the low-confidence lines left as text.
+- API: `GET /api/meal-plan/mealie/ingredient-audit`,
+  `POST /api/meal-plan/mealie/parse-ingredients?dry_run=`,
+  `GET …/parse-ingredients/status`, `POST …/parse-ingredients/{slug}`.
+
+---
+
 ## Patch 150: Home Screen label is "Recipe Planner"
 
 - iOS Home Screen title and the manifest `short_name` changed from "Meals" to

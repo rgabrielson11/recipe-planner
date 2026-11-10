@@ -520,17 +520,16 @@ def _apply_mealie_metadata(slug: str, dinner_tag: str, recipe: models.Recipe,
         except Exception as e:
             log.debug("Meal plan add failed for '%s': %s", slug, e)
 
-    # Push our properly-parsed ingredient data back to Mealie so the recipe
-    # view shows correct quantities/units instead of 0 from Mealie's scraper.
-    if recipe.scraped_ingredients_json:
-        try:
-            import json as _j
-            ing_strings = _j.loads(recipe.scraped_ingredients_json)
-            from app.shopping_list import _parse_servings_str
-            base_servings = _parse_servings_str(recipe.scraped_servings or "")
-            mealie_client.patch_recipe_ingredients(slug, ing_strings, base_servings)
-        except Exception as e:
-            log.debug("patch_recipe_ingredients failed for '%s': %s", slug, e)
+    # Parse any still-unparsed ingredient lines with Mealie's NLP parser so the
+    # recipe has real quantities/units/foods (patch 151 — replaces the old
+    # regex quantity patch). No-op for recipes that are already parsed.
+    try:
+        from app import ingredient_parsing
+        from app.shopping_list import _parse_servings_str
+        base_servings = _parse_servings_str(recipe.scraped_servings or "") or None
+        ingredient_parsing.parse_recipe_safe(slug, base_servings)
+    except Exception as e:
+        log.debug("Ingredient parsing failed for '%s': %s", slug, e)
 
     # Set Mealie recipe categories: Dinner + protein group
     try:
@@ -991,41 +990,44 @@ def add_from_history(
 
 @router.post("/mealie/patch-ingredients")
 def backfill_mealie_ingredients(household_id: str, db: Session = Depends(get_db)):
-    """
-    Re-patch ingredient structure on all Mealie recipes for this household
-    that have scraped_ingredients_json. Fixes recipes imported before
-    patch_recipe_ingredients was added.
-    """
-    import json as _j
-    from app.shopping_list import _parse_servings_str
+    """Kept for compatibility: now runs the Mealie NLP parse over ALL Mealie
+    recipes in the background. See /mealie/parse-ingredients."""
+    from app import ingredient_parsing
+    return ingredient_parsing.start_backfill(dry_run=False)
 
-    sels = (
-        db.query(models.WeeklySelection)
-        .join(models.Recipe)
-        .filter(
-            models.WeeklySelection.household_id == household_id,
-            models.Recipe.mealie_slug.isnot(None),
-            models.Recipe.scraped_ingredients_json.isnot(None),
-        )
-        .all()
-    )
-    seen = set()
-    patched = []
-    errors = []
-    for sel in sels:
-        r = sel.recipe
-        if r.mealie_slug in seen:
-            continue
-        seen.add(r.mealie_slug)
-        try:
-            ings = _j.loads(r.scraped_ingredients_json)
-            base = _parse_servings_str(r.scraped_servings or "")
-            mealie_client.patch_recipe_ingredients(r.mealie_slug, ings, base)
-            patched.append(r.title)
-        except Exception as e:
-            errors.append(f"{r.title}: {e}")
 
-    return {"patched": len(patched), "errors": errors, "recipes": patched}
+@router.get("/mealie/ingredient-audit")
+def mealie_ingredient_audit():
+    """Count Mealie recipes whose ingredients are parsed / partial / unparsed."""
+    from app import ingredient_parsing
+    if not mealie_client.is_configured():
+        raise HTTPException(status_code=400, detail="Mealie is not configured")
+    return ingredient_parsing.audit_all()
+
+
+@router.post("/mealie/parse-ingredients")
+def mealie_parse_ingredients(dry_run: bool = True):
+    """Start a background parse of every Mealie recipe (dry_run previews only)."""
+    from app import ingredient_parsing
+    if not mealie_client.is_configured():
+        raise HTTPException(status_code=400, detail="Mealie is not configured")
+    return ingredient_parsing.start_backfill(dry_run=dry_run)
+
+
+@router.get("/mealie/parse-ingredients/status")
+def mealie_parse_ingredients_status():
+    from app import ingredient_parsing
+    return ingredient_parsing.backfill_status()
+
+
+@router.post("/mealie/parse-ingredients/{slug}")
+def mealie_parse_one(slug: str, dry_run: bool = False):
+    """Parse one Mealie recipe's ingredients now and report the result."""
+    from app import ingredient_parsing
+    try:
+        return ingredient_parsing.parse_recipe(slug, dry_run=dry_run)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.delete("/selections/{recipe_id}")
