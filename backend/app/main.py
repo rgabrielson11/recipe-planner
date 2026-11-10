@@ -171,4 +171,7 @@ if STATIC_DIR.exists():
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def serve_frontend(full_path: str):
-        return FileResponse(str(STATIC_DIR / "index.html"))
+        # no-cache: browsers (and iOS Home Screen apps) revalidate the page on
+        # every load, so a reload always picks up the latest deploy.
+        return FileResponse(str(STATIC_DIR / "index.html"),
+                            headers={"Cache-Control": "no-cache, must-revalidate"})

@@ -181,7 +181,7 @@ const NAV=[
   {section:'Planning'},{key:'history',icon:'📆',label:'Past Meals'},{key:'blocked',icon:'🚫',label:'Blocked'},{key:'search',icon:'🔍',label:'Recipe Search'},
   {section:'Tools'},{key:'rejections',icon:'🚫',label:'Rejections'},{key:'logs',icon:'📋',label:'Logs'},{key:'database',icon:'🗄️',label:'Database'},
 ];
-const Nav=({page,setPage,navOpen,onClose,version})=>(
+const Nav=({page,setPage,navOpen,onClose,version,onReload,newVersion})=>(
   <>
     <div className={`nav-overlay${navOpen?' nav-open':''}`} onClick={onClose}/>
     <nav className={`nav${navOpen?' nav-open':''}`}>
@@ -197,6 +197,10 @@ const Nav=({page,setPage,navOpen,onClose,version})=>(
            onMouseEnter={e=>e.target.style.opacity=1} onMouseLeave={e=>e.target.style.opacity=.8}>
           {version}
         </a>
+        {onReload&&<button onClick={onReload} title="Reload"
+          style={{marginLeft:10,background:'transparent',color:newVersion?'#22c55e':'#94a3b8',fontSize:12,padding:'2px 6px',border:'1px solid #334155'}}>
+          ↻ {newVersion?'Update ready':'Reload'}
+        </button>}
       </div>}
     </nav>
   </>
@@ -527,6 +531,7 @@ const PlannerPage=({hid})=>{
   const [progressLabel,setProgressLabel]=useState('');
   const [scrapeActive,setScrapeActive]=useState(false);
   const [pushingShop,setPushingShop]=useState(false);
+  useEffect(()=>{window.__rpPlannerBusy=step>0;return()=>{window.__rpPlannerBusy=false;};},[step]);
   const [weekLocked,setWeekLocked]=useState(null); // locked-in recipes for the chosen week (null = loading)
   const prevWeek=useRef(week);
   const toast=useToast();
@@ -2677,13 +2682,47 @@ const KitchenPage=({hid})=>{
   );
 };
 
+// iOS Home Screen web apps resume the old page instead of reloading, so the app
+// refreshes itself: after 5+ minutes in the background it reloads (new version)
+// or remounts the current page (re-fetches its data). While the planner is
+// mid-flow (window.__rpPlannerBusy) it leaves the page alone.
+const AWAY_REFRESH_MS=5*60*1000;
 const App=()=>{
-  const [page,setPage]=useState('planner');
+  const [page,setPageRaw]=useState(()=>{try{return localStorage.getItem('rp.page')||'planner';}catch(_){return'planner';}});
+  const setPage=p=>{setPageRaw(p);try{localStorage.setItem('rp.page',p);}catch(_){}};
   const [hid,setHid]=useState('');
   const [hhError,setHhError]=useState(null);
   const [navOpen,setNavOpen]=useState(false);
   const [appVersion,setAppVersion]=useState('');
-  useEffect(()=>{get('/config/version').then(d=>setAppVersion(`v${d.version}${d.git_hash?' ('+d.git_hash+')':''}`)).catch(()=>{});},[]);
+  const [refreshKey,setRefreshKey]=useState(0);
+  const [newVersion,setNewVersion]=useState(false);
+  const loadedVersion=useRef(null);
+  const pageRef=useRef(page);pageRef.current=page;
+  useEffect(()=>{get('/config/version').then(d=>{loadedVersion.current=d.version;setAppVersion(`v${d.version}${d.git_hash?' ('+d.git_hash+')':''}`);}).catch(()=>{});},[]);
+  const plannerBusy=()=>pageRef.current==='planner'&&!!window.__rpPlannerBusy;
+  const autoRefresh=async()=>{
+    let changed=false;
+    try{const d=await get('/config/version');changed=!!loadedVersion.current&&d.version!==loadedVersion.current;}catch(_){}
+    if(plannerBusy()){if(changed)setNewVersion(true);return;}
+    if(changed){window.location.reload();return;}
+    setRefreshKey(k=>k+1);
+  };
+  const manualRefresh=()=>{
+    if(plannerBusy()&&!window.confirm('Reload now? Selections you haven\'t locked in will be cleared (locked-in meals are kept).'))return;
+    window.location.reload();
+  };
+  useEffect(()=>{
+    let hiddenAt=null;
+    const onVis=()=>{
+      if(document.visibilityState==='hidden'){hiddenAt=Date.now();return;}
+      if(hiddenAt!==null&&Date.now()-hiddenAt>=AWAY_REFRESH_MS)autoRefresh();
+      hiddenAt=null;
+    };
+    const onShow=e=>{if(e.persisted)autoRefresh();};
+    document.addEventListener('visibilitychange',onVis);
+    window.addEventListener('pageshow',onShow);
+    return()=>{document.removeEventListener('visibilitychange',onVis);window.removeEventListener('pageshow',onShow);};
+  },[]);
   // Single-household app: the server returns (or creates) the one household.
   useEffect(()=>{
     get('/households/current')
@@ -2697,7 +2736,7 @@ const App=()=>{
         :'Loading…'}
     </div>);
   if(window.location.pathname.replace(/\/+$/,'')==='/kitchen')
-    return<ToastProvider><KitchenPage hid={hid}/></ToastProvider>;
+    return<ToastProvider><KitchenPage key={refreshKey} hid={hid}/></ToastProvider>;
   const pageLabel=NAV.find(n=>n.key===page)?.label||'';
   const pages={planner:<PlannerPage hid={hid}/>,import:<ImportPage/>,pantry:<PantryPage hid={hid}/>,history:<HistoryPage hid={hid}/>,blocked:<BlockedPage hid={hid}/>,search:<RecipeSearchPage hid={hid}/>,settings:<SettingsPage hid={hid}/>,sources:<SourcesPage/>,keywords:<KeywordsPage/>,rejections:<RejectionsPage hid={hid}/>,logs:<LogsPage/>,database:<DatabasePage hid={hid}/>};
   return(
@@ -2707,10 +2746,15 @@ const App=()=>{
         <div className="topbar-title">🍽️ <span style={{color:'#60a5fa'}}>Recipe</span> Planner</div>
         {appVersion&&<a href="https://github.com/rgabrielson11/recipe-planner" target="_blank" rel="noopener"
             style={{fontSize:12,color:'#93c5fd',textDecoration:'none'}}>{appVersion}</a>}
+        <button onClick={manualRefresh} title={newVersion?'New version available — tap to reload':'Reload'}
+          aria-label="Reload"
+          style={{marginLeft:8,background:'transparent',color:'#cbd5e1',fontSize:20,padding:'4px 8px',lineHeight:1,position:'relative'}}>
+          ↻{newVersion&&<span style={{position:'absolute',top:2,right:2,width:8,height:8,borderRadius:4,background:'#22c55e'}}/>}
+        </button>
       </div>
-      <Nav page={page} setPage={setPage} navOpen={navOpen} onClose={()=>setNavOpen(false)} version={appVersion}/>
+      <Nav page={page} setPage={setPage} navOpen={navOpen} onClose={()=>setNavOpen(false)} version={appVersion} onReload={manualRefresh} newVersion={newVersion}/>
       <main className="main" style={{flex:1,minWidth:0}}>
-        {pages[page]||<div style={{textAlign:'center',padding:60,color:'var(--gray)'}}>🚧 Coming soon</div>}
+        {pages[page]?<React.Fragment key={`${page}-${refreshKey}`}>{pages[page]}</React.Fragment>:<div style={{textAlign:'center',padding:60,color:'var(--gray)'}}>🚧 Coming soon</div>}
       </main>
     </ToastProvider>
   );

@@ -1,5 +1,23 @@
 # Recipe Planner — Changelog
 
+## Patch 153: Home Screen app refreshes itself + Reload button
+
+iOS Home Screen web apps resume the old page instead of reloading, and have
+no refresh control.
+
+- After 5+ minutes in the background, coming back reloads the app if a new
+  version was deployed, otherwise re-fetches the current page's data. While
+  the Weekly Planner is past Select Week it's left alone (unsaved picks would
+  be lost); a new version then shows as a green dot on the Reload button.
+- **↻ Reload** button in the top bar (phone) and the sidebar footer (wider
+  screens). On the planner mid-flow it asks before clearing unsaved picks.
+- The current page is remembered, so a reload returns to it.
+- The kitchen display gets the same return-from-background refresh.
+- `index.html` is served with `Cache-Control: no-cache` so a reload always
+  gets the latest deploy.
+
+---
+
 ## Patch 152: Ingredient parsing handles ¹/₂, ½ and "teaspoon (tsp)"
 
 - Lines are normalised before Mealie's parser sees them: superscript /
