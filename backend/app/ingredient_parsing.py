@@ -58,9 +58,27 @@ _UNIT_ALIASES = {
 }
 
 
+_SUPER_SUB = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁄∕", "01234567890123456789//")
+_VULGAR = {"½": "1/2", "⅓": "1/3", "⅔": "2/3", "¼": "1/4", "¾": "3/4", "⅕": "1/5",
+           "⅖": "2/5", "⅗": "3/5", "⅘": "4/5", "⅙": "1/6", "⅚": "5/6", "⅛": "1/8",
+           "⅜": "3/8", "⅝": "5/8", "⅞": "7/8"}
+_ABBR_PAREN = re.compile(
+    r"\(\s*(?:tsp|tbsp|tbs|c|oz|fl\.? ?oz|lb|lbs|g|kg|ml|l|pt|qt)\.?\s*\)", re.I)
+
+
 def _clean(text: str) -> str:
-    """Strip markdown links, Budget Bytes-style prices and extra whitespace."""
-    t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text or "")
+    """Normalise a line for Mealie's NLP parser.
+
+    Strips markdown links and Budget Bytes-style prices, turns ¹/₂ and ½ into
+    1/2 (the parser scores those below the confidence cut-off), drops
+    HelloFresh-style unit echoes like "teaspoon (tsp)", and tidies whitespace.
+    """
+    t = (text or "").translate(_SUPER_SUB)
+    for k, v in _VULGAR.items():
+        t = re.sub(rf"(\d)\s*{k}", rf"\1 {v}", t)
+        t = t.replace(k, v)
+    t = _ABBR_PAREN.sub("", t)
+    t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)
     t = re.sub(r"\(\s*\$\d+(?:\.\d+)?\s*\)", "", t)          # "($1.12)"
     t = re.sub(r",?\s*\$\d+(?:\.\d+)?(?=\s*\))", "", t)       # "(full-fat, $1.12)"
     t = re.sub(r"\(\s*\)", "", t)

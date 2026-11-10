@@ -1,5 +1,17 @@
 # Recipe Planner — Changelog
 
+## Patch 152: Ingredient parsing handles ¹/₂, ½ and "teaspoon (tsp)"
+
+- Lines are normalised before Mealie's parser sees them: superscript /
+  subscript fractions (¹/₂) and vulgar fractions (½, 1½) become 1/2, and
+  HelloFresh-style unit echoes like "teaspoon (tsp)" lose the parenthetical.
+  Mealie scored these 0.53–0.70 (below the 0.7 cut-off, so they stayed as
+  plain text); cleaned, the same lines score 1.0.
+- Confirmed against the live Mealie: before this, 126 of 165 recipes were
+  unparsed and a dry run left 63 lines as text.
+
+---
+
 ## Patch 151: Mealie ingredients are parsed (quantity / unit / food)
 
 Mealie's importers store every ingredient as a plain note (quantity 0, no
