@@ -1,5 +1,16 @@
 # Recipe Planner — Changelog
 
+## Patch 149: App icon (iOS Home Screen) + real version everywhere
+
+- New app icon (plate, fork and knife) in `static/assets/`: favicon (SVG +
+  32px PNG), 180px `apple-touch-icon.png` for iOS **Add to Home Screen**, and
+  192/512px icons in a new `manifest.webmanifest`. The Home Screen label is
+  "Meals"; the page also sets a blue theme colour.
+- `main.py` no longer hard-codes `0.8.0`: the FastAPI version, the startup log
+  line and `/api/health` now read the `VERSION` file.
+
+---
+
 ## Patch 148: Weekly Planner shows locked-in meals when you pick a week
 
 - **Select Week** now lists the recipes already locked in for the chosen week

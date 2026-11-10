@@ -58,11 +58,23 @@ for _lib in ("urllib3", "httpx", "httpcore", "requests", "bs4", "lxml"):
 
 log = logging.getLogger(__name__)
 
+def _read_version() -> str:
+    """App version from the VERSION file (image root, or repo when run from source)."""
+    for p in (Path("/app/VERSION"), Path(__file__).resolve().parents[1] / "VERSION"):
+        try:
+            return p.read_text().strip()
+        except Exception:
+            pass
+    return "unknown"
+
+
+APP_VERSION = _read_version()
+
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Recipe Planner",
     description="Pantry-first household dinner meal planner.",
-    version="0.8.0",
+    version=APP_VERSION,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -71,7 +83,7 @@ app = FastAPI(
 run_migrations()
 Base.metadata.create_all(bind=engine)
 tune_sqlite()
-log.info("Recipe Planner v0.8.0 started")
+log.info("Recipe Planner v%s started", APP_VERSION)
 
 # ── Background scrape scheduler (Patch 12) ────────────────────────────────────
 from app import scrape_job
@@ -99,7 +111,7 @@ _LEVEL_ORDER = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL":
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": "0.8.0"}
+    return {"status": "ok", "version": APP_VERSION}
 
 
 @app.get("/api/logs", tags=["debug"])
