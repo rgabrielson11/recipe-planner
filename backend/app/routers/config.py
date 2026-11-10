@@ -547,6 +547,21 @@ def save_kitchen_links(payload: KitchenLinksPayload):
     return {"links": config_files.save_kitchen_links([l.model_dump() for l in payload.links])}
 
 
+# ── Mealie shopping lists ──────────────────────────────────────────────────────
+
+@router.get("/mealie-shopping-lists")
+def get_mealie_shopping_lists():
+    """Mealie shopping lists for the Send Shopping List picker."""
+    from app import mealie_client
+    if not mealie_client.is_configured():
+        return {"lists": [], "configured": False, "default_id": None}
+    try:
+        return {"lists": mealie_client.get_shopping_lists(), "configured": True,
+                "default_id": mealie_client.default_shopping_list_id()}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
 # ── Home Assistant ─────────────────────────────────────────────────────────────
 
 @router.get("/ha-lists")

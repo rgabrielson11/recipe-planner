@@ -47,6 +47,7 @@ class Preference(Base):
     random_per_category        = Column(Integer, nullable=True, default=10)           # random recipe pool per category
     ha_shopping_enabled      = Column(Boolean, nullable=True, default=False)  # Phase 11: push shopping list to HA
     ha_shopping_list_entity  = Column(String,  nullable=True)                   # Phase 11: HA todo entity_id
+    mealie_shopping_list_id  = Column(String,  nullable=True)                   # Patch 154: Send Shopping List target
     notes                     = Column(String, nullable=True)
     created_at                = Column(DateTime, default=datetime.utcnow)
     updated_at                = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

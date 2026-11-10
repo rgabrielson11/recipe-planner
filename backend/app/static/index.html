@@ -150,6 +150,26 @@ const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 // Escapes + validates a URL for use in an href="" attribute — only
 // http/https URLs are allowed through; anything else (javascript:, data:,
 // etc.) is dropped rather than rendered as a link.
+// Print in the same page (Patch 154). Opening a new window after an await is
+// treated as a popup — iOS (especially Home Screen mode) blocks it or never
+// shows the print dialog. Instead the HTML is placed in a print-only container
+// and window.print() runs on this page; everything else is hidden while printing.
+const printHtml=html=>{
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  doc.querySelectorAll('script,a[onclick]').forEach(n=>n.remove());
+  const css=[...doc.querySelectorAll('style')].map(n=>n.textContent).join('\n');
+  document.getElementById('rp-print')?.remove();
+  const root=document.createElement('div');root.id='rp-print';
+  root.innerHTML=`<style>@media screen{#rp-print{display:none}}@media print{body>*:not(#rp-print){display:none!important}#rp-print{display:block}${css}}</style>${doc.body.innerHTML}`;
+  document.body.appendChild(root);
+  const prevTitle=document.title;document.title=doc.title||prevTitle;
+  const done=()=>{document.title=prevTitle;window.removeEventListener('afterprint',done);setTimeout(()=>root.remove(),500);};
+  window.addEventListener('afterprint',done);
+  setTimeout(()=>window.print(),150);
+};
+// Drop-in for the old `window.open` print windows: collects what was written,
+// prints it on close().
+const printWin=()=>{let buf='';return{document:{write:h=>{buf+=h;},close:()=>printHtml(buf)},print:()=>{},close:()=>{}};};
 const safeHref=u=>{try{const p=new URL(u,window.location.origin);if(p.protocol!=='http:'&&p.protocol!=='https:')return '';return escapeHtml(u);}catch{return '';}};
 
 const localISO=d=>{const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');const dy=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${dy}`;};
@@ -393,7 +413,7 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,onRemove,confirmed,rejected,
                 const sourceHref=d.source_url?safeHref(d.source_url):'';
                 const meta=[d.total_time_minutes?`⏱ ${escapeHtml(d.total_time_minutes)} min`:'',d.servings?`🍽 ${escapeHtml(d.servings)}`:'',sourceHref?`<a href="${sourceHref}" style="color:#666">${escapeHtml(d.source_url)}</a>`:''].filter(Boolean).join(' &nbsp;·&nbsp; ');
                 const mealieHref=d.mealie_url?safeHref(d.mealie_url):'';
-                const w=window.open('','_blank');
+                const w=printWin();
                 w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
                   <style>
                     body{font-family:Georgia,serif;max-width:680px;margin:40px auto;color:#111;line-height:1.6}
@@ -501,6 +521,28 @@ const RecipeCard=({r,pantryItems,onConfirm,onReject,onRemove,confirmed,rejected,
 // ── Weekly Planner ────────────────────────────────────────────────────────────
 const STEPS=['Select Week','Pantry Review','Suggestions','Confirm','Shopping List'];
 
+const MealieListPicker=({value,onChange})=>{
+  const [state,setState]=useState({loading:true,lists:[],default_id:null,configured:true,error:null});
+  useEffect(()=>{get('/config/mealie-shopping-lists')
+    .then(d=>setState({loading:false,lists:d.lists||[],default_id:d.default_id,configured:d.configured!==false,error:null}))
+    .catch(e=>setState(s=>({...s,loading:false,error:e.message})));},[]);
+  if(state.loading)return<div style={{fontSize:13,color:'var(--gray)'}}>Loading Mealie lists…</div>;
+  if(state.error)return<div style={{fontSize:13,color:'var(--red)'}}>Couldn't load Mealie lists: {state.error}</div>;
+  if(!state.configured)return<div style={{fontSize:13,color:'var(--gray)'}}>Mealie isn't configured.</div>;
+  const def=state.lists.find(l=>l.id===state.default_id);
+  return(<div>
+    <label>Mealie shopping list</label>
+    <select style={{maxWidth:300}} value={value||''} onChange={e=>onChange(e.target.value||null)}>
+      <option value="">{def?`Default (${def.name})`:'— choose a list —'}</option>
+      {state.lists.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
+    </select>
+    <div style={{fontSize:12,color:'var(--gray)',marginTop:4}}>
+      The Shopping List step's <b>Send Shopping List</b> button adds the week's items here. Sending the same week
+      again replaces that week's unchecked items; checked items and anything added by hand are left alone.
+    </div>
+  </div>);
+};
+
 const PlannerPage=({hid})=>{
   const [step,setStep]=useState(0);
   const [week,setWeek]=useState(weekMonday);
@@ -561,16 +603,14 @@ const PlannerPage=({hid})=>{
     return()=>{cancelled=true;};
   },[hid,week]);
 
-  // Push the shopping list (plus any items added from the pantry check) to the
-  // destinations configured in Settings → Preferences (Home Assistant todo list).
+  // Send the shopping list (plus any items added from the pantry check) to the
+  // Mealie shopping list chosen in Settings → Preferences (default "Groceries").
   const pushShopping=async()=>{
     setPushingShop(true);
     try{
       const r=await post(`/meal-plan/shopping-list/push?household_id=${hid}&week_start_date=${week}`,{extra_items:extraBuyItems});
-      const dest=r.destinations?.join(' & ')||'shopping list';
-      const errs=Object.values(r.results||{}).filter(x=>x.status==='error');
-      if(errs.length) toast(`Push errors: ${errs.map(x=>x.detail).join('; ')}`,'error');
-      else toast(`✓ Pushed to ${dest}`,'success');
+      const m=r.results?.mealie||{};
+      toast(`✓ Sent ${m.sent??0} item${m.sent===1?'':'s'} to ${m.list||'Mealie'}${m.replaced?` (replaced ${m.replaced} from earlier)`:''}`,'success');
     }catch(e){toast(e.message,'error');}
     finally{setPushingShop(false);}
   };
@@ -998,7 +1038,7 @@ const PlannerPage=({hid})=>{
                   ${steps?`<h2>Instructions</h2><ol>${steps}</ol>`:''}
                 </div>`;
             }).join('');
-            const w=window.open('','_blank');
+            const w=printWin();
             w.document.write(`<!DOCTYPE html><html><head><title>This Week's Recipes</title>
               <style>
                 body{font-family:Georgia,serif;max-width:680px;margin:40px auto;color:#111;line-height:1.6}
@@ -1126,7 +1166,7 @@ const PlannerPage=({hid})=>{
                 <td style="padding:5px 0 5px 8px;color:#666;font-size:12px">${p.category||''}</td>
                 <td style="padding:5px 0 5px 8px;font-size:12px">${p.expiry_date||''}</td>
               </tr>`).join('');
-              const w=window.open('','_blank');
+              const w=printWin();
               w.document.write('<!DOCTYPE html><html><head><title>Pantry</title><style>body{font-family:sans-serif;max-width:640px;margin:32px auto}h1{font-size:20px}table{width:100%;border-collapse:collapse}th{text-align:left;padding:6px 0;border-bottom:2px solid #333;font-size:13px}td{vertical-align:top}@media print{button,a{display:none}}</style></head><body><a onclick="window.close()" style="display:block;margin:0 auto 24px;text-align:center;font-size:14px;color:#2563eb;cursor:pointer;text-decoration:underline;border-bottom:1px solid #e2e8f0;padding-bottom:16px">← Close print window</a><h1>&#x1F9EB; Pantry &mdash; '+new Date().toLocaleDateString()+'</h1><p style="font-size:13px;color:#666">'+items.length+' items</p><table><thead><tr><th>Item</th><th>Qty</th><th>Category</th><th>Expiry</th></tr></thead><tbody>'+rows+'</tbody></table></body></html>');
               w.document.close();setTimeout(()=>w.print(),300);
             }}>&#x1F5A8;&#xFE0F; Print Pantry List</button>
@@ -1152,7 +1192,7 @@ const PlannerPage=({hid})=>{
                     <td style="padding:4px 0 4px 8px;color:green;font-size:13px">&#x2713; on hand</td>
                   </tr>`).join('')}
                 </table>`:'';
-              const w=window.open('','_blank');
+              const w=printWin();
               w.document.write(`<!DOCTYPE html><html><head><title>Shopping List</title>
                 <style>body{font-family:sans-serif;max-width:600px;margin:32px auto;color:#111}
                 h1{font-size:22px;margin-bottom:4px}
@@ -1170,7 +1210,7 @@ const PlannerPage=({hid})=>{
               w.document.close();
             }}>&#x1F5A8;&#xFE0F; Print / Save PDF</button>
             <button className="btn-primary" onClick={pushShopping} disabled={pushingShop}>
-              {pushingShop?'Pushing…':'🏠 Push to Home Assistant'}
+              {pushingShop?'Sending…':'🛒 Send Shopping List'}
             </button>
           </div>
         </>}
@@ -1349,42 +1389,11 @@ const SettingsPage=({hid})=>{
           </select></div>
           <div><label>Mealie dinner tag</label><input value={prefs.mealie_dinner_tag||''} onChange={e=>setPrefs(p=>({...p,mealie_dinner_tag:e.target.value}))} placeholder="dinner-planner"/></div>
         </div>
-        {/* ── Shopping List Options ── */}
-        <div style={{fontWeight:600,marginBottom:8}}>Shopping List Options</div>
         <hr style={{border:'none',borderTop:'1px solid var(--border)',margin:'12px 0'}}/>
-        {/* ── Home Assistant ── */}
-        <div style={{fontWeight:600,marginBottom:8}}>Home Assistant</div>
-        <div>
-          <label style={{display:'flex',alignItems:'flex-start',gap:8,cursor:'pointer'}}>
-            <input type="checkbox" style={{marginTop:2}}
-              checked={!!prefs.ha_shopping_enabled}
-              onChange={e=>setPrefs(p=>({...p,ha_shopping_enabled:e.target.checked}))}/>
-            <span>Push shopping list to Home Assistant todo list
-              <span style={{display:'block',fontSize:12,color:'var(--gray)',fontWeight:400,marginTop:2}}>
-                Requires HA_BASE_URL and HA_API_TOKEN in container environment.
-              </span>
-            </span>
-          </label>
-        </div>
-        {prefs.ha_shopping_enabled&&<div style={{marginTop:8}}>
-          <label>HA todo list entity</label>
-          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-            <input style={{maxWidth:300}} value={prefs.ha_shopping_list_entity||''}
-              onChange={e=>setPrefs(p=>({...p,ha_shopping_list_entity:e.target.value||null}))}
-              placeholder="e.g. todo.shopping_list"/>
-            <button className="btn-secondary btn-sm" onClick={async()=>{
-              try{
-                const r=await get('/config/ha-lists');
-                if(!r.configured){toast('HA not configured — set HA_BASE_URL and HA_API_TOKEN in container env','warning');return;}
-                if(!r.lists?.length){toast('No todo lists found in HA','warning');return;}
-                r.lists.forEach(l=>toast(`${l.friendly_name} — ${l.entity_id}`));
-              }catch(e){toast(e.message,'error');}
-            }}>Show HA lists</button>
-          </div>
-          <div style={{fontSize:12,color:'var(--gray)',marginTop:4}}>
-            Items are added to the existing list — nothing is removed on push.
-          </div>
-        </div>}
+        {/* ── Send Shopping List target (Patch 154; replaced the Home Assistant push) ── */}
+        <div style={{fontWeight:600,marginBottom:8}}>Send Shopping List</div>
+        <MealieListPicker value={prefs.mealie_shopping_list_id}
+          onChange={id=>setPrefs(p=>({...p,mealie_shopping_list_id:id}))}/>
         <button className="btn-primary" style={{alignSelf:'start'}} onClick={savePrefs}>Save Preferences</button>
       </div></div>}
       {tab==='equipment'&&prefs&&<div className="card">
@@ -2250,7 +2259,7 @@ const SearchResultCard=({r,inPlan,done,adding,searchServings,setSearchServings,a
                     const title=escapeHtml(d.title);
                     const ings=(d.ingredients||[]).map(i=>`<li style="margin:3px 0">${escapeHtml(i)}</li>`).join('');
                     const steps=(d.instructions||[]).map(s=>`<li style="margin:6px 0">${escapeHtml(s)}</li>`).join('');
-                    const w=window.open('','_blank');
+                    const w=printWin();
                     w.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>body{font-family:Georgia,serif;max-width:680px;margin:40px auto;color:#111;line-height:1.6}h1{font-size:26px}h2{font-size:17px;margin:24px 0 8px;border-bottom:1px solid #ddd;padding-bottom:4px}ul,ol{padding-left:20px}li{font-size:15px}.no-ings{color:#888;font-style:italic}@media print{a{color:#111!important;text-decoration:none}}</style></head><body><h1>${title}</h1><h2>Ingredients</h2>${ings?`<ul>${ings}</ul>`:'<p class="no-ings">See original recipe link.</p>'}${steps?`<h2>Instructions</h2><ol>${steps}</ol>`:''}<script>window.print();<\/script></body></html>`);
                     w.document.close();
                   }catch(e){alert('Could not load recipe details: '+e.message);}

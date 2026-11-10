@@ -1071,10 +1071,10 @@ async def push_shopping_list(
     db: Session = Depends(get_db),
 ):
     """
-    Push the shopping list to all configured destinations (HA, etc.)
-    based on the household preferences. Returns a summary of what was pushed where.
+    Send the shopping list to the household's Mealie shopping list
+    (Settings -> Preferences; defaults to "Groceries"). Re-sending a week
+    replaces that week's unchecked planner items.
     """
-    from app import ha_client as _ha
     from datetime import date as _date
 
     prefs = db.query(models.Preference).filter(
@@ -1093,28 +1093,24 @@ async def push_shopping_list(
                 extra_section.append({'item': name, 'quantity': None, 'unit': '', 'package_label': ''})
                 existing.add(name.lower())
 
-    destinations = []
-    results = {}
-    use_ollama = True  # AI name normalisation for shopping list destinations
-
-    # ── Home Assistant ───────────────────────────────────────────────────────
-    ha_enabled = prefs.ha_shopping_enabled if prefs else False
-    entity_id  = prefs.ha_shopping_list_entity if prefs else None
-    if _ha.is_configured() and ha_enabled and entity_id:
-        try:
-            r = _ha.push_shopping_list(result, entity_id, use_ollama=use_ollama)
-            results["ha"] = {"status": "ok", "pushed": r.get("pushed", 0), "entity_id": entity_id}
-            destinations.append(f"Home Assistant ({entity_id})")
-            log.info("Pushed to HA: household=%s entity=%s pushed=%d", household_id, entity_id, r.get("pushed", 0))
-        except Exception as e:
-            results["ha"] = {"status": "error", "detail": str(e)}
-            log.warning("HA push failed: %s", e)
-
-    if not results:
-        raise HTTPException(
-            status_code=400,
-            detail="No shopping list destinations configured. Set up Home Assistant in Settings → Preferences."
-        )
+    # ── Mealie shopping list (Patch 154 — replaced the Home Assistant push) ──
+    if not mealie_client.is_configured():
+        raise HTTPException(status_code=400, detail="Mealie is not configured.")
+    list_id = (prefs.mealie_shopping_list_id if prefs else None) or mealie_client.default_shopping_list_id()
+    if not list_id:
+        raise HTTPException(status_code=400,
+                            detail="Choose a Mealie shopping list in Settings → Preferences.")
+    names = {l["id"]: l["name"] for l in mealie_client.get_shopping_lists()}
+    if list_id not in names:
+        raise HTTPException(status_code=400,
+                            detail="The chosen Mealie shopping list no longer exists — pick another in Settings → Preferences.")
+    try:
+        r = mealie_client.push_shopping_list(list_id, result, week_start_date)
+    except Exception as e:
+        log.warning("Mealie shopping push failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"Couldn't send to Mealie: {e}")
+    destinations = [f"Mealie ({names[list_id]})"]
+    results = {"mealie": {"status": "ok", "list": names[list_id], **r}}
 
     return {
         "destinations": destinations,

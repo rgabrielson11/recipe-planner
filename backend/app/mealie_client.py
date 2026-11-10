@@ -573,3 +573,125 @@ def patch_recipe_ingredients(slug: str, ingredient_strings: list[str], base_serv
         log.warning("patch_recipe_ingredients failed for slug=%s: %s", slug, e)
 
 
+
+
+# ── Shopping lists (Patch 154: "Send Shopping List") ──────────────────────────
+
+_PLANNER_TAG = "recipe_planner_week"   # extras key marking items the planner added
+
+
+def get_shopping_lists() -> list[dict]:
+    """[{id, name}] for the household's Mealie shopping lists."""
+    _check_configured()
+    r = requests.get(f"{MEALIE_BASE_URL}/api/households/shopping/lists", headers=_headers(),
+                     params={"perPage": 100}, timeout=_TIMEOUT)
+    r.raise_for_status()
+    return [{"id": l["id"], "name": (l.get("name") or "").strip()} for l in r.json().get("items", [])]
+
+
+def default_shopping_list_id() -> Optional[str]:
+    """The list named 'Groceries' (or 'Shopping List'), else the only list."""
+    lists = get_shopping_lists()
+    for want in ("groceries", "shopping list"):
+        for l in lists:
+            if l["name"].lower() == want:
+                return l["id"]
+    return lists[0]["id"] if len(lists) == 1 else None
+
+
+def _labels_by_name() -> dict:
+    try:
+        r = requests.get(f"{MEALIE_BASE_URL}/api/groups/labels", headers=_headers(),
+                         params={"perPage": 500}, timeout=_TIMEOUT)
+        r.raise_for_status()
+        return {(l.get("name") or "").strip().lower(): l["id"] for l in r.json().get("items", [])}
+    except Exception as e:
+        log.debug("Mealie labels unavailable: %s", e)
+        return {}
+
+
+def _food_labels() -> dict:
+    """food name (lower) -> labelId, for foods that have a label in Mealie."""
+    out, page = {}, 1
+    try:
+        while True:
+            r = requests.get(f"{MEALIE_BASE_URL}/api/foods", headers=_headers(),
+                             params={"page": page, "perPage": 500}, timeout=_TIMEOUT)
+            r.raise_for_status()
+            d = r.json()
+            for f in d.get("items", []):
+                if f.get("labelId"):
+                    for k in ("name", "pluralName"):
+                        if f.get(k):
+                            out.setdefault(f[k].strip().lower(), f["labelId"])
+            if page >= (d.get("total_pages") or d.get("totalPages") or 1):
+                return out
+            page += 1
+    except Exception as e:
+        log.debug("Mealie food labels unavailable: %s", e)
+        return out
+
+
+def _fmt_qty(q) -> str:
+    if q is None:
+        return ""
+    try:
+        q = float(q)
+    except (TypeError, ValueError):
+        return str(q)
+    return str(int(q)) if q == int(q) else f"{q:g}"
+
+
+def push_shopping_list(list_id: str, shopping_list: dict, week_start: str) -> dict:
+    """
+    Send the planner's shopping list to a Mealie shopping list.
+
+    Each item is plain text ("Chicken breast (1.5 lb)"), tagged in `extras` with
+    the week. Re-sending the same week first removes that week's unchecked
+    planner items, so nothing is duplicated; checked items and items people
+    added by hand are never touched.
+    """
+    _check_configured()
+    r = requests.get(f"{MEALIE_BASE_URL}/api/households/shopping/lists/{list_id}",
+                     headers=_headers(), timeout=_TIMEOUT)
+    r.raise_for_status()
+    existing = r.json().get("listItems") or []
+    stale = [i["id"] for i in existing
+             if (i.get("extras") or {}).get(_PLANNER_TAG) == week_start and not i.get("checked")]
+    if stale:
+        d = requests.delete(f"{MEALIE_BASE_URL}/api/households/shopping/items", headers=_headers(),
+                            params=[("ids", x) for x in stale], timeout=_TIMEOUT)
+        d.raise_for_status()
+
+    labels = _labels_by_name()
+    food_labels = _food_labels()
+    items = []
+    for section, sec_items in (shopping_list.get("shopping_by_section") or {}).items():
+        for it in sec_items:
+            name = (it.get("item") or "").strip()
+            if not name:
+                continue
+            parts = []
+            qty = _fmt_qty(it.get("quantity"))
+            if qty and qty != "0":
+                parts.append(f"{qty} {it.get('unit') or ''}".strip())
+            if it.get("package_label"):
+                parts.append(it["package_label"])
+            text = name[:1].upper() + name[1:]
+            if parts:
+                text += f" ({' · '.join(parts)})"
+            row = {"shoppingListId": list_id, "note": text, "quantity": 0, "isFood": False,
+                   "extras": {_PLANNER_TAG: week_start}}
+            label_id = food_labels.get(name.lower()) or labels.get((section or "").lower())
+            if label_id:
+                row["labelId"] = label_id
+            items.append(row)
+
+    if items:
+        c = requests.post(f"{MEALIE_BASE_URL}/api/households/shopping/items/create-bulk",
+                          headers=_headers(), json=items, timeout=_TIMEOUT)
+        if not c.ok:
+            raise MealieError(f"Mealie {c.status_code} adding items: {c.text[:300]}")
+    log.info("Mealie shopping list %s: sent %d items for week %s (replaced %d)",
+             list_id, len(items), week_start, len(stale))
+    return {"sent": len(items), "replaced": len(stale)}

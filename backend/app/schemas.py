@@ -37,6 +37,7 @@ class PreferenceCreate(BaseModel):
     random_per_category: Optional[int] = 10               # random pool per category
     ha_shopping_enabled: Optional[bool] = False        # Phase 11
     ha_shopping_list_entity: Optional[str] = None     # Phase 11
+    mealie_shopping_list_id: Optional[str] = None     # Patch 154
     notes: Optional[str] = None
 
 
@@ -55,6 +56,7 @@ class PreferenceUpdate(BaseModel):
     random_per_category: Optional[int] = 10               # random pool per category
     ha_shopping_enabled: Optional[bool] = False        # Phase 11
     ha_shopping_list_entity: Optional[str] = None     # Phase 11
+    mealie_shopping_list_id: Optional[str] = None     # Patch 154
     notes: Optional[str] = None
 
 
@@ -84,6 +86,7 @@ class PreferenceOut(BaseModel):
     random_per_category: Optional[int] = 10               # random pool per category
     ha_shopping_enabled: Optional[bool] = False        # Phase 11
     ha_shopping_list_entity: Optional[str] = None     # Phase 11
+    mealie_shopping_list_id: Optional[str] = None     # Patch 154
     notes: Optional[str]
     created_at: datetime
     updated_at: datetime

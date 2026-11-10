@@ -1,5 +1,29 @@
 # Recipe Planner — Changelog
 
+## Patch 154: Send Shopping List to Mealie (replaces Home Assistant push); printing opens the print dialog
+
+**Send Shopping List**
+- The Shopping List step's button is now **🛒 Send Shopping List** and sends
+  the week's items to a Mealie shopping list instead of a Home Assistant todo
+  list (the Mealie iOS app syncs that list to Reminders).
+- Items are plain text, e.g. "Chicken breast (1.5 lb)", with a Mealie label
+  (aisle) when the food or section has one. Pantry-check additions included.
+- Re-sending the same week replaces that week's *unchecked* planner items;
+  checked items and items added by hand are never touched (items are tagged
+  in Mealie `extras.recipe_planner_week`).
+- Settings → Preferences: the Home Assistant section is replaced by a Mealie
+  list picker. Default is the list named "Groceries".
+  New column `preferences.mealie_shopping_list_id`;
+  `GET /api/config/mealie-shopping-lists`.
+
+**Printing**
+- Print recipe, Print All Recipes, Print Shopping List and Print Pantry now
+  print from the current page and open the print dialog automatically. The
+  old pop-up windows were opened after loading data, which iOS (especially
+  the Home Screen app) treats as a blocked pop-up.
+
+---
+
 ## Patch 153: Home Screen app refreshes itself + Reload button
 
 iOS Home Screen web apps resume the old page instead of reloading, and have
