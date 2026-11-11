@@ -1,5 +1,13 @@
 # Recipe Planner — Changelog
 
+## Patch 156: printed Pantry Check no longer says "on hand"
+
+The printed shopping list's Pantry Check section had a "✓ on hand" column on
+every row — wrong on a list you take to check the pantry. Removed; rows show
+the item and amount only.
+
+---
+
 ## Patch 155: clearer Pantry Check wording
 
 On the shopping list's Pantry Check, each item showed

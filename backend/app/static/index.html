@@ -1189,7 +1189,6 @@ const PlannerPage=({hid})=>{
                   ${pantryCheck.map(it=>`<tr style="border-bottom:1px solid #eee;color:#555">
                     <td style="padding:4px 0">${escapeHtml(it.item)}</td>
                     <td style="padding:4px 8px;text-align:right">${it.quantity!=null?escapeHtml(`${it.quantity} ${it.unit||''}`.trim()):'some'}</td>
-                    <td style="padding:4px 0 4px 8px;color:green;font-size:13px">&#x2713; on hand</td>
                   </tr>`).join('')}
                 </table>`:'';
               const w=printWin();
