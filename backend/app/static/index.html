@@ -1130,8 +1130,8 @@ const PlannerPage=({hid})=>{
                   <span className="sl-item">{item.item}</span>
                   <span className="sl-qty">{item.quantity!=null?`${item.quantity} ${item.unit||''}`.trim():'some'}</span>
                   {extraBuyItems.includes(item.item)
-                    ?<span className="sl-pkg" style={{color:'var(--primary)',cursor:'pointer',fontSize:12}} onClick={()=>setExtraBuyItems(e=>e.filter(x=>x!==item.item))}>✕ Remove from buy list</span>
-                    :<span className="sl-pkg" style={{color:'var(--green)',cursor:'pointer',fontSize:12}} onClick={()=>setExtraBuyItems(e=>[...e,item.item])}>✓ on hand · + Add to buy list</span>
+                    ?<span className="sl-pkg" style={{color:'var(--primary)',cursor:'pointer',fontSize:12}} onClick={()=>setExtraBuyItems(e=>e.filter(x=>x!==item.item))}>✕ Remove from shopping list</span>
+                    :<span className="sl-pkg" style={{color:'var(--green)',cursor:'pointer',fontSize:12}} onClick={()=>setExtraBuyItems(e=>[...e,item.item])}>+ Add to shopping list</span>
                   }
                 </div>
               ))}
@@ -1520,7 +1520,7 @@ const SettingsPage=({hid})=>{
       </div>}
 
       {tab==='staples'&&<div className="card">
-        <p style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>Staples are always assumed on hand and appear in the Pantry Check section, never the buy list.</p>
+        <p style={{fontSize:13,color:'var(--gray)',marginBottom:16}}>Staples are always assumed on hand and appear in the Pantry Check section, never the shopping list.</p>
         <div style={{display:'flex',gap:8,marginBottom:16}}><input style={{maxWidth:300}} value={newStaple} onChange={e=>setNewStaple(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addStaple()} placeholder="e.g. olive oil"/><button className="btn-primary" onClick={addStaple}>Add</button></div>
         <div className="chip-list">{staples.map(s=><span key={s} className="tag">{s}<button onClick={()=>rmStaple(s)}>×</button></span>)}</div>
       </div>}

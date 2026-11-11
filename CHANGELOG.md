@@ -1,5 +1,15 @@
 # Recipe Planner — Changelog
 
+## Patch 155: clearer Pantry Check wording
+
+On the shopping list's Pantry Check, each item showed
+"✓ on hand · + Add to buy list", which read as if the item had already been
+confirmed in the pantry. It now shows just **+ Add to shopping list**
+(and **✕ Remove from shopping list** once added). The Settings staples note
+says "shopping list" too, so the app uses one name for the list.
+
+---
+
 ## Patch 154: Send Shopping List to Mealie (replaces Home Assistant push); printing opens the print dialog
 
 **Send Shopping List**
