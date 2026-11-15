@@ -1,5 +1,16 @@
 # Recipe Planner — Changelog
 
+## Patch 158: printing works again on iOS
+
+iOS Safari only opens the print dialog during a fresh tap. **Print All
+Recipes** downloads every recipe before printing, so by then the tap had
+expired and `window.print()` was silently ignored. `printHtml` now checks
+`navigator.userActivation`: if the tap is still fresh it prints immediately
+(as before); if not, it shows a **Ready to print — 🖨️ Print** prompt, and
+tapping it opens the print dialog. Verified with WebKit iPhone emulation.
+
+---
+
 ## Patch 157: adding from Recipe Search / Past Meals no longer wipes the week
 
 ### Bug

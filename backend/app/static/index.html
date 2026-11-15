@@ -165,7 +165,26 @@ const printHtml=html=>{
   const prevTitle=document.title;document.title=doc.title||prevTitle;
   const done=()=>{document.title=prevTitle;window.removeEventListener('afterprint',done);setTimeout(()=>root.remove(),500);};
   window.addEventListener('afterprint',done);
-  setTimeout(()=>window.print(),150);
+  // iOS Safari only opens the print dialog during a fresh tap. Print All Recipes
+  // fetches every recipe first, so by now the tap has expired and window.print()
+  // is silently ignored (Patch 158). In that case show a "Print" prompt — tapping
+  // it is a new user gesture, so the dialog opens.
+  const ua=navigator.userActivation;
+  const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  const tapExpired=ua&&('isActive' in ua)?!ua.isActive:isIOS;
+  if(!tapExpired){setTimeout(()=>window.print(),150);return;}
+  document.getElementById('rp-print-prompt')?.remove();
+  const prompt=document.createElement('div');prompt.id='rp-print-prompt';
+  prompt.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:16px';
+  prompt.innerHTML=`<div style="background:#fff;border-radius:16px;padding:24px;max-width:340px;width:100%;text-align:center;font-family:system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.25)">
+      <div style="font-size:17px;font-weight:600;margin-bottom:6px">Ready to print</div>
+      <div style="font-size:14px;color:#64748b;margin-bottom:18px">${(doc.title||'Your page').replace(/</g,'&lt;')}</div>
+      <button id="rp-print-go" style="width:100%;min-height:48px;font-size:17px;font-weight:600;color:#fff;background:#2563eb;border:none;border-radius:12px;margin-bottom:8px">🖨️ Print</button>
+      <button id="rp-print-cancel" style="width:100%;min-height:44px;font-size:15px;color:#475569;background:#f1f5f9;border:none;border-radius:12px">Cancel</button>
+    </div>`;
+  document.body.appendChild(prompt);
+  prompt.querySelector('#rp-print-go').onclick=()=>{prompt.remove();window.print();};
+  prompt.querySelector('#rp-print-cancel').onclick=()=>{prompt.remove();done();};
 };
 // Drop-in for the old `window.open` print windows: collects what was written,
 // prints it on close().
