@@ -1,5 +1,23 @@
 # Recipe Planner — Changelog
 
+## Patch 157: adding from Recipe Search / Past Meals no longer wipes the week
+
+### Bug
+`POST /meal-plan/history/add` (used by Recipe Search and Past Meals) called
+the Confirm step's save, which deletes the week's selections and un-rated
+meal-plan entries before saving. Adding one recipe therefore replaced the
+whole week with just that recipe (and lost servings overrides).
+
+### Fix
+Shared logic moved to `_save_selections(..., replace)`.
+- Confirm (`POST /selections`) keeps replace semantics.
+- `/history/add` now adds: recipes already planned that week are kept,
+  only new recipes get a selection + meal-plan entry, and re-adding a planned
+  recipe just updates its servings. Mealie import / Mealie meal-plan entries
+  run only for the newly added recipes.
+
+---
+
 ## Patch 156: printed Pantry Check no longer says "on hand"
 
 The printed shopping list's Pantry Check section had a "✓ on hand" column on

@@ -351,6 +351,16 @@ def confirm_selections(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
+    """Confirm step: the week's selections become exactly this list."""
+    return _save_selections(payload, background_tasks, db, replace=True)
+
+
+def _save_selections(
+    payload: schemas.WeeklySelectionCreate,
+    background_tasks: BackgroundTasks,
+    db: Session,
+    replace: bool,
+):
     """
     Locks in the household's chosen recipes for the week.
 
@@ -383,18 +393,35 @@ def confirm_selections(
             detail=f"Recipe IDs not found: {missing}",
         )
 
-    # Clear prior selections for this week
-    db.query(models.WeeklySelection).filter(
-        models.WeeklySelection.household_id == payload.household_id,
-        models.WeeklySelection.week_start_date == payload.week_start_date,
-    ).delete()
+    if replace:
+        # Clear prior selections for this week
+        db.query(models.WeeklySelection).filter(
+            models.WeeklySelection.household_id == payload.household_id,
+            models.WeeklySelection.week_start_date == payload.week_start_date,
+        ).delete()
 
-    # Clear any existing meal plan entries created by a prior selection pass
-    db.query(models.MealPlanEntry).filter(
-        models.MealPlanEntry.household_id == payload.household_id,
-        models.MealPlanEntry.week_start_date == payload.week_start_date,
-        models.MealPlanEntry.rating.is_(None),  # only un-reviewed entries
-    ).delete()
+        # Clear any existing meal plan entries created by a prior selection pass
+        db.query(models.MealPlanEntry).filter(
+            models.MealPlanEntry.household_id == payload.household_id,
+            models.MealPlanEntry.week_start_date == payload.week_start_date,
+            models.MealPlanEntry.rating.is_(None),  # only un-reviewed entries
+        ).delete()
+    else:
+        # Add mode (Recipe Search / Past Meals): keep everything already planned
+        # for this week and only add recipes that aren't in it yet.  A recipe
+        # that's already planned just gets its servings updated.
+        existing = {
+            s.recipe_id: s for s in db.query(models.WeeklySelection).filter(
+                models.WeeklySelection.household_id == payload.household_id,
+                models.WeeklySelection.week_start_date == payload.week_start_date,
+            ).all()
+        }
+        for rid, servings in (payload.servings_overrides or {}).items():
+            if rid in existing and servings:
+                existing[rid].servings_override = servings
+        new_ids = list(dict.fromkeys(r for r in payload.recipe_ids if r not in existing))
+        recipes = [r for r in recipes if r.id in new_ids]
+        payload = payload.model_copy(update={"recipe_ids": new_ids})
 
     db.commit()
 
@@ -981,11 +1008,11 @@ def add_from_history(
     db: Session = Depends(get_db),
 ):
     """
-    Add previously-selected recipes directly to the current week's plan,
-    importing them to Mealie if not already imported.
+    Add recipes (from Recipe Search or Past Meals) to a week's plan WITHOUT
+    removing what's already planned, importing them to Mealie if needed.
     Returns import results in the same shape as confirm-selections.
     """
-    return confirm_selections(payload, background_tasks, db)
+    return _save_selections(payload, background_tasks, db, replace=False)
 
 
 @router.post("/mealie/patch-ingredients")
